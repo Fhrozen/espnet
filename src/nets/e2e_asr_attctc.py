@@ -38,7 +38,7 @@ def _subsamplex(x, n):
 
 # get output dim for latter BLSTM
 def _get_vgg2l_odim(idim, in_channel=3, out_channel=128):
-    idim = idim / in_channel
+    #idim = idim / in_channel
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 1st max pooling
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 2nd max pooling
     idim = np.array(idim, dtype=np.int32)
@@ -134,7 +134,7 @@ class E2E(chainer.Chain):
         with self.init_scope():
             # encoder
             self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                               self.subsample, args.dropout_rate)
+                               self.subsample, args.dropout_rate, args.einputs)
             # ctc
             ctc_type = vars(args).get("ctc_type", "chainer")
             if ctc_type == 'chainer':
@@ -908,9 +908,14 @@ class Encoder(chainer.Chain):
                 logging.info('Use CNN-VGG + BLSTMP for encoder')
             elif etype == 'vggblstm':
                 self.enc1 = VGG2L(in_channel)
-                self.enc2 = BLSTM(_get_vgg2l_odim(
-                    idim, in_channel=in_channel), elayers, eunits, eprojs, dropout)
+                self.enc2 = BLSTM(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
+                                  dropout)
                 logging.info('Use CNN-VGG + BLSTM for encoder')
+            elif etype == 'resblstmp':
+                self.enc1 = RESNET(in_channel)
+                self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
+                                   dropout)
+                logging.info('Use CNN-ResNet + BLSTM for encoder')
             else:
                 logging.error(
                     "Error: need to specify an appropriate encoder archtecture")
@@ -933,6 +938,9 @@ class Encoder(chainer.Chain):
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         elif self.etype == 'vggblstm':
+            xs, ilens = self.enc1(xs, ilens)
+            xs, ilens = self.enc2(xs, ilens)
+        elif self.etype == 'resblstmp':
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         else:
@@ -970,7 +978,6 @@ class BLSTMP(chainer.Chain):
         :return:
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
         for layer in six.moves.range(self.elayers):
             hy, cy, ys = self['bilstm' + str(layer)](None, None, xs)
             # ys: utt list of frame x cdim x 2 (2: means bidirectional)
@@ -1042,6 +1049,113 @@ class VGG2L(chainer.Chain):
         :return:
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+        xs = F.swapaxes(xs, 1, 2)
+        # x: utt x  (input channel num) x frame x dim
+        # xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+
+        xs = F.relu(self.conv1_1(xs))
+        xs = F.relu(self.conv1_2(xs))
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = F.relu(self.conv2_1(xs))
+        xs = F.relu(self.conv2_2(xs))
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        return xs, ilens
+
+
+class BottleneckA(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None):
+        super(BottleneckA, self).__init__()
+        with self.init_scope():
+            self.shortcut = L.Convolution2D(
+                in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
+            self.conv1 = L.Convolution2D(
+                in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2 = L.Convolution2D(
+                mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+
+    def __call__(self, x):
+        res_x = F.relu(self.conv1(x))
+        res_x = self.conv2(res_x)
+        x = self.shortcut(x)
+        return F.relu(x + res_x)
+
+
+class BottleneckB(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, initialW=None):
+        super(BottleneckB, self).__init__()
+        with self.init_scope():
+            self.conv1 = L.Convolution2D(
+                in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2 = L.Convolution2D(
+                mid_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+
+    def __call__(self, x):
+        res_x = F.relu(self.conv1(x))
+        res_x = self.conv2(res_x)
+        return F.relu(x + res_x)
+
+
+class BuildingBlock(chainer.Chain):
+    def __init__(self, n_layer, in_channels, mid_channels,
+                 out_channels, stride, initialW=None):
+        super(BuildingBlock, self).__init__()
+        with self.init_scope():
+            self.a = BottleneckA(
+                in_channels, mid_channels, out_channels, stride, initialW)
+            self._forward = ["a"]
+            for i in range(n_layer - 1):
+                name = 'b{}'.format(i + 1)
+                bottleneck = BottleneckB(out_channels, mid_channels, initialW)
+                setattr(self, name, bottleneck)
+                self._forward.append(name)
+
+    def __call__(self, x):
+        for name in self._forward:
+            layer = getattr(self, name)
+            x = layer(x)
+        return x
+
+    @property
+    def forward(self):
+        return [getattr(self, name) for name in self._forward]
+
+
+class RESNET(chainer.Chain):
+    def __init__(self, in_channel=1):
+        super(RESNET, self).__init__()
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
+            self.resblock1 = BottleneckA(16, 64, 64)
+            self.resblock2 = BottleneckA(64, 128, 128)
+
+        self.in_channel = in_channel
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
         # x: utt x frame x dim
         xs = F.pad_sequence(xs)
@@ -1050,12 +1164,11 @@ class VGG2L(chainer.Chain):
         xs = F.swapaxes(F.reshape(
             xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
 
-        xs = F.relu(self.conv1_1(xs))
-        xs = F.relu(self.conv1_2(xs))
+        xs = self.conv0(xs)
+        xs = self.resblock1(xs)
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
-        xs = F.relu(self.conv2_1(xs))
-        xs = F.relu(self.conv2_2(xs))
+        xs = self.resblock2(xs)
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         # change ilens accordingly

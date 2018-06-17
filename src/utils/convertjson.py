@@ -24,25 +24,68 @@ if __name__ == '__main__':
     old_dic = j['utts']
 
     new_dic = {}
-    for item in old_dic.items():
-        id, dic = item
+    if args.multi == 0:
+        # single input single output
+        for item in old_dic.items():
+            id, dic = item
 
-        in_dic = {}
-        if dic.has_key(unicode('idim', 'utf-8')):
-            in_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('ilen', 'utf-8')]), int(dic[unicode('idim', 'utf-8')]))
-        in_dic[unicode('name', 'utf-8')] = unicode('input1', 'utf-8')
-        in_dic[unicode('feat', 'utf-8')] = dic[unicode('feat', 'utf-8')]
+            in_dic = {}
+            if dic.has_key(unicode('idim', 'utf-8')):
+                in_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('ilen', 'utf-8')]), int(dic[unicode('idim', 'utf-8')]))
+            in_dic[unicode('name', 'utf-8')] = unicode('input1', 'utf-8')
+            in_dic[unicode('feat', 'utf-8')] = dic[unicode('feat', 'utf-8')]
 
-        out_dic = {}
-        out_dic[unicode('name', 'utf-8')] = unicode('target1', 'utf-8')
-        out_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('olen', 'utf-8')]), int(dic[unicode('odim', 'utf-8')]))
-        out_dic[unicode('text', 'utf-8')] = dic[unicode('text', 'utf-8')]
-        out_dic[unicode('token', 'utf-8')] = dic[unicode('token', 'utf-8')]
-        out_dic[unicode('tokenid', 'utf-8')] = dic[unicode('tokenid', 'utf-8')]
+            out_dic = {}
+            out_dic[unicode('name', 'utf-8')] = unicode('target1', 'utf-8')
+            out_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('olen', 'utf-8')]), int(dic[unicode('odim', 'utf-8')]))
+            out_dic[unicode('text', 'utf-8')] = dic[unicode('text', 'utf-8')]
+            out_dic[unicode('token', 'utf-8')] = dic[unicode('token', 'utf-8')]
+            out_dic[unicode('tokenid', 'utf-8')] = dic[unicode('tokenid', 'utf-8')]
 
 
-        new_dic[id] = {unicode('input', 'utf-8'):[in_dic], unicode('output', 'utf-8'):[out_dic],
-            unicode('utt2spk', 'utf-8'):dic[unicode('utt2spk', 'utf-8')]}
-        
+            new_dic[id] = {unicode('input', 'utf-8'):[in_dic], unicode('output', 'utf-8'):[out_dic],
+                unicode('utt2spk', 'utf-8'):dic[unicode('utt2spk', 'utf-8')]}
+    elif args.multi == 1:
+        # multiple input single output
+        items = ['.'.join([item.split('.')[0], '-'.join(item.split('-')[1:])]) for item in old_dic]
+        items = sorted(list(set(items)))
+        items = [x.split('.') for x in items]
+
+        list_inputs = [x.split('.')[1].split('-')[0] for x in old_dic]
+        list_inputs = sorted(list(set(list_inputs)))
+
+        for item in items:
+            uttr, lapse = item
+            in_dics = list()
+
+            for _input in list_inputs:
+                id = '{}.{}-{}'.format(uttr, _input, lapse)
+                dic = old_dic[id]
+                in_dic = {}
+                if dic.has_key(unicode('idim', 'utf-8')):
+                    in_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('ilen', 'utf-8')]), int(dic[unicode('idim', 'utf-8')]))
+                in_dic[unicode('name', 'utf-8')] = _input
+                in_dic[unicode('feat', 'utf-8')] = dic[unicode('feat', 'utf-8')]
+                in_dics.append(in_dic)
+
+            # using last dic
+            out_dic = {}
+            out_dic[unicode('name', 'utf-8')] = unicode('target1', 'utf-8')
+            out_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('olen', 'utf-8')]), int(dic[unicode('odim', 'utf-8')]))
+            out_dic[unicode('text', 'utf-8')] = dic[unicode('text', 'utf-8')]
+            out_dic[unicode('token', 'utf-8')] = dic[unicode('token', 'utf-8')]
+            out_dic[unicode('tokenid', 'utf-8')] = dic[unicode('tokenid', 'utf-8')]
+
+            id = '{}.{}'.format(uttr, lapse)
+            new_dic[id] = {unicode('input', 'utf-8'):in_dics, unicode('output', 'utf-8'):[out_dic],
+                unicode('utt2spk', 'utf-8'):dic[unicode('utt2spk', 'utf-8')]}    
+    elif args.multi == 2:
+        # single input multiple output
+        raise ValueError('WIP')  
+    elif args.multi == 3:
+        # multiple input multiple output
+        raise ValueError('WIP')
+    else:
+        raise ValueError('Wrong preparation index')
     jsonstring = json.dumps({'utts': new_dic}, indent=4, ensure_ascii=False).encode('utf_8')
     print(jsonstring)

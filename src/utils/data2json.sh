@@ -11,6 +11,7 @@ feat="" # feat.scp
 oov="<unk>"
 bpecode=""
 verbose=0
+multi=0
 
 . utils/parse_options.sh
 
@@ -63,6 +64,6 @@ for x in ${dir}/text ${dir}/utt2spk ${tmpdir}/*.scp; do
     cat ${x} | scp2json.py --key ${k} > ${tmpdir}/${k}.json
 done
 mergejson.py --verbose ${verbose} ${tmpdir}/*.json > ${tmpdir}/merged.json
-convertjson.py ${tmpdir}/merged.json
+convertjson.py --multi ${multi} ${tmpdir}/merged.json
 
 rm -fr ${tmpdir}
