@@ -914,7 +914,7 @@ class Encoder(chainer.Chain):
             elif etype == 'resblstmp':
                 self.enc1 = RESNET(in_channel)
                 self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
-                                   dropout)
+                                   subsample, dropout)
                 logging.info('Use CNN-ResNet + BLSTM for encoder')
             else:
                 logging.error(
@@ -1161,8 +1161,9 @@ class RESNET(chainer.Chain):
         xs = F.pad_sequence(xs)
 
         # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(F.reshape(
-            xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        xs = F.swapaxes(xs, 1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
 
         xs = self.conv0(xs)
         xs = self.resblock1(xs)
