@@ -101,7 +101,7 @@ if __name__ == '__main__':
             out_dic[unicode('token', 'utf-8')] = dic[unicode('token', 'utf-8')]
             out_dic[unicode('tokenid', 'utf-8')] = dic[unicode('tokenid', 'utf-8')]
 
-            id = '{}.{}'.format(uttr, lapse)
+            id = '{}.{}CHs-{}'.format(uttr, len(list_inputs), lapse)
             new_dic[id] = {unicode('input', 'utf-8'):in_dics, unicode('output', 'utf-8'):[out_dic],
                 unicode('utt2spk', 'utf-8'):dic[unicode('utt2spk', 'utf-8')]}    
     elif args.multi == 2:

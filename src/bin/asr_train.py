@@ -61,8 +61,10 @@ def main():
                         help='Type of encoder network architecture')
     parser.add_argument('--elayers', default=4, type=int,
                         help='Number of encoder layers')
-    parser.add_argument('--einputs', default=1, type=int,
+    parser.add_argument('--einputs', default=1, type=int, nargs='+',
                         help='Number of inputs for the encoder')
+    parser.add_argument('--minput', default=None, type=str,
+                        help='Mode of input processing')
     parser.add_argument('--eintype', default=None, type=str,
                         help='Input of encoder configuration')
     parser.add_argument('--eunits', '-u', default=300, type=int,

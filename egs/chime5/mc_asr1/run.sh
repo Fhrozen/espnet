@@ -23,6 +23,7 @@ do_delta=false # true when using CNN
 # network archtecture
 # encoder related
 einputs=4
+emode=regular
 etype=vggblstmp     # encoder architecture type
 elayers=6
 eunits=320
@@ -65,6 +66,7 @@ recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.
 
 # data
 datasize=100 # in K
+worn_size=25 # in K
 chime5_corpus=${CHIME5_CORPUS}
 json_dir=${chime5_corpus}/transcriptions
 audio_dir=${chime5_corpus}/audio
@@ -94,7 +96,7 @@ set -e
 set -u
 set -o pipefail
 
-train_set=train_u${datasize}k
+train_set=train_worn_u${datasize}k
 devsize=10 # in k
 train_dev=dev_u${devsize}k_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
@@ -126,8 +128,6 @@ if [ ${stage} -le 0 ]; then
         utils/fix_data_dir.sh data/train_u${datasize}k_per_ch/CH${CH}
     done
     utils/combine_data.sh data/train_u${datasize}k data/train_u${datasize}k_per_ch/CH1 data/train_u${datasize}k_per_ch/CH2 data/train_u${datasize}k_per_ch/CH3 data/train_u${datasize}k_per_ch/CH4
-    
-    worn_size=25 # in K
 
     # use ch L to split
     utils/copy_data_dir.sh data/train_worn data/train_worn_multich/L
@@ -142,6 +142,8 @@ if [ ${stage} -le 0 ]; then
     done
     utils/combine_data.sh data/train_worn_u${worn_size}k data/train_worn_u${worn_size}k_per_ch/L data/train_worn_u${worn_size}k_per_ch/R   
     utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
+
+    utils/combine_data.sh train_worn_u${datasize}k data/train_worn_u${worn_size}k data/train_u${datasize}k 
 
     for dset in dev; do
 	for mictype in u01 u02 u04 u03 u06; do
@@ -171,6 +173,8 @@ if [ ${stage} -le 0 ]; then
 	done
     done
     utils/combine_data.sh data/dev_wpe_ref data/dev_wpe_u01 data/dev_wpe_u02 data/dev_wpe_u04 data/dev_wpe_u03 data/dev_wpe_u06
+
+    
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -234,10 +238,24 @@ if [ ${stage} -le 2 ]; then
     done
 
     echo "make json files"
-    data2json.sh --multi 1 --feat ${feat_tr_dir}/feats.scp --nlsyms ${nlsyms} \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+    if [ "${emode}" == "regular" ]; then
+        data2json.sh --multi 1 --feat data/train_u${datasize}k/feats.scp --nlsyms ${nlsyms} \
+            data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+    else
+        data2json.sh --multi 1 --feat data/train_u${datasize}k/feats.scp --nlsyms ${nlsyms} \
+            data/${train_set} ${dict} > ${feat_tr_dir}/data.1.json
+        data2json.sh --multi 1 --feat data/train_worn_u${worn_size}k/feats.scp --nlsyms ${nlsyms} \
+            data/${train_set} ${dict} > ${feat_tr_dir}/data.2.json
+        joinjson.py data.1.json data.2.json > ${feat_tr_dir}/data.json
+    fi
     data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
+    
+    for rtask in ${recog_set}; do
+        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+        data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
+            --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
+    done
 fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
@@ -270,7 +288,7 @@ if [ ${stage} -le 3 ]; then
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${etype}_e${elayers}_subsample${subsample}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${etype}_e${elayers}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -300,6 +318,7 @@ if [ ${stage} -le 4 ]; then
         --valid-json ${feat_dt_dir}/data.json \
         --etype ${etype} \
         --einputs ${einputs} \
+        --minput ${emode} \
         --elayers ${elayers} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
@@ -321,7 +340,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=1
+    nj=16
 
     for rtask in ${recog_set}; do
     (
@@ -329,15 +348,7 @@ if [ ${stage} -le 5 ]; then
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
         # split data
-        data=data/${rtask}
-        #split_data.sh --per-utt ${data} ${nj};
-        sdata=${data}/split${nj}utt;
-
-        # make json labels for recognition
-        #for j in `seq 1 ${nj}`; do
-        #    data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp --nlsyms ${nlsyms} \
-        #        ${sdata}/${j} ${dict} > ${sdata}/${j}/data.json
-        #done
+        splitjson.py --parts ${nj} ${feat_recog_dir}/data.json 
 
         #### use CPU for decoding
         ngpu=0
@@ -346,7 +357,7 @@ if [ ${stage} -le 5 ]; then
             asr_recog.py \
             --ngpu ${ngpu} \
             --backend ${backend} \
-            --recog-json ${sdata}/JOB/data.json \
+            --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
             --result-label ${expdir}/${decode_dir}/data.JOB.json \
             --model ${expdir}/results/model.${recog_model}  \
             --model-conf ${expdir}/results/model.conf  \

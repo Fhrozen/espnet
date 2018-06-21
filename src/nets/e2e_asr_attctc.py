@@ -134,7 +134,7 @@ class E2E(chainer.Chain):
         with self.init_scope():
             # encoder
             self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                               self.subsample, args.dropout_rate, args.einputs)
+                               self.subsample, args.dropout_rate, args.einputs, args.minput)
             # ctc
             ctc_type = vars(args).get("ctc_type", "chainer")
             if ctc_type == 'chainer':
@@ -891,7 +891,7 @@ class Encoder(chainer.Chain):
 
     '''
 
-    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1):
+    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None):
         super(Encoder, self).__init__()
         with self.init_scope():
             if etype == 'blstm':
@@ -902,8 +902,8 @@ class Encoder(chainer.Chain):
                                    eprojs, subsample, dropout)
                 logging.info('BLSTM with every-layer projection for encoder')
             elif etype == 'vggblstmp':
-                self.enc1 = VGG2L(in_channel)
-                self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
+                self.enc1 = VGG2L(in_channel, mode=mode)
+                self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
                                    subsample, dropout)
                 logging.info('Use CNN-VGG + BLSTMP for encoder')
             elif etype == 'vggblstm':
@@ -912,8 +912,8 @@ class Encoder(chainer.Chain):
                                   dropout)
                 logging.info('Use CNN-VGG + BLSTM for encoder')
             elif etype == 'resblstmp':
-                self.enc1 = RESNET(in_channel)
-                self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
+                self.enc1 = RESNET(in_channel, mode=mode)
+                self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
                                    subsample, dropout)
                 logging.info('Use CNN-ResNet + BLSTM for encoder')
             else:
@@ -1030,16 +1030,48 @@ class BLSTM(chainer.Chain):
 
 # TODO(watanabe) explanation of VGG2L, VGG2B (Block) might be better
 class VGG2L(chainer.Chain):
-    def __init__(self, in_channel=1):
+    def __init__(self, in_channel=1, mode=None):
         super(VGG2L, self).__init__()
         with self.init_scope():
             # CNN layer (VGG motivated)
-            self.conv1_1 = L.Convolution2D(in_channel, 64, 3, stride=1, pad=1)
-            self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-            self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-            self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-
+            if mode == 'regular':
+                in_channel = in_channel[0]
+                self.conv1_1 = L.Convolution2D(in_channel, 64, 3, stride=1, pad=1)
+                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+            elif mode == 'parallel':
+                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
+                self.conv1_2_1 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2_1 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
+                self.conv1_2_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1_2 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+            elif mode == 'middle':
+                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
+                self.conv1_2_1 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
+                self.conv1_2_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+            elif mode == 'entry':
+                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
+                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
+                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+            elif mode == 'recursive':
+                self.conv1_1 = L.Convolution2D(1, 64, 3, stride=1, pad=1)
+                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
+                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+                in_channel = 1
+            else:
+                raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
+        self.mode = mdoe
 
     def __call__(self, xs, ilens):
         '''VGG2L forward
@@ -1055,15 +1087,76 @@ class VGG2L(chainer.Chain):
         # x: utt x  (input channel num) x frame x dim
         # xs = F.swapaxes(F.reshape(
         #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode == 'regular':
+            xs = F.relu(self.conv1_1(xs))
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
 
-        xs = F.relu(self.conv1_1(xs))
-        xs = F.relu(self.conv1_2(xs))
-        xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = F.relu(self.conv1_1_1(xs))
+                xs = F.relu(self.conv1_2_1(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
 
-        xs = F.relu(self.conv2_1(xs))
-        xs = F.relu(self.conv2_2(xs))
-        xs = F.max_pooling_2d(xs, 2, stride=2)
+                xs = F.relu(self.conv2_1_1(xs))
+                xs = F.relu(self.conv2_2_1(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+            elif ch == self.in_channel[1]:
+                xs = F.relu(self.conv1_1_2(xs))
+                xs = F.relu(self.conv1_2_2(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
 
+                xs = F.relu(self.conv2_1_2(xs))
+                xs = F.relu(self.conv2_2_2(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'middle':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = F.relu(self.conv1_1_1(xs))
+                xs = F.relu(self.conv1_2_1(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            elif ch == self.in_channel[1]:
+                xs = F.relu(self.conv1_1_2(xs))
+                xs = F.relu(self.conv1_2_2(xs))
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'entry':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = F.relu(self.conv1_1_1(xs))
+
+            elif ch == self.in_channel[1]:
+                xs = F.relu(self.conv1_1_2(xs))
+
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif mode == 'recursive':
+            ch = xs.shape[1]
+            for i in range(ch):
+                if i == 0:
+                    _xs = F.relu(self.conv1_1(xs[:,i:i+1]))
+                else:
+                    _xs = np.concat((_xs, F.relu(self.conv1_1(xs[:,i:i+1]))), , axis=1)
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
+            xs = F.swapaxes(xs, 1, 2)
+
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
@@ -1138,15 +1231,42 @@ class BuildingBlock(chainer.Chain):
 
 
 class RESNET(chainer.Chain):
-    def __init__(self, in_channel=1):
+    def __init__(self, in_channel=1, mode=None):
         super(RESNET, self).__init__()
         with self.init_scope():
             # CNN layer (RESNET motivated)
-            self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
-            self.resblock1 = BottleneckA(16, 64, 64)
-            self.resblock2 = BottleneckA(64, 128, 128)
-
+            if mode is None:
+                in_channel = in_channel[0]
+                self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+            elif mode == 'parallel':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.resblock1_1 = BottleneckA(16, 64, 64)
+                self.resblock2_1 = BottleneckA(64, 128, 128)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+                self.resblock1_2 = BottleneckA(16, 64, 64)
+                self.resblock2_2 = BottleneckA(64, 128, 128)
+            elif mode == 'middle':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.resblock1_1 = BottleneckA(16, 64, 64)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+                self.resblock1_2 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+            elif mode == 'entry':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+            elif mode == 'recursive':
+                self.conv0 = L.Convolution2D(1, 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+                in_channel = 1
+            else:
+                raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
+        self.mode = mdoe
 
     def __call__(self, xs, ilens):
         '''RESNET forward
@@ -1164,13 +1284,13 @@ class RESNET(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         #xs = F.swapaxes(F.reshape(
         #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode is None:
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
 
-        xs = self.conv0(xs)
-        xs = self.resblock1(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
-
-        xs = self.resblock2(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
 
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(

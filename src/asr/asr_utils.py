@@ -24,7 +24,9 @@ matplotlib.use('Agg')
 # * -------------------- training iterator related -------------------- *
 def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0):
     # sort it by input lengths (long to short)
-    sorted_data = sorted(data.items(), key=lambda data: int(
+    
+    sorted_data = sorted(data.items(), key=lambda data: len(
+        data[1]['input']), key=lambda data: int(
         data[1]['input'][0]['shape'][0]), reverse=True)
     logging.info('# utts: ' + str(len(sorted_data)))
     # change batchsize depending on the input and output length
@@ -39,6 +41,11 @@ def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0
         # and max(1, .) avoids batchsize = 0
         b = max(1, int(batch_size / (1 + factor)))
         end = min(len(sorted_data), start + b)
+        while True:
+            if len(sorted_data[start][1]['input']) == len(sorted_data[end][1]['input']):
+                break
+            else:
+                end = end - 1
         minibatch.append(sorted_data[start:end])
         if end == len(sorted_data):
             break
