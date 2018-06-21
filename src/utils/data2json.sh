@@ -63,6 +63,6 @@ for x in ${dir}/text ${dir}/utt2spk ${tmpdir}/*.scp; do
     k=`basename ${x} .scp`
     cat ${x} | scp2json.py --key ${k} > ${tmpdir}/${k}.json
 done
-mergejson.py --verbose ${verbose} ${tmpdir}/*.json
+mergejson.py --multi ${multi} --verbose ${verbose} ${tmpdir}/*.json
 
 rm -fr ${tmpdir}
