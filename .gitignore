@@ -15,6 +15,7 @@ egs/*/*/exp
 egs/*/*/fbank
 egs/*/*/stft
 egs/*/*/enhan
+egs/*/*/in_run*
 egs/*/*/wav*
 
 # tools related
