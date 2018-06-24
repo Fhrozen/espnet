@@ -1070,7 +1070,7 @@ class VGG2L(chainer.Chain):
             else:
                 raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
-        self.mode = mdoe
+        self.mode = mode
 
     def __call__(self, xs, ilens):
         '''VGG2L forward
@@ -1140,14 +1140,14 @@ class VGG2L(chainer.Chain):
             xs = F.relu(self.conv2_1(xs))
             xs = F.relu(self.conv2_2(xs))
             xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif mode == 'recursive':
+        elif self.mode == 'recursive':
             ch = xs.shape[1]
             for i in range(ch):
                 if i == 0:
                     _xs = F.relu(self.conv1_1(xs[:,i:i+1]))
                 else:
-                    _xs = np.concat((_xs, F.relu(self.conv1_1(xs[:,i:i+1]))), , axis=1)
-            xs = F.swapaxes(xs, 1, 2)
+                    _xs = np.concat((_xs, F.relu(self.conv1_1(xs[:,i:i+1]))), axis=1)
+            xs = F.swapaxes(_xs, 1, 2)
             xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
             xs = F.swapaxes(xs, 1, 2)
 
@@ -1265,7 +1265,7 @@ class RESNET(chainer.Chain):
             else:
                 raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
-        self.mode = mdoe
+        self.mode = mode
 
     def __call__(self, xs, ilens):
         '''RESNET forward
@@ -1283,14 +1283,72 @@ class RESNET(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         #xs = F.swapaxes(F.reshape(
         #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
-        if self.mode is None:
+        if self.mode == 'regular':
             xs = self.conv0(xs)
             xs = self.resblock1(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
 
             xs = self.resblock2(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+                xs = self.resblock1_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
 
+                xs = self.resblock2_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+            elif ch == self.in_channel[1]:
+                xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'middle':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+                xs = self.resblock1_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            elif ch == self.in_channel[1]:
+                xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'entry':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+
+            elif ch == self.in_channel[1]:
+                xs = self.conv0_2(xs)
+
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'recursive':
+            ch = xs.shape[1]
+            for i in range(ch):
+                if i == 0:
+                    _xs = self.conv0(xs[:,i:i+1])
+                else:
+                    _xs = np.concat((_xs, self.conv0(xs[:,i:i+1])), axis=1)
+            xs = F.swapaxes(_xs, 1, 2)
+            xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
+            xs = F.swapaxes(xs, 1, 2)
+
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)

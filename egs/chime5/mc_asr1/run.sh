@@ -143,8 +143,6 @@ if [ ${stage} -le 0 ]; then
     utils/combine_data.sh data/train_worn_u${worn_size}k data/train_worn_u${worn_size}k_per_ch/L data/train_worn_u${worn_size}k_per_ch/R   
     utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
 
-    utils/combine_data.sh train_worn_u${datasize}k data/train_worn_u${worn_size}k data/train_u${datasize}k 
-
     for dset in dev; do
 	for mictype in u01 u02 u04 u03 u06; do
 	    local/prepare_data.sh --mictype ${mictype} \
@@ -185,10 +183,11 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in ${train_set} ${train_dev} ${recog_set}; do
+    for x in train_worn_u${worn_size}k train_u${datasize}k ${train_dev} ${recog_set}; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done
+    utils/combine_data.sh data/train_worn_u${datasize}k data/train_worn_u${worn_size}k data/train_u${datasize}k 
     # compute global CMVN
     compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 fi
