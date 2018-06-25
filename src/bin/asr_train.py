@@ -57,13 +57,13 @@ def main():
     # network archtecture
     # encoder
     parser.add_argument('--etype', default='blstmp', type=str,
-                        choices=['blstm', 'blstmp', 'vggblstmp', 'vggblstm', 'resblstmp'],
+                        choices=['blstm', 'blstmp', 'vggblstmp', 'vggblstm', 'resblstmp', 'capsnet'],
                         help='Type of encoder network architecture')
     parser.add_argument('--elayers', default=4, type=int,
                         help='Number of encoder layers')
     parser.add_argument('--einputs', default=1, type=int, nargs='+',
                         help='Number of inputs for the encoder')
-    parser.add_argument('--minput', default=None, type=str,
+    parser.add_argument('--minput', default='regular', type=str,
                         help='Mode of input processing')
     parser.add_argument('--eintype', default=None, type=str,
                         help='Input of encoder configuration')
