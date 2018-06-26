@@ -916,7 +916,7 @@ class Encoder(chainer.Chain):
                                    subsample, dropout)
                 logging.info('Use CNN-ResNet + BLSTM for encoder')
             elif etype == 'capsnet':
-                self.enc1 = CAPSNET(in_channel)
+                self.enc1 = CAPSNET(in_channel, mode=mode)
                 logging.info('Use CapsNet for encoder')
             else:
                 logging.error(
@@ -1383,26 +1383,30 @@ def squash(ss):
 
 
 class CAPSNET(chainer.Chain):
-    def __init__(self, in_channel=1, idim=10):
+    def __init__(self, in_channel=1, idim=10, mode='regular'):
         super(CAPSNET, self).__init__()
         self.n_iterations = 3  # dynamic routing
         self.n_grids = 6  # grid width of primary capsules layer
         self.n_raw_grids = self.n_grids
         self.out_channels = 32
-        #idim = int(np.ceil(np.ceil(idim / 2) / 2))
         if type(in_channel) == int:
             in_channel = [in_channel]
+        if mode == 'regular':
+            stride = 2
+        elif mode == 'sentence':
+            stride = (2, 3)
         with self.init_scope():
             # CNN layer (CAPSNET motivated)
-            self.conv1 = L.Convolution2D(in_channel[0], 256, 3, stride=2, pad=1)
+            self.conv1 = L.Convolution2D(in_channel[0], 256, 3, stride=stride, pad=1)
             # Capsule of 32D x 8W
-            self.conv2 = L.Convolution2D(256, 32 * 8, 3, stride=2, pad=1)
+            self.conv2 = L.Convolution2D(256, 32 * 8, 3, stride=stride, pad=1)
             self.Ws = chainer.ChainList(
                 *[L.Convolution2D(8, idim * self.out_channels, ksize=1,
                                   stride=1) for i in six.moves.range(32)])
 
         self.in_channel = in_channel[0]
         self.idim = idim
+        self.mode = mode
 
     def __call__(self, xs, ilens):
         '''CAPSNET forward
@@ -1424,8 +1428,8 @@ class CAPSNET(chainer.Chain):
         xs = F.leaky_relu(self.conv1(xs), 0.5)
         xs = self.conv2(xs)
         n_frames = xs.shape[2]
-        mode = 'regular'
-        if mode == 'regular':
+
+        if self.mode == 'regular':
             frames = F.split_axis(xs, n_frames, axis=2)
             
             gg = xs.shape[3]
@@ -1460,6 +1464,34 @@ class CAPSNET(chainer.Chain):
                 new_frames.append(xs)
 
             xs = F.stack(new_frames, axis=1)
+
+        elif self.mode == 'sentence':
+            gg = xs.shape[3]
+            pr_caps = F.split_axis(xs, 32, axis=1)
+
+            Preds = list()
+            for i in six.moves.range(32):
+                pred = F.tanh(self.Ws[i](pr_caps[i])) # F.elu()
+                Pred = pred.reshape((batchsize, n_frames, self.out_channels * self.idim, gg))
+                Preds.append(Pred)
+            Preds = F.stack(Preds, axis=3)
+            assert(Preds.shape == (batchsize, n_frames, self.out_channels * self.idim, 32, gg))
+
+            bs = self.xp.zeros((batchsize, self.out_channels * self.idim, 32, gg), dtype='f')
+            for i_iter in six.moves.range(n_iters):
+                cs = F.softmax(bs, axis=1)
+                Cs = F.broadcast_to(cs[:, None], Preds.shape)
+                assert(Cs.shape == (batchsize, n_frames, self.out_channels * self.idim, 32, gg))
+                ss = F.sum(Cs * Preds, axis=(3, 4))
+                xs = squash(ss)
+                assert(xs.shape == (batchsize, n_frames, self.out_channels * self.idim))
+                if i_iter != n_iters - 1:
+                    Xs = F.broadcast_to(xs[:, :, :, None, None], Preds.shape)
+                    assert(Xs.shape == (batchsize, n_frames, self.out_channels * self.idim, 32, gg))
+                    bs = bs + F.sum(Xs * Preds, axis=1)
+                    assert(bs.shape == (batchsize, self.out_channels * self.idim, 32, gg))
+        else:
+            raise ValueError('Type of mode not implemented')
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
