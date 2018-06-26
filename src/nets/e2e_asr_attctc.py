@@ -1390,6 +1390,8 @@ class CAPSNET(chainer.Chain):
         self.n_raw_grids = self.n_grids
         self.out_channels = 32
         #idim = int(np.ceil(np.ceil(idim / 2) / 2))
+        if type(in_channel) == int:
+            in_channel = [in_channel]
         with self.init_scope():
             # CNN layer (CAPSNET motivated)
             self.conv1 = L.Convolution2D(in_channel[0], 256, 3, stride=2, pad=1)
