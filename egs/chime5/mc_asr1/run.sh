@@ -64,8 +64,6 @@ minlenratio=0.0
 ctc_weight=0.1
 recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
-do3=true
-
 # data
 datasize=100 # in K
 worn_size=25 # in K
@@ -227,8 +225,12 @@ if [ ${stage} -le 2 ]; then
         /export/b{14,15,16,17}/${USER}/espnet-data/egs/chime5/asr1/dump/${train_dev}/delta${do_delta}/storage \
         ${feat_dt_dir}/storage
     fi
-    dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
-        data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+    for rtask in train_worn_u${worn_size}k train_u${datasize}k; do
+        feat_tr=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_tr}
+        dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
+            data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_tr}
+    done
+
     dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
         data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
 
@@ -239,16 +241,11 @@ if [ ${stage} -le 2 ]; then
     done
 
     echo "make json files"
-    if [ "${emode}" == "regular" ]; then
-        data2json.sh --multi 1 --feat data/train_u${datasize}k/feats.scp --nlsyms ${nlsyms} \
-            data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    else
-        data2json.sh --multi 1 --feat data/train_u${datasize}k/feats.scp --nlsyms ${nlsyms} \
-            data/${train_set} ${dict} > ${feat_tr_dir}/data.1.json
-        data2json.sh --multi 1 --feat data/train_worn_u${worn_size}k/feats.scp --nlsyms ${nlsyms} \
-            data/${train_set} ${dict} > ${feat_tr_dir}/data.2.json
-        joinjson.py ${feat_tr_dir}/data.1.json ${feat_tr_dir}/data.2.json > ${feat_tr_dir}/data.json
-    fi
+    for rtask in train_worn_u${worn_size}k train_u${datasize}k; do
+        feat_tr=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_tr}
+        data2json.sh --multi 1 --feat ${feat_tr}/feats.scp --nlsyms ${nlsyms} \
+            data/${rtask} ${dict} > ${feat_tr}/data.json
+    done
     data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     
@@ -258,12 +255,12 @@ if [ ${stage} -le 2 ]; then
             --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
-
+exit 0
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
 lmexpdir=exp/train_rnnlm_2layer_bs256
 mkdir -p ${lmexpdir}
-if [ ${stage} -le 3 ] && [ "${do3}" == "true" ]; then
+if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
     lmdatadir=data/local/lm_train
     mkdir -p ${lmdatadir}
@@ -302,6 +299,11 @@ fi
 mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ]; then
+    if [ "${emode}" == "regular" ]; then
+        cp ${dumpdir}/train_u${datasize}k/delta${do_delta}/data.json ${feat_tr_dir}/data.json
+    else
+        joinjson.py ${dumpdir}/train_worn_u${worn_size}k/delta${do_delta}/data.json ${dumpdir}/train_u${datasize}k/delta${do_delta}/data.json > ${feat_tr_dir}/data.json
+    fi
     echo "stage 4: Network Training"
 
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
