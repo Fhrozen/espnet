@@ -64,6 +64,8 @@ minlenratio=0.0
 ctc_weight=0.1
 recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
+do3=true
+
 # data
 datasize=100 # in K
 worn_size=25 # in K
@@ -245,7 +247,7 @@ if [ ${stage} -le 2 ]; then
             data/${train_set} ${dict} > ${feat_tr_dir}/data.1.json
         data2json.sh --multi 1 --feat data/train_worn_u${worn_size}k/feats.scp --nlsyms ${nlsyms} \
             data/${train_set} ${dict} > ${feat_tr_dir}/data.2.json
-        joinjson.py data.1.json data.2.json > ${feat_tr_dir}/data.json
+        joinjson.py ${feat_tr_dir}/data.1.json ${feat_tr_dir}/data.2.json > ${feat_tr_dir}/data.json
     fi
     data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
@@ -261,7 +263,7 @@ fi
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
 lmexpdir=exp/train_rnnlm_2layer_bs256
 mkdir -p ${lmexpdir}
-if [ ${stage} -le 3 ]; then
+if [ ${stage} -le 3 ] && [ "${do3}" == "true" ]; then
     echo "stage 3: LM Preparation"
     lmdatadir=data/local/lm_train
     mkdir -p ${lmdatadir}
