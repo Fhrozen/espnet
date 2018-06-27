@@ -29,8 +29,9 @@ if __name__ == '__main__':
             level=logging.WARN, format="%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s")
 
     new_dic = dict()
-    for json in args.jsons:
-        j = json.load(open(args.json))
+    for x in args.jsons:
+        with open(x, 'r') as f:
+            j = json.load(f)
         for item in j['utts'].items():
             id, dic = item
             new_dic[id] = dic
