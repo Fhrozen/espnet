@@ -79,13 +79,16 @@ elif [ $mictype == "ref" ]; then
   # fixed reference array
 
   # first get a text, which will be used to extract reference arrays
-  perl -ne 's/-/.ENH-/;print;' $dir/text.orig | sort > $dir/text
+  perl -ne '$l=$_;
+    for($i=1; $i<=4; $i++) {
+      ($x=$l)=~ s/-/.CH\Q$i\E-/;
+      print $x;}' $dir/text.orig | sort > $dir/text
 
   find $adir | grep "\.wav" | sort > $dir/wav.flist
   # following command provide the argument for grep to extract only reference arrays
-  grep `cut -f 1 -d"-" $dir/text | awk -F"_" '{print $2 "_" $3}' | sed -e "s/\.ENH//" | sort | uniq | sed -e "s/^/ -e /" | tr "\n" " "` $dir/wav.flist > $dir/wav.flist2
+  grep `cut -f 1 -d"-" $dir/text | awk -F"_" '{print $2 "_" $3}' | sed -e "s/\.CH//" | sort | uniq | sed -e "s/^/ -e /" | tr "\n" " "` $dir/wav.flist > $dir/wav.flist2
   paste -d" " \
-	<(awk -F "/" '{print $NF}' $dir/wav.flist2 | sed -e "s/\.wav/.ENH/") \
+	<(awk -F "/" '{print $NF}' $dir/wav.flist2 | sed -e "s/\.wav//") \
 	$dir/wav.flist2 | sort > $dir/wav.scp
 else
   # array mic case

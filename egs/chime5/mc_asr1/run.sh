@@ -98,7 +98,7 @@ set -o pipefail
 
 train_set=train_worn_u${datasize}k
 devsize=10 # in k
-train_dev=dev_u${devsize}k_ref
+train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
 recog_set="dev_ref dev_wpe_ref"  
@@ -143,36 +143,11 @@ if [ ${stage} -le 0 ]; then
     utils/combine_data.sh data/train_worn_u${worn_size}k data/train_worn_u${worn_size}k_per_ch/L data/train_worn_u${worn_size}k_per_ch/R   
     utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
 
-    for dset in dev; do
-	for mictype in u01 u02 u04 u03 u06; do
-	    local/prepare_data.sh --mictype ${mictype} \
-				  ${audio_dir}/${dset} ${json_dir}/${dset} \
-				  data/${dset}_${mictype}
-	done
-    done
-    utils/combine_data.sh data/dev_ref data/dev_u01 data/dev_u02 data/dev_u04 data/dev_u03 data/dev_u06
-    utils/copy_data_dir.sh data/dev_ref data/dev_ref_multich/CH1
-    grep "\.CH1-" data/dev_ref/text > data/dev_ref_multich/CH1/text
-    utils/fix_data_dir.sh data/dev_ref_multich/CH1
-    utils/subset_data_dir.sh data/dev_ref_multich/CH1 $((${devsize} * 1000)) data/dev_u${devsize}k_ref_per_ch/CH1
-    rm -rf data/dev_ref_multich
-    for CH in 2 3 4; do
-        utils/copy_data_dir.sh data/dev_ref data/dev_u${devsize}k_ref_per_ch/CH${CH}
-        sed -e "s/.CH1-/.CH${CH}-/g" data/dev_u${devsize}k_ref_per_ch/CH1/text > data/dev_u${devsize}k_ref_per_ch/CH${CH}/text
-        utils/fix_data_dir.sh data/dev_u${devsize}k_ref_per_ch/CH${CH}
-    done
-    utils/combine_data.sh data/dev_u${devsize}k_ref data/dev_u${devsize}k_ref_per_ch/CH1 data/dev_u${devsize}k_ref_per_ch/CH2 data/dev_u${devsize}k_ref_per_ch/CH3 data/dev_u${devsize}k_ref_per_ch/CH4
-
-    for dset in dev_wpe; do
-	for mictype in u01 u02 u04 u03 u06; do
-	    local/prepare_data.sh --mictype ${mictype} \
+    for dset in dev dev_wpe; do
+	    local/prepare_data.sh --mictype ref \
 				  ${audio_dir}/${dset} ${json_dir}/dev \
-				  data/${dset}_${mictype}
-	done
+				  data/${dset}_ref
     done
-    utils/combine_data.sh data/dev_wpe_ref data/dev_wpe_u01 data/dev_wpe_u02 data/dev_wpe_u04 data/dev_wpe_u03 data/dev_wpe_u06
-
-    
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -183,7 +158,7 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in train_worn_u${worn_size}k train_u${datasize}k ${train_dev} ${recog_set}; do
+    for x in train_worn_u${worn_size}k train_u${datasize}k ${recog_set}; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done
@@ -246,8 +221,6 @@ if [ ${stage} -le 2 ]; then
         data2json.sh --multi 1 --feat ${feat_tr}/feats.scp --nlsyms ${nlsyms} \
             data/${rtask} ${dict} > ${feat_tr}/data.json
     done
-    data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
-         data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
