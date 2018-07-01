@@ -1036,6 +1036,8 @@ class BLSTM(chainer.Chain):
 class VGG2L(chainer.Chain):
     def __init__(self, in_channel=1, mode=None):
         super(VGG2L, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
         with self.init_scope():
             # CNN layer (VGG motivated)
             if mode == 'regular':
@@ -1237,6 +1239,8 @@ class BuildingBlock(chainer.Chain):
 class RESNET(chainer.Chain):
     def __init__(self, in_channel=1, mode=None):
         super(RESNET, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
         with self.init_scope():
             # CNN layer (RESNET motivated)
             if mode == 'regular':
