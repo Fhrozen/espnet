@@ -97,11 +97,10 @@ set -u
 set -o pipefail
 
 train_set=train_worn_u${datasize}k
-devsize=10 # in k
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_ref dev_wpe_ref"  
+recog_set="dev_worn dev_ref dev_wpe_ref"  
 
 if [ ${stage} -le 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -147,6 +146,14 @@ if [ ${stage} -le 0 ]; then
 	    local/prepare_data.sh --mictype ref \
 				  ${audio_dir}/${dset} ${json_dir}/dev \
 				  data/${dset}_ref
+    done
+
+    for dset in dev; do
+    for mictype in worn; do
+	    local/prepare_data.sh --mictype ${mictype} \
+				  ${audio_dir}/${dset} ${json_dir}/${dset} \
+				  data/${dset}_${mictype}
+    done
     done
 fi
 
