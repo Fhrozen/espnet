@@ -920,6 +920,8 @@ class Encoder(chainer.Chain):
                 logging.info('Use CapsNet for encoder')
             elif etype == 'reslocv1':
                 self.enc1 = ResLocV1(in_channel, mode=mode)
+                self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
+                                   subsample, dropout)
                 logging.info('Use CapsNet for encoder')
             else:
                 logging.error(
@@ -950,6 +952,9 @@ class Encoder(chainer.Chain):
             xs, ilens = self.enc2(xs, ilens)
         elif self.etype == 'capsnet':
             xs, ilens = self.enc1(xs, ilens)
+        elif self.etype == 'reslocv1':
+            xs, ilens = self.enc1(xs, ilens)
+            xs, ilens = self.enc2(xs, ilens)
         else:
             logging.error(
                 "Error: need to specify an appropriate encoder archtecture")
@@ -1559,7 +1564,9 @@ class ResLocV1(chainer.Chain):
 
                 xs1 = self.locbloc0(xs)
                 xs1 = F.sum(xs1, axis=1, keepdims=True)
-                xs = F.sum(xs * xs1, axis=1, keepdims=True)
+                xs1 = F.broadcast_to(xs1, xs.shape)
+                xs = xs * xs1
+                xs = F.sum(xs, axis=1, keepdims=True)
                 xs = self.conv0_2(xs)
                 xs = self.resblock1_2(xs)
                 #xs = F.max_pooling_2d(xs, 2, stride=2)
