@@ -444,7 +444,15 @@ def recog(args):
 
     new_json = {}
     for name in recog_json.keys():
-        feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
+        n_inputs = len(recog_json[name]['input'])
+        for i in range(n_inputs):
+            d# feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
+            _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
+            if 'feat' not in locals():
+                feat = _feat[:,None,:]
+            else:
+                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
+
         nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm=rnnlm)
         # get 1best and remove sos
         y_hat = nbest_hyps[0]['yseq'][1:]

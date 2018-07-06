@@ -68,7 +68,7 @@ def lecun_normal_init_parameters(module):
 
 # get output dim for latter BLSTM
 def _get_vgg2l_odim(idim, in_channel=3, out_channel=128):
-    idim = idim / in_channel
+    # idim = idim / in_channel
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 1st max pooling
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 2nd max pooling
     return int(idim) * out_channel  # numer of channels
@@ -208,7 +208,7 @@ class E2E(torch.nn.Module):
 
         # encoder
         self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                           self.subsample, args.dropout_rate)
+                           self.subsample, args.dropout_rate, args.einputs, args.minput)
         # ctc
         self.ctc = CTC(odim, args.eprojs, args.dropout_rate)
         # attention
@@ -2022,7 +2022,7 @@ class Encoder(torch.nn.Module):
 
     '''
 
-    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1):
+    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None):
         super(Encoder, self).__init__()
 
         if etype == 'blstm':
@@ -2033,7 +2033,7 @@ class Encoder(torch.nn.Module):
                                eprojs, subsample, dropout)
             logging.info('BLSTM with every-layer projection for encoder')
         elif etype == 'vggblstmp':
-            self.enc1 = VGG2L(in_channel)
+            self.enc1 = VGG2L(in_channel, mode=mode)
             self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel),
                                elayers, eunits, eprojs,
                                subsample, dropout)
@@ -2043,6 +2043,16 @@ class Encoder(torch.nn.Module):
             self.enc2 = BLSTM(_get_vgg2l_odim(idim, in_channel=in_channel),
                               elayers, eunits, eprojs, dropout)
             logging.info('Use CNN-VGG + BLSTM for encoder')
+        elif etype == 'resblstmp':
+            self.enc1 = RESNET(in_channel, mode=mode)
+            self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
+                               subsample, dropout)
+            logging.info('Use CNN-ResNet + BLSTM for encoder')
+        elif etype == 'reslocv1':
+            self.enc1 = ResLocV1(in_channel, mode=mode)
+            self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
+                               subsample, dropout)
+            logging.info('Use CapsNet for encoder')
         else:
             logging.error(
                 "Error: need to specify an appropriate encoder archtecture")
@@ -2065,6 +2075,12 @@ class Encoder(torch.nn.Module):
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         elif self.etype == 'vggblstm':
+            xs, ilens = self.enc1(xs, ilens)
+            xs, ilens = self.enc2(xs, ilens)
+        elif self.etype == 'resblstmp':
+            xs, ilens = self.enc1(xs, ilens)
+            xs, ilens = self.enc2(xs, ilens)
+        elif self.etype == 'reslocv1':
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         else:
@@ -2151,12 +2167,26 @@ class VGG2L(torch.nn.Module):
     def __init__(self, in_channel=1):
         super(VGG2L, self).__init__()
         # CNN layer (VGG motivated)
-        self.conv1_1 = torch.nn.Conv2d(in_channel, 64, 3, stride=1, padding=1)
-        self.conv1_2 = torch.nn.Conv2d(64, 64, 3, stride=1, padding=1)
-        self.conv2_1 = torch.nn.Conv2d(64, 128, 3, stride=1, padding=1)
-        self.conv2_2 = torch.nn.Conv2d(128, 128, 3, stride=1, padding=1)
-
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        if mode == 'regular':
+            self.conv1_1 = torch.nn.Conv2d(in_channel, 64, 3, stride=1, padding=1)
+            self.conv1_2 = torch.nn.Conv2d(64, 64, 3, stride=1, padding=1)
+            self.conv2_1 = torch.nn.Conv2d(64, 128, 3, stride=1, padding=1)
+            self.conv2_2 = torch.nn.Conv2d(128, 128, 3, stride=1, padding=1)
+        elif mode == 'parallel':
+            self.conv1_1_1 = torch.nn.Conv2d(in_channel[0], 64, 3, stride=1, padding=1)
+            self.conv1_2_1 = torch.nn.Conv2d(64, 64, 3, stride=1, padding=1)
+            self.conv2_1_1 = torch.nn.Conv2d(64, 128, 3, stride=1, padding=1)
+            self.conv2_2_1 = torch.nn.Conv2d(128, 128, 3, stride=1, padding=1)
+            self.conv1_1_2 = torch.nn.Conv2d(in_channel[1], 64, 3, stride=1, padding=1)
+            self.conv1_2_2 = torch.nn.Conv2d(64, 64, 3, stride=1, padding=1)
+            self.conv2_1_2 = torch.nn.Conv2d(64, 128, 3, stride=1, padding=1)
+            self.conv2_2_2 = torch.nn.Conv2d(128, 128, 3, stride=1, padding=1)
+        else:
+            raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
+        self.mode = mode
 
     def forward(self, xs, ilens):
         '''VGG2L forward
@@ -2171,17 +2201,37 @@ class VGG2L(torch.nn.Module):
         # xs = F.pad_sequence(xs)
 
         # x: utt x 1 (input channel num) x frame x dim
-        xs = xs.view(xs.size(0), xs.size(1), self.in_channel,
-                     xs.size(2) // self.in_channel).transpose(1, 2)
+        #xs = xs.view(xs.size(0), xs.size(1), self.in_channel,
+        #             xs.size(2) // self.in_channel).transpose(1, 2)
+        xs = xs.transpose(1,2)
 
-        # NOTE: max_pool1d ?
-        xs = F.relu(self.conv1_1(xs))
-        xs = F.relu(self.conv1_2(xs))
-        xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+        if self.mode == 'regular':
+            # NOTE: max_pool1d ?
+            xs = F.relu(self.conv1_1(xs))
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
-        xs = F.relu(self.conv2_1(xs))
-        xs = F.relu(self.conv2_2(xs))
-        xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+        elif self.mode == 'parallel':
+            xs = self.conv0_1(xs)
+            if ch == self.in_channel[0]:
+                xs = F.relu(self.conv1_1_1(xs))
+                xs = F.relu(self.conv1_2_1(xs))
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+
+                xs = F.relu(self.conv2_1_1(xs))
+                xs = F.relu(self.conv2_2_1(xs))
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+            elif ch == self.in_channel[1]:
+                xs = F.relu(self.conv1_1_2(xs))
+                xs = F.relu(self.conv1_2_2(xs))
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+
+                xs = F.relu(self.conv2_1_2(xs))
+                xs = F.relu(self.conv2_2_2(xs))
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
         # change ilens accordingly
         # ilens = [_get_max_pooled_size(i) for i in ilens]
         ilens = np.array(
@@ -2195,4 +2245,212 @@ class VGG2L(torch.nn.Module):
             xs.size(0), xs.size(1), xs.size(2) * xs.size(3))
         xs = [xs[i, :ilens[i]] for i in range(len(ilens))]
         xs = pad_list(xs, 0.0)
+        return xs, ilens
+
+
+class BottleneckA(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None):
+        super(BottleneckA, self).__init__()
+        self.shortcut = torch.nn.Conv2d(
+            in_channels, out_channels, 1, stride=stride, padding=1, bias=False)
+        self.conv1 = torch.nn.Conv2d(
+            in_channels, mid_channels, 3, stride=1, padding=1, bias=False)
+        self.conv2 = torch.nn.Conv2d(
+            mid_channels, out_channels, 3, stride=stride, padding=1, bias=False)
+
+    def __call__(self, x):
+        res_x = F.relu(self.conv1(x))
+        res_x = self.conv2(res_x)
+        x = self.shortcut(x)
+        return F.relu(x + res_x)
+
+
+class BottleneckB(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, initialW=None):
+        super(BottleneckB, self).__init__()
+        self.conv1 = torch.nn.Conv2d(
+            in_channels, mid_channels, 3, stride=1, padding=1, bias=False)
+        self.conv2 = torch.nn.Conv2d(
+            mid_channels, mid_channels, 3, stride=1, padding=1, bias=False)
+
+    def __call__(self, x):
+        res_x = F.relu(self.conv1(x))
+        res_x = self.conv2(res_x)
+        return F.relu(x + res_x)
+
+
+class BuildingBlock(chainer.Chain):
+    def __init__(self, n_layer, in_channels, mid_channels,
+                 out_channels, stride, initialW=None):
+        super(BuildingBlock, self).__init__()
+        self.a = BottleneckA(
+            in_channels, mid_channels, out_channels, stride, initialW)
+        self._forward = ["a"]
+        for i in range(n_layer - 1):
+            name = 'b{}'.format(i + 1)
+            bottleneck = BottleneckB(out_channels, mid_channels, initialW)
+            setattr(self, name, bottleneck)
+            self._forward.append(name)
+
+    def __call__(self, x):
+        for name in self._forward:
+            layer = getattr(self, name)
+            x = layer(x)
+        return x
+
+    @property
+    def forward(self):
+        return [getattr(self, name) for name in self._forward]
+
+
+class RESNET(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(RESNET, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            if mode == 'regular':
+                in_channel = in_channel[0]
+                self.conv0 = torch.nn.Conv2d(in_channel, 16, 1, stride=1, bias=False)
+                self.resblock1 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+            elif mode == 'parallel':
+                self.conv0_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
+                self.resblock1_1 = BottleneckA(16, 64, 64)
+                self.resblock2_1 = BottleneckA(64, 128, 128)
+                self.conv0_2 = torch.nn.Conv2d(in_channel[1], 16, 1, stride=1, bias=False)
+                self.resblock1_2 = BottleneckA(16, 64, 64)
+                self.resblock2_2 = BottleneckA(64, 128, 128)
+            else:
+                raise ValueError('Incorrect mode.')
+        self.in_channel = in_channel
+        self.mode = mode
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        # xs = F.pad_sequence(xs)
+
+        # x: utt x 1 (input channel num) x frame x dim
+        xs = xs.transpose(1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode == 'regular':
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+                xs = self.resblock1_1(xs)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+
+                xs = self.resblock2_1(xs)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+            elif ch == self.in_channel[1]:
+                xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+
+                xs = self.resblock2_2(xs)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = xs.transpose(1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class ResLocV1(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(ResLocV1, self).__init__()
+        # CNN layer (RESNET motivated)
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+            
+        if mode == 'parallel':
+            self.conv0_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
+            self.resblock1_1 = BottleneckA(16, 64, 64, stride=2)
+            self.resblock2_1 = BottleneckA(64, 128, 128, stride=2)
+
+            self.locbloc0 = BottleneckA(in_channel[1], 1, 16)
+            self.conv0_2 = torch.nn.Conv2d(1, 16, 1, stride=1, bias=False)
+            self.resblock1_2 = BottleneckA(16, 64, 64, stride=2)
+            self.resblock2_2 = BottleneckA(64, 128, 128, stride=2)
+        else:
+            raise ValueError('Incorrect mode.')
+        self.in_channel = in_channel
+        self.mode = mode
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        #xs = F.pad_sequence(xs)
+
+        # x: utt x frame x 1 (input channel num) x dim
+        xs = xs.transpose(1, 2)
+        if self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+                xs = self.resblock1_1(xs)
+                #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_1(xs)
+                #xs = F.max_pooling_2d(xs, 2, stride=2)
+            elif ch == self.in_channel[1]:
+
+                xs1 = self.locbloc0(xs)
+                xs1 = torch.sum(xs1, dim=1, keepdims=True)
+                xs1 = xs1.expand(xs.shape)
+                xs = xs * xs1
+                xs = torch.sum(xs, dim=1, keepdims=True)
+                xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_2(xs)
+                #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = xs.transpose(1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
         return xs, ilens

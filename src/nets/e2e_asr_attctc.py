@@ -38,7 +38,7 @@ def _subsamplex(x, n):
 
 # get output dim for latter BLSTM
 def _get_vgg2l_odim(idim, in_channel=3, out_channel=128):
-    #idim = idim / in_channel
+    # idim = idim / in_channel
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 1st max pooling
     idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 2nd max pooling
     idim = np.array(idim, dtype=np.int32)
@@ -1063,19 +1063,6 @@ class VGG2L(chainer.Chain):
                 self.conv1_2_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
                 self.conv2_1_2 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
                 self.conv2_2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-            elif mode == 'middle':
-                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
-                self.conv1_2_1 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
-                self.conv1_2_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-            elif mode == 'entry':
-                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
-                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
-                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
             elif mode == 'recursive':
                 self.conv1_1 = L.Convolution2D(1, 64, 3, stride=1, pad=1)
                 self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
@@ -1127,34 +1114,6 @@ class VGG2L(chainer.Chain):
                 xs = F.relu(self.conv2_1_2(xs))
                 xs = F.relu(self.conv2_2_2(xs))
                 xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'middle':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = F.relu(self.conv1_1_1(xs))
-                xs = F.relu(self.conv1_2_1(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            elif ch == self.in_channel[1]:
-                xs = F.relu(self.conv1_1_2(xs))
-                xs = F.relu(self.conv1_2_2(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'entry':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = F.relu(self.conv1_1_1(xs))
-
-            elif ch == self.in_channel[1]:
-                xs = F.relu(self.conv1_1_2(xs))
-
-            xs = F.relu(self.conv1_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
         elif self.mode == 'recursive':
             ch = xs.shape[1]
             for i in range(ch):
@@ -1263,17 +1222,6 @@ class RESNET(chainer.Chain):
                 self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
                 self.resblock1_2 = BottleneckA(16, 64, 64)
                 self.resblock2_2 = BottleneckA(64, 128, 128)
-            elif mode == 'middle':
-                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-                self.resblock1_1 = BottleneckA(16, 64, 64)
-                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-                self.resblock1_2 = BottleneckA(16, 64, 64)
-                self.resblock2 = BottleneckA(64, 128, 128)
-            elif mode == 'entry':
-                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-                self.resblock1 = BottleneckA(16, 64, 64)
-                self.resblock2 = BottleneckA(64, 128, 128)
             elif mode == 'recursive':
                 self.conv0 = L.Convolution2D(1, 16, 1, stride=1, nobias=True)
                 self.resblock1 = BottleneckA(16, 64, 64)
@@ -1323,33 +1271,6 @@ class RESNET(chainer.Chain):
 
                 xs = self.resblock2_2(xs)
                 xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'middle':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
-                xs = self.resblock1_1(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
-                xs = self.resblock1_2(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'entry':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
-
-            elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
-
-            xs = self.resblock1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
         elif self.mode == 'recursive':
             ch = xs.shape[1]
             for i in range(ch):
