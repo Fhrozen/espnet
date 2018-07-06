@@ -1485,8 +1485,7 @@ class ResLocV1(chainer.Chain):
 
                 xs1 = self.locbloc0(xs)
                 xs1 = F.sum(xs1, axis=1, keepdims=True)
-                xs1 = F.broadcast_to(xs1, xs.shape)
-                xs = xs * xs1
+                xs = xs * F.broadcast_to(xs1, xs.shape)
                 xs = F.sum(xs, axis=1, keepdims=True)
                 xs = self.conv0_2(xs)
                 xs = self.resblock1_2(xs)
@@ -1494,6 +1493,91 @@ class ResLocV1(chainer.Chain):
 
                 xs = self.resblock2_2(xs)
                 #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class ResLocV2(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(ResLocV1, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        mode, hidden_out = mode.split('0')
+        hidden_out = int(hidden_out) 
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            if mode == 'hidden':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+
+                self.locbloc0_1 = BottleneckA(16, 64, 64)
+                self.locbloc0_2 = BottleneckA(64, hidden_out, 64)
+
+                self.conv0 = L.Convolution2D(1, 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64, stride=1)
+                self.resblock2 = BottleneckA(64, 128, 128, stride=1)
+            else:
+                raise ValueError('Incorrect mode.')
+        self.in_channel = in_channel
+        self.mode = mode
+        self.hidden_out = hidden_out
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x frame x 1 (input channel num) x dim
+        xs = F.swapaxes(xs, 1, 2)
+        if self.mode == 'hidden':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs1 = self.conv0_1(xs)
+            elif ch == self.in_channel[1]:
+                xs1 = self.conv0_2(xs)
+
+            xs1 = self.locbloc0_1(xs1)
+            xs2 = F.sum(xs1, axis=1, keepdims=True)
+            xs1 = xs1 * F.broadcast_to(xs2, xs1.shape)
+            xs1 = self.locbloc0_2(xs1)
+
+            new_dims = xs.shape
+            if chainer.config.train:
+                idx = np.random.randint(self.hidden_out)
+                xs2 = xs1[:, idx]
+            else:
+                xs2 = F.swapaxes(xs1, 0, 1)
+                new_dims[0] = self.hidden_out
+                xs = F.broadcast_to(xs, new_dims)
+
+            xs = xs * F.broadcast_to(xs2, new_dims)
+            xs = F.sum(xs, axis=1, keepdims=True)  
+
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)                  
 
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
