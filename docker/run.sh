@@ -6,6 +6,7 @@ docker_folders=
 docker_cuda=9.0
 docker_cudnn=7
 docker_user=0
+docker_env=
 
 while test $# -gt 0
 do
@@ -120,7 +121,11 @@ if [ "${docker_gpu}" == "-1" ]; then
 else
   # --rm erase the container when the training is finished.
   container_gpu=${docker_gpu//,/_}
-  cmd="NV_GPU='${docker_gpu}' nvidia-docker run -i --rm --name espnet_gpu${container_gpu} ${vols} ${image_label} /bin/bash -c '${cmd}'"
+  if [ ! -z "${docker_env}" ]; then
+    cmd="NV_GPU='${docker_gpu}' nvidia-docker run -i --rm -e ${docker_env} --name espnet_gpu${container_gpu} ${vols} ${image_label} /bin/bash -c '${cmd}'"
+  else
+    cmd="NV_GPU='${docker_gpu}' nvidia-docker run -i --rm --name espnet_gpu${container_gpu} ${vols} ${image_label} /bin/bash -c '${cmd}'"
+  fi
 fi
 
 echo "Executing application in Docker"
