@@ -3,7 +3,7 @@
 docker_gpu=0
 docker_egs=
 docker_folders=
-docker_cuda=9.0
+docker_cuda=9.1
 docker_cudnn=7
 docker_user=0
 docker_env=
