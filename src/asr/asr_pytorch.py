@@ -41,6 +41,7 @@ import kaldi_io_py
 # rnnlm
 import extlm_pytorch
 import lm_pytorch
+import numpy as np
 
 # matplotlib related
 import matplotlib
@@ -239,7 +240,7 @@ def train(args):
     if ngpu == 1:
         gpu_id = range(ngpu)
         logging.info('gpu id: ' + str(gpu_id))
-        model.cuda()
+        model = model.cuda()
     elif ngpu > 1:
         gpu_id = range(ngpu)
         logging.info('gpu id: ' + str(gpu_id))
@@ -446,14 +447,15 @@ def recog(args):
     for name in recog_json.keys():
         n_inputs = len(recog_json[name]['input'])
         for i in range(n_inputs):
-            d# feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
+            # feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
             _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
             if 'feat' not in locals():
                 feat = _feat[:,None,:]
             else:
                 feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
-
+    
         nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm=rnnlm)
+        del(feat)
         # get 1best and remove sos
         y_hat = nbest_hyps[0]['yseq'][1:]
         y_true = map(int, recog_json[name]['output'][0]['tokenid'].split())

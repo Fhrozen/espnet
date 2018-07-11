@@ -2164,7 +2164,7 @@ class BLSTM(torch.nn.Module):
 
 
 class VGG2L(torch.nn.Module):
-    def __init__(self, in_channel=1):
+    def __init__(self, in_channel=1, mode='regular'):
         super(VGG2L, self).__init__()
         # CNN layer (VGG motivated)
         if type(in_channel) is int:
@@ -2215,7 +2215,7 @@ class VGG2L(torch.nn.Module):
             xs = F.relu(self.conv2_2(xs))
             xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
         elif self.mode == 'parallel':
-            xs = self.conv0_1(xs)
+            ch = xs.shape[1]
             if ch == self.in_channel[0]:
                 xs = F.relu(self.conv1_1_1(xs))
                 xs = F.relu(self.conv1_2_1(xs))
@@ -2248,12 +2248,12 @@ class VGG2L(torch.nn.Module):
         return xs, ilens
 
 
-class BottleneckA(chainer.Chain):
+class BottleneckA(torch.nn.Module):
     def __init__(self, in_channels, mid_channels, out_channels,
                  stride=1, initialW=None):
         super(BottleneckA, self).__init__()
         self.shortcut = torch.nn.Conv2d(
-            in_channels, out_channels, 1, stride=stride, padding=1, bias=False)
+            in_channels, out_channels, 1, stride=stride, padding=0, bias=False)
         self.conv1 = torch.nn.Conv2d(
             in_channels, mid_channels, 3, stride=1, padding=1, bias=False)
         self.conv2 = torch.nn.Conv2d(
@@ -2266,7 +2266,7 @@ class BottleneckA(chainer.Chain):
         return F.relu(x + res_x)
 
 
-class BottleneckB(chainer.Chain):
+class BottleneckB(torch.nn.Module):
     def __init__(self, in_channels, mid_channels, initialW=None):
         super(BottleneckB, self).__init__()
         self.conv1 = torch.nn.Conv2d(
@@ -2280,7 +2280,7 @@ class BottleneckB(chainer.Chain):
         return F.relu(x + res_x)
 
 
-class BuildingBlock(chainer.Chain):
+class BuildingBlock(torch.nn.Module):
     def __init__(self, n_layer, in_channels, mid_channels,
                  out_channels, stride, initialW=None):
         super(BuildingBlock, self).__init__()
@@ -2304,27 +2304,26 @@ class BuildingBlock(chainer.Chain):
         return [getattr(self, name) for name in self._forward]
 
 
-class RESNET(chainer.Chain):
+class RESNET(torch.nn.Module):
     def __init__(self, in_channel=1, mode=None):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
-        with self.init_scope():
-            # CNN layer (RESNET motivated)
-            if mode == 'regular':
-                in_channel = in_channel[0]
-                self.conv0 = torch.nn.Conv2d(in_channel, 16, 1, stride=1, bias=False)
-                self.resblock1 = BottleneckA(16, 64, 64)
-                self.resblock2 = BottleneckA(64, 128, 128)
-            elif mode == 'parallel':
-                self.conv0_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
-                self.resblock1_1 = BottleneckA(16, 64, 64)
-                self.resblock2_1 = BottleneckA(64, 128, 128)
-                self.conv0_2 = torch.nn.Conv2d(in_channel[1], 16, 1, stride=1, bias=False)
-                self.resblock1_2 = BottleneckA(16, 64, 64)
-                self.resblock2_2 = BottleneckA(64, 128, 128)
-            else:
-                raise ValueError('Incorrect mode.')
+        # CNN layer (RESNET motivated)
+        if mode == 'regular':
+            in_channel = in_channel[0]
+            self.conv0 = torch.nn.Conv2d(in_channel, 16, 1, stride=1, bias=False)
+            self.resblock1 = BottleneckA(16, 64, 64)
+            self.resblock2 = BottleneckA(64, 128, 128)
+        elif mode == 'parallel':
+            self.conv1_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
+            self.resblock1_1 = BottleneckA(16, 64, 64)
+            self.resblock2_1 = BottleneckA(64, 128, 128)
+            self.conv1_2 = torch.nn.Conv2d(in_channel[1], 16, 1, stride=1, bias=False)
+            self.resblock1_2 = BottleneckA(16, 64, 64)
+            self.resblock2_2 = BottleneckA(64, 128, 128)
+        else:
+            raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
         self.mode = mode
 
@@ -2354,14 +2353,16 @@ class RESNET(chainer.Chain):
         elif self.mode == 'parallel':
             ch = xs.shape[1]
             if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
+                xs = self.conv1_1(xs)
                 xs = self.resblock1_1(xs)
                 xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
                 xs = self.resblock2_1(xs)
                 xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
             elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
+                # logging.info(self.conv1_2.weight.data.dtype)
+                # logging.info(xs.data.dtype)
+                xs = self.conv1_2(xs)
                 xs = self.resblock1_2(xs)
                 xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
@@ -2369,21 +2370,22 @@ class RESNET(chainer.Chain):
                 xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
         # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = np.array(
+            np.ceil(np.array(ilens, dtype=np.float32) / 2), dtype=np.int64)
+        ilens = np.array(
+            np.ceil(np.array(ilens, dtype=np.float32) / 2), dtype=np.int64).tolist()
 
         # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
         xs = xs.transpose(1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        xs = xs.contiguous().view(
+            xs.size(0), xs.size(1), xs.size(2) * xs.size(3))
+        xs = [xs[i, :ilens[i]] for i in range(len(ilens))]
+        xs = pad_list(xs, 0.0)
 
         return xs, ilens
 
 
-class ResLocV1(chainer.Chain):
+class ResLocV1(torch.nn.Module):
     def __init__(self, in_channel=1, mode=None):
         super(ResLocV1, self).__init__()
         # CNN layer (RESNET motivated)

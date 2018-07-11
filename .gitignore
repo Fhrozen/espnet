@@ -33,5 +33,5 @@ tools/nkf*
 tools/chainer_ctc*
 tools/warp-ctc*
 tools/sentencepiece/*
-
+tools/*.novenv
 .pytest_cache
