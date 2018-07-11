@@ -44,6 +44,13 @@ def main():
                         help='Model file parameters to read')
     parser.add_argument('--model-conf', type=str, required=True,
                         help='Model config file')
+    # minibatch related
+    parser.add_argument('--batch-size', type=int, default=50,
+                        help='Decoding batchsize')
+    parser.add_argument('--maxlen-in', default=800, type=int, metavar='ML',
+                        help='Batch size is reduced if the input sequence length > ML')
+    parser.add_argument('--maxlen-out', default=150, type=int, metavar='ML',
+                        help='Batch size is reduced if the output sequence length > ML')
     # search related
     parser.add_argument('--nbest', type=int, default=1,
                         help='Output N-best hypotheses')
@@ -95,7 +102,7 @@ def main():
         cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
         if cvd is None:
             logging.warn("CUDA_VISIBLE_DEVICES is not set.")
-        elif args.ngpu != len(cvd.split(",")):
+        elif args.ngpu > len(cvd.split(",")):
             logging.error("#gpus is not matched with CUDA_VISIBLE_DEVICES.")
             sys.exit(1)
 

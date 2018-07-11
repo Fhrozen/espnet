@@ -532,62 +532,140 @@ def recog(args):
         recog_json = json.load(f)['utts']
 
     new_json = {}
-    for name in recog_json.keys():
-        n_inputs = len(recog_json[name]['input'])
-        for i in range(n_inputs):
-            _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
-            if 'feat' not in locals():
-                feat = _feat[:,None,:]
-            else:
-                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
-        
-        #feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
-        logging.info('decoding ' + name)
-        nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
-        del(feat)
-        # get 1best and remove sos
-        y_hat = nbest_hyps[0]['yseq'][1:]
-        y_true = map(int, recog_json[name]['output'][0]['tokenid'].split())
+    if arg.ngpu < 0:
+    
+        for name in recog_json.keys():
+            n_inputs = len(recog_json[name]['input'])
+            for i in range(n_inputs):
+                _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
+                if 'feat' not in locals():
+                    feat = _feat[:,None,:]
+                else:
+                    feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
+            
+            #feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
+            logging.info('decoding ' + name)
+            nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
+            del(feat)
+            # get 1best and remove sos
+            y_hat = nbest_hyps[0]['yseq'][1:]
+            y_true = map(int, recog_json[name]['output'][0]['tokenid'].split())
 
-        # print out decoding result
-        seq_hat = [train_args.char_list[int(idx)] for idx in y_hat]
-        seq_true = [train_args.char_list[int(idx)] for idx in y_true]
-        seq_hat_text = "".join(seq_hat).replace('<space>', ' ')
-        seq_true_text = "".join(seq_true).replace('<space>', ' ')
-        logging.info("groundtruth[%s]: " + seq_true_text, name)
-        logging.info("prediction [%s]: " + seq_hat_text, name)
+            # print out decoding result
+            seq_hat = [train_args.char_list[int(idx)] for idx in y_hat]
+            seq_true = [train_args.char_list[int(idx)] for idx in y_true]
+            seq_hat_text = "".join(seq_hat).replace('<space>', ' ')
+            seq_true_text = "".join(seq_true).replace('<space>', ' ')
+            logging.info("groundtruth[%s]: " + seq_true_text, name)
+            logging.info("prediction [%s]: " + seq_hat_text, name)
 
-        # copy old json info
-        new_json[name] = dict()
-        new_json[name]['utt2spk'] = recog_json[name]['utt2spk']
+            # copy old json info
+            new_json[name] = dict()
+            new_json[name]['utt2spk'] = recog_json[name]['utt2spk']
 
-        # add 1-best recognition results to json
-        logging.debug("dump token id")
-        out_dic = dict()
-        for _key in recog_json[name]['output'][0]:
-            out_dic[_key] = recog_json[name]['output'][0][_key]
+            # add 1-best recognition results to json
+            logging.debug("dump token id")
+            out_dic = dict()
+            for _key in recog_json[name]['output'][0]:
+                out_dic[_key] = recog_json[name]['output'][0][_key]
 
-        # TODO(karita) make consistent to chainer as idx[0] not idx
-        out_dic['rec_tokenid'] = " ".join(
-            [str(idx[0]) for idx in y_hat])
-        logging.debug("dump token")
-        out_dic['rec_token'] = " ".join(seq_hat)
-        logging.debug("dump text")
-        out_dic['rec_text'] = seq_hat_text
+            # TODO(karita) make consistent to chainer as idx[0] not idx
+            out_dic['rec_tokenid'] = " ".join(
+                [str(idx[0]) for idx in y_hat])
+            logging.debug("dump token")
+            out_dic['rec_token'] = " ".join(seq_hat)
+            logging.debug("dump text")
+            out_dic['rec_text'] = seq_hat_text
 
-        new_json[name]['output'] = [out_dic]
-        # TODO(nelson): Modify this part when saving more than 1 hyp is enabled
-        # add n-best recognition results with scores
-        if args.beam_size > 1 and len(nbest_hyps) > 1:
-            for i, hyp in enumerate(nbest_hyps):
-                y_hat = hyp['yseq'][1:]
+            new_json[name]['output'] = [out_dic]
+            # TODO(nelson): Modify this part when saving more than 1 hyp is enabled
+            # add n-best recognition results with scores
+            if args.beam_size > 1 and len(nbest_hyps) > 1:
+                for i, hyp in enumerate(nbest_hyps):
+                    y_hat = hyp['yseq'][1:]
+                    seq_hat = [train_args.char_list[int(idx)] for idx in y_hat]
+                    seq_hat_text = "".join(seq_hat).replace('<space>', ' ')
+                    new_json[name]['rec_tokenid' + '[' + '{:05d}'.format(i) + ']'] \
+                        = " ".join([str(idx[0]) for idx in y_hat])
+                    new_json[name]['rec_token' + '[' + '{:05d}'.format(i) + ']'] = " ".join(seq_hat)
+                    new_json[name]['rec_text' + '[' + '{:05d}'.format(i) + ']'] = seq_hat_text
+                    new_json[name]['score' + '[' + '{:05d}'.format(i) + ']'] = hyp['score']
+
+    else:
+        # Set gpu
+        ngpu = args.ngpu
+        if ngpu == 1:
+            gpu_id = 0
+            # Make a specified GPU current
+            chainer.cuda.get_device_from_id(gpu_id).use()
+            model.to_gpu()  # Copy the model to the GPU
+            logging.info('single gpu calculation.')
+        elif ngpu > 1:
+            logging.error("#gpus is not matched for decoding.")
+            sys.exit(1)
+
+        # read rnnlm
+        if args.rnnlm:
+            rnnlm.to_gpu()
+
+        # set up validation iterator
+        recog_bs = make_batchset(recog_json, args.batch_size,
+                              args.maxlen_in, args.maxlen_out, -1)
+        for bs in range(len(recog_bs)): 
+            batch = recog_bs[bs]
+            # read scp files
+            # x: original json with loaded features
+            #    will be converted to chainer variable later
+            feat = self.converter(batch)
+            nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
+
+            for _item in batch:
+                name = batch[_item][0]
+                # get 1best and remove sos
+                y_hat = nbest_hyps[0]['yseq'][1:]
+                y_true = map(int, recog_json[name]['output'][0]['tokenid'].split())
+
+                # print out decoding result
                 seq_hat = [train_args.char_list[int(idx)] for idx in y_hat]
+                seq_true = [train_args.char_list[int(idx)] for idx in y_true]
                 seq_hat_text = "".join(seq_hat).replace('<space>', ' ')
-                new_json[name]['rec_tokenid' + '[' + '{:05d}'.format(i) + ']'] \
-                    = " ".join([str(idx[0]) for idx in y_hat])
-                new_json[name]['rec_token' + '[' + '{:05d}'.format(i) + ']'] = " ".join(seq_hat)
-                new_json[name]['rec_text' + '[' + '{:05d}'.format(i) + ']'] = seq_hat_text
-                new_json[name]['score' + '[' + '{:05d}'.format(i) + ']'] = hyp['score']
+                seq_true_text = "".join(seq_true).replace('<space>', ' ')
+                logging.info("groundtruth[%s]: " + seq_true_text, name)
+                logging.info("prediction [%s]: " + seq_hat_text, name)
+
+                # copy old json info
+                new_json[name] = dict()
+                new_json[name]['utt2spk'] = recog_json[name]['utt2spk']
+
+                # add 1-best recognition results to json
+                logging.debug("dump token id")
+                out_dic = dict()
+                for _key in recog_json[name]['output'][0]:
+                    out_dic[_key] = recog_json[name]['output'][0][_key]
+
+                # TODO(karita) make consistent to chainer as idx[0] not idx
+                out_dic['rec_tokenid'] = " ".join(
+                    [str(idx[0]) for idx in y_hat])
+                logging.debug("dump token")
+                out_dic['rec_token'] = " ".join(seq_hat)
+                logging.debug("dump text")
+                out_dic['rec_text'] = seq_hat_text
+
+                new_json[name]['output'] = [out_dic]
+                # TODO(nelson): Modify this part when saving more than 1 hyp is enabled
+                # add n-best recognition results with scores
+                if args.beam_size > 1 and len(nbest_hyps) > 1:
+                    for i, hyp in enumerate(nbest_hyps):
+                        y_hat = hyp['yseq'][1:]
+                        seq_hat = [train_args.char_list[int(idx)] for idx in y_hat]
+                        seq_hat_text = "".join(seq_hat).replace('<space>', ' ')
+                        new_json[name]['rec_tokenid' + '[' + '{:05d}'.format(i) + ']'] \
+                            = " ".join([str(idx[0]) for idx in y_hat])
+                        new_json[name]['rec_token' + '[' + '{:05d}'.format(i) + ']'] = " ".join(seq_hat)
+                        new_json[name]['rec_text' + '[' + '{:05d}'.format(i) + ']'] = seq_hat_text
+                        new_json[name]['score' + '[' + '{:05d}'.format(i) + ']'] = hyp['score']
+            if recog_iter.is_new_epoch:
+                break
 
     # TODO(watanabe) fix character coding problems when saving it
     with open(args.result_label, 'wb') as f:
