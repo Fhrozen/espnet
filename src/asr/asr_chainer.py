@@ -532,7 +532,7 @@ def recog(args):
         recog_json = json.load(f)['utts']
 
     new_json = {}
-    if arg.ngpu < 0:
+    if args.ngpu < 1:
     
         for name in recog_json.keys():
             n_inputs = len(recog_json[name]['input'])
