@@ -915,6 +915,10 @@ class Encoder(chainer.Chain):
                 self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
                                    subsample, dropout)
                 logging.info('Use CNN-ResNet + BLSTM for encoder')
+            elif etype == 'resblstm':
+                self.enc1 = RESNET(in_channel, mode=mode)
+                self.enc2 = BLSTM(_get_vgg2l_odim(idim, in_channel=in_channel), elayers, eunits, eprojs,
+                                  dropout)
             elif etype == 'capsnet':
                 self.enc1 = CAPSNET(in_channel, mode=mode)
                 logging.info('Use CapsNet for encoder')
@@ -923,6 +927,10 @@ class Encoder(chainer.Chain):
                 self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
                                    subsample, dropout)
                 logging.info('Use CapsNet for encoder')
+            elif etype == 'resw1blstmp':
+                self.enc1 = RESNET(2, mode=mode)
+                self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
+                                   subsample, dropout)
             else:
                 logging.error(
                     "Error: need to specify an appropriate encoder archtecture")
@@ -948,6 +956,9 @@ class Encoder(chainer.Chain):
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         elif self.etype == 'resblstmp':
+            xs, ilens = self.enc1(xs, ilens)
+            xs, ilens = self.enc2(xs, ilens)
+        elif self.etype == 'resblstm':
             xs, ilens = self.enc1(xs, ilens)
             xs, ilens = self.enc2(xs, ilens)
         elif self.etype == 'capsnet':
@@ -1025,6 +1036,7 @@ class BLSTM(chainer.Chain):
         :return:
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        ilens = np.asarray([x for x in ilens], dtype=np.int32)
         hy, cy, ys = self.nblstm(None, None, xs)
         ys = self.l_last(F.vstack(ys))  # (sum _utt frame_utt) x dim
         xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
@@ -1146,7 +1158,7 @@ class VGG2L(chainer.Chain):
 
 class BottleneckA(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
-                 stride=1, initialW=None):
+                 stride=1, initialW=None, actv=F.relu):
         super(BottleneckA, self).__init__()
         with self.init_scope():
             self.shortcut = L.Convolution2D(
@@ -1155,27 +1167,30 @@ class BottleneckA(chainer.Chain):
                 in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv2 = L.Convolution2D(
                 mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+        self.actv = actv
 
     def __call__(self, x):
-        res_x = F.relu(self.conv1(x))
+        res_x = self.actv(self.conv1(x))
         res_x = self.conv2(res_x)
         x = self.shortcut(x)
-        return F.relu(x + res_x)
+        return self.actv(x + res_x)
 
 
 class BottleneckB(chainer.Chain):
-    def __init__(self, in_channels, mid_channels, initialW=None):
+    def __init__(self, in_channels, mid_channels, initialW=None,
+                 actv=F.relu):
         super(BottleneckB, self).__init__()
         with self.init_scope():
             self.conv1 = L.Convolution2D(
                 in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv2 = L.Convolution2D(
                 mid_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+        self.actv = actv
 
     def __call__(self, x):
-        res_x = F.relu(self.conv1(x))
+        res_x = self.actv(self.conv1(x))
         res_x = self.conv2(res_x)
-        return F.relu(x + res_x)
+        return self.actv(x + res_x)
 
 
 class BuildingBlock(chainer.Chain):
@@ -1301,6 +1316,50 @@ class RESNET(chainer.Chain):
 
         return xs, ilens
 
+class ResidualWornELU(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(RESNET, self).__init__()
+        with self.init_scope():
+            in_channel = in_channel[0]
+            self.conv0 = L.Convolution2D(2, 16, 1, stride=1, nobias=True)
+            self.resblock1 = BottleneckA(16, 64, 64, actv=F.elu)
+            self.resblock2 = BottleneckA(64, 128, 128, actv=F.elu)
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x 1 (input channel num) x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        xs = self.conv0(xs)
+        xs = self.resblock1(xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self.resblock2(xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
 
 def squash(ss):
     ss_norm2 = F.sum(ss ** 2, axis=1, keepdims=True)
@@ -1592,3 +1651,5 @@ class ResLocV2(chainer.Chain):
         xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
 
         return xs, ilens
+
+
