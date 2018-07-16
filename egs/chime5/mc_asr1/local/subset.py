@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# coding: utf-8
 
 import argparse
 import logging
@@ -31,6 +32,8 @@ if __name__ == '__main__':
     new_lines = [lines[x] for x in idx]
     new_lines = '\n'.join(new_lines)
 
-    sys.stdout = open(os.path.join(args.outfolder, 'text'), "w+")
+    if not os.path.exists(args.outfolder):
+        os.makedirs(args.outfolder)
+    sys.stdout = open(os.path.join(args.outfolder, 'text'), "w+", encoding="utf-8")
     print(new_lines)
     sys.stdout.close()
