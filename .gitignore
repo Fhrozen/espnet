@@ -17,6 +17,7 @@ egs/*/*/stft
 egs/*/*/enhan
 egs/*/*/in_run*
 egs/*/*/wav*
+egs/*/*/tmp*
 
 # tools related
 src/utils/kaldi_io_py.py

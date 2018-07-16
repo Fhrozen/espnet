@@ -912,12 +912,6 @@ class Encoder(chainer.Chain):
                 elif _etype == 'res':
                     _encoder = RESNET(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
-                elif _etype == 'res2':
-                    _encoder = RESNET2(in_channel, mode=mode)
-                    idim = _get_vgg2l_odim(idim)
-                elif _etype == 'res3':
-                    _encoder = RESNET3(in_channel, mode=mode)
-                    idim = _get_vgg2l_odim(idim)
                 elif _etype == 'capsnet':
                     _encoder = CAPSNET(in_channel, mode=mode)
                     logging.info('Use CapsNet for encoder')
@@ -1276,106 +1270,6 @@ class RESNET(chainer.Chain):
             xs = F.relu(self.conv2_1(xs))
             xs = F.relu(self.conv2_2(xs))
             xs = F.max_pooling_2d(xs, 2, stride=2)
-        # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
-
-        return xs, ilens
-
-
-class RESNET2(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None):
-        super(RESNET2, self).__init__()
-        if type(in_channel) is int:
-            in_channel = [in_channel]
-        with self.init_scope():
-            # CNN layer (RESNET motivated)
-            self.conv0 = L.Convolution2D(2, 16, 1, stride=1, nobias=True)
-            self.resblock1 = BottleneckA(16, 128, 64)
-            self.resblock2 = BottleneckA(64, 256, 128)
-        #self.in_channel = in_channel
-        #self.mode = mode
-
-    def __call__(self, xs, ilens):
-        '''RESNET forward
-
-        :param xs:
-        :param ilens:
-        :return:
-        '''
-        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
-        # x: utt x frame x dim
-        xs = F.pad_sequence(xs)
-
-        # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
-       
-        xs = self.conv0(xs)
-        xs = self.resblock1(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
-        xs = self.resblock2(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
-
-        # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
-
-        return xs, ilens
-
-
-class RESNET3(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None):
-        super(RESNET3, self).__init__()
-        if type(in_channel) is int:
-            in_channel = [in_channel]
-        with self.init_scope():
-            # CNN layer (RESNET motivated)
-            self.conv0 = L.Convolution2D(2, 16, 1, stride=1, nobias=True)
-            self.resblock1_1 = BottleneckA(16, 64, 64)
-            self.resblock1_2 = BottleneckB(64, 64)
-            self.resblock2_1 = BottleneckA(64, 128, 128)
-            self.resblock2_2 = BottleneckB(128, 128)
-
-    def __call__(self, xs, ilens):
-        '''RESNET forward
-
-        :param xs:
-        :param ilens:
-        :return:
-        '''
-        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
-        # x: utt x frame x dim
-        xs = F.pad_sequence(xs)
-
-        # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
-        xs = self.conv0(xs)
-        xs = self.resblock1_1(xs)
-        xs = self.resblock1_2(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
-        xs = self.resblock2_1(xs)
-        xs = self.resblock2_2(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
-            
-
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
