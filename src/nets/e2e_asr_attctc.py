@@ -912,6 +912,12 @@ class Encoder(chainer.Chain):
                 elif _etype == 'res':
                     _encoder = RESNET(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
+                elif _etype == 'reselu':
+                    _encoder = RESELU(in_channel, mode=mode)
+                    idim = _get_vgg2l_odim(idim)
+                elif _etype == 'resbrn':
+                    _encoder = RESBRN(in_channel, mode=mode)
+                    idim = _get_vgg2l_odim(idim)
                 elif _etype == 'capsnet':
                     _encoder = CAPSNET(in_channel, mode=mode)
                     logging.info('Use CapsNet for encoder')
@@ -1129,7 +1135,7 @@ class VGG2L(chainer.Chain):
 
 class BottleneckA(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
-                 stride=1, initialW=None):
+                 stride=1, initialW=None, bn=None, act=F.relu):
         super(BottleneckA, self).__init__()
         with self.init_scope():
             self.shortcut = L.Convolution2D(
@@ -1138,12 +1144,27 @@ class BottleneckA(chainer.Chain):
                 in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv2 = L.Convolution2D(
                 mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+            if bn != None:
+                self.bnsc = bn(out_channels)
+                self.bn1 = bn(mid_channels)
+                self.bn2 = bn(out_channels)
+                self.bn = True
+            else:
+                self.bn = False 
+        self.act = act
 
     def __call__(self, x):
-        res_x = F.relu(self.conv1(x))
+        res_x = self.conv1(x)
+        if self.bn:
+            res_x = self.bn1(res_x)
+        res_x = self.act(res_x)
         res_x = self.conv2(res_x)
+        if self.bn:
+            res_x = self.bn2(res_x)
         x = self.shortcut(x)
-        return F.relu(x + res_x)
+        if self.bn:
+            x = self.bnsc(x)
+        return self.act(x + res_x)
 
 
 class BottleneckB(chainer.Chain):
@@ -1249,6 +1270,181 @@ class RESNET(chainer.Chain):
                 xs = F.max_pooling_2d(xs, 2, stride=2)
             elif ch == self.in_channel[1]:
                 xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'recursive':
+            ch = xs.shape[1]
+            for i in range(ch):
+                if i == 0:
+                    _xs = self.conv0(xs[:,i:i+1])
+                else:
+                    _xs = np.concat((_xs, self.conv0(xs[:,i:i+1])), axis=1)
+            xs = F.swapaxes(_xs, 1, 2)
+            xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
+            xs = F.swapaxes(xs, 1, 2)
+
+            xs = F.relu(self.conv1_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+            xs = F.relu(self.conv2_1(xs))
+            xs = F.relu(self.conv2_2(xs))
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class RESELU(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(RESELU, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            if mode == 'regular':
+                in_channel = in_channel[0]
+                self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64, act=F.elu)
+                self.resblock2 = BottleneckA(64, 128, 128, act=F.elu)
+            elif mode == 'parallel':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.resblock1_1 = BottleneckA(16, 64, 64, act=F.elu)
+                self.resblock2_1 = BottleneckA(64, 128, 128, act=F.elu)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+                self.resblock1_2 = BottleneckA(16, 64, 64, act=F.elu)
+                self.resblock2_2 = BottleneckA(64, 128, 128, act=F.elu)
+            else:
+                raise ValueError('Incorrect mode.')
+        self.in_channel = in_channel
+        self.mode = mode
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x 1 (input channel num) x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode == 'regular':
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.conv0_1(xs)
+                xs = self.resblock1_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+            elif ch == self.in_channel[1]:
+                xs = self.conv0_2(xs)
+                xs = self.resblock1_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_2(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class RESBRN(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None):
+        super(RESBRN, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            if mode == 'regular':
+                in_channel = in_channel[0]
+                self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
+                self.resblock1 = BottleneckA(16, 64, 64)
+                self.resblock2 = BottleneckA(64, 128, 128)
+            elif mode == 'parallel':
+                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+                self.bn0_1 = L.BatchRenormalization(16)
+                self.resblock1_1 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
+                self.resblock2_1 = BottleneckA(64, 128, 128, bn=L.BatchRenormalization)
+                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+                self.bn0_2 = L.BatchRenormalization(16)
+                self.resblock1_2 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
+                self.resblock2_2 = BottleneckA(64, 128, 128, bn=L.BatchRenormalization)
+            else:
+                raise ValueError('Incorrect mode.')
+        self.in_channel = in_channel
+        self.mode = mode
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x 1 (input channel num) x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode == 'regular':
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
+            ch = xs.shape[1]
+            if ch == self.in_channel[0]:
+                xs = self.bn0_1(self.conv0_1(xs))
+                xs = self.resblock1_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+
+                xs = self.resblock2_1(xs)
+                xs = F.max_pooling_2d(xs, 2, stride=2)
+            elif ch == self.in_channel[1]:
+                xs = self.bn0_2(self.conv0_2(xs))
                 xs = self.resblock1_2(xs)
                 xs = F.max_pooling_2d(xs, 2, stride=2)
 

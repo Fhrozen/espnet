@@ -6,6 +6,7 @@
 # Begin configuration section.
 mictype=worn # worn, ref or others
 cleanup=true
+noise=None
 # End configuration section
 . ./utils/parse_options.sh  # accept options.. you can run this run.sh with the
 
@@ -25,7 +26,10 @@ set -e -o pipefail
 adir=$1
 jdir=$2
 dir=$3
-
+preff=
+if [ "${noise}" != "None" ]; then
+  preff=${noise^^} 
+fi
 json_count=$(find $jdir -name "*.json" | wc -l)
 wav_count=$(find $adir -name "*.wav" | wc -l)
 
@@ -74,7 +78,8 @@ if [ $mictype == "worn" ]; then
   # create left and right channel transcript
   # P09_S03.L-0006072-0006147 gimme the baker
   # P09_S03.R-0006072-0006147 gimme the baker
-  sed -n 's/  *$//; h; s/-/\.L-/p; g; s/-/\.R-/p' $dir/text.orig | sort > $dir/text
+  #sed -n 's/  *$//; h; s/-/\${preff}.L-/p; g; s/-/\${preff}.R-/p' $dir/text.orig | sort > $dir/text
+  sed -n "s/  *$//; h; s/-/${preff}\.L-/p; g; s/-/${preff}\.R-/p" $dir/text.orig | sort > $dir/text
 elif [ $mictype == "ref" ]; then
   # fixed reference array
 
@@ -107,7 +112,7 @@ else
   # P09_S03_U01_NOLOCATION.CH4-0006072-0006147 gimme the baker
   perl -ne '$l=$_;
     for($i=1; $i<=4; $i++) {
-      ($x=$l)=~ s/-/.CH\Q$i\E-/;
+      ($x=$l)=~ s/-/'${preff}'.CH\Q$i\E-/;
       print $x;}' $dir/text.orig | sort > $dir/text
 
 fi
@@ -117,17 +122,17 @@ $cleanup && rm -f $dir/text.* $dir/wav.scp.* $dir/wav.flist
 if [ $mictype == "worn" ]; then
   cut -d" " -f 1 $dir/text | \
     awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" \
+    sed -e "s/_[A-Z0-9]*\././2" \
     > $dir/segments
 elif [ $mictype == "ref" ]; then
   cut -d" " -f 1 $dir/text | \
     awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" |\
+    sed -e "s/_[A-Z0-9]*\././2" |\
     sed -e "s/ P.._/ /" > $dir/segments
 else
   cut -d" " -f 1 $dir/text | \
     awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" |\
+    sed -e "s/_[A-Z0-9]*\././2" |\
     sed -e 's/ P.._/ /' > $dir/segments
 fi
 cut -f 1 -d ' ' $dir/segments | \
