@@ -533,17 +533,15 @@ def recog(args):
 
     new_json = {}
     if args.ngpu < 1:
-    
         for name in recog_json.keys():
             n_inputs = len(recog_json[name]['input'])
             for i in range(n_inputs):
                 _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
                 if 'feat' not in locals():
-                    feat = _feat[:,None,:]
+                    feat = _feat[:, None, :]
                 else:
-                    feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
-            
-            #feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
+                    feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
+            # feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
             logging.info('decoding ' + name)
             nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
             del(feat)
@@ -610,13 +608,13 @@ def recog(args):
 
         # set up validation iterator
         recog_bs = make_batchset(recog_json, args.batch_size,
-                              args.maxlen_in, args.maxlen_out, -1)
-        for bs in range(len(recog_bs)): 
+                                 args.maxlen_in, args.maxlen_out, -1)
+        for bs in range(len(recog_bs)):
             batch = recog_bs[bs]
             # read scp files
             # x: original json with loaded features
             #    will be converted to chainer variable later
-            feat = self.converter(batch)
+            feat = converter_kaldi(batch)
             nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
 
             for _item in batch:
@@ -664,8 +662,8 @@ def recog(args):
                         new_json[name]['rec_token' + '[' + '{:05d}'.format(i) + ']'] = " ".join(seq_hat)
                         new_json[name]['rec_text' + '[' + '{:05d}'.format(i) + ']'] = seq_hat_text
                         new_json[name]['score' + '[' + '{:05d}'.format(i) + ']'] = hyp['score']
-            if recog_iter.is_new_epoch:
-                break
+            # if recog_iter.is_new_epoch:
+            #    break
 
     # TODO(watanabe) fix character coding problems when saving it
     with open(args.result_label, 'wb') as f:

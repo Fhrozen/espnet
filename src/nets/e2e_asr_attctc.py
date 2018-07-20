@@ -221,17 +221,39 @@ class E2E(chainer.Chain):
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             # 1. encoder
             # make a utt list (1) to use the same interface for encoder
-            h, _ = self.enc([h], [ilen])
+            _h, _ = self.enc([h], [ilen])
 
-            # calculate log P(z_t|X) for CTC scores
-            if recog_args.ctc_weight > 0.0:
-                lpz = self.ctc.log_softmax(h).data[0]
+            if self.etype == 'ressep':
+                # calculate log P(z_t|X) for CTC scores
+                y = list()
+                measure = np.zeros((4,))
+                for i in range(4):
+                    h, _measure = _h[i]
+                    logging.info(self.__class__.__name__ + ' Current Sum: ' + str(_measure))
+                    if recog_args.ctc_weight > 0.0:
+                        lpz = self.ctc.log_softmax(h).data[0]
+                    else:
+                        lpz = None
+
+                    # 2. decoder
+                    # decode the first utterance
+                    _y = self.dec.recognize_beam(h[0], lpz, recog_args, char_list, rnnlm)
+                    y.append(_y)
+                    measure[i] = _measure
+                thisidx = np.argmin(measure)
+                logging.info(self.__class__.__name__ + ' Selecting: ' + str(thisidx))
+                y = y[thiidx]
             else:
-                lpz = None
+                h = _h
+                # calculate log P(z_t|X) for CTC scores
+                if recog_args.ctc_weight > 0.0:
+                    lpz = self.ctc.log_softmax(h).data[0]
+                else:
+                    lpz = None
 
-            # 2. decoder
-            # decode the first utterance
-            y = self.dec.recognize_beam(h[0], lpz, recog_args, char_list, rnnlm)
+                # 2. decoder
+                # decode the first utterance
+                y = self.dec.recognize_beam(h[0], lpz, recog_args, char_list, rnnlm)
 
             return y
 
@@ -925,6 +947,9 @@ class Encoder(chainer.Chain):
                     _encoder = ResLocV1(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
                     logging.info('ResLocv1 added for encoder')
+                elif _etype == 'ressep':
+                    _encoder = RESSEP(in_channel, mode=mode)
+                    idim = _get_vgg2l_odim(idim)
                 else:
                     logging.error(
                         "Error: {} not found. Need to specify an appropriate encoder archtecture".format(_etype))
@@ -1773,3 +1798,83 @@ class ResLocV2(chainer.Chain):
         return xs, ilens
 
 
+class RESSEP(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, blocks=4):
+        super(RESSEP, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
+            self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+            self.resblock1_2 = BottleneckA(16, 64, 64, act=F.elu)
+            self.resblock2_2 = BottleneckA(64, 128, 128 * blocks, act=F.elu)
+        self.i = 0
+        self.blocks = blocks
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        xp = self.xp
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        # x: utt x frame x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x 1 (input channel num) x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        ch = xs.shape[1]
+        if ch == self.in_channel[0]:
+            xs = self.conv0_1(xs)
+        elif ch == self.in_channel[1]:
+            xs = self.conv0_2(xs)
+        xs = self.resblock1_2(xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self.resblock2_2(xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+        
+        if chainer.config.train:
+            if i  < 100:
+                i += 1
+                _xs = F.split_axis(xs, self.blocks, axis=1)
+                j = i % self.blocks
+                xs = _xs[j]
+            else:
+                bs = xs.shape[0]
+                xs_uttr = F.split_axis(xs, bs, axis=0)
+                _xs = list()
+                for utt in xs_uttr:
+                    _utt = F.split_axis(utt, self.blocks, axis=1)
+                    utt = F.stack(_utt, axis=1)
+                    measure = xp.sum(xp.average(xp.std(utt, axis=4), axis=2), axis=2)
+                    measure = xp.argmin(measure[0])  # Need to check this?
+                    _xs.append(_utt[measure])
+                xs = F.concat(_xs, axis=0)
+
+            # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.reshape(
+                xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+            xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        else:
+            xs = list()
+            for i in range(self.blocks):
+                measure = xp.sum(xp.average(xp.std(_xs[j], axis=4), axis=2), axis=2)
+                xs_ = F.swapaxes(_xs[j], 1, 2)
+                xs_ = F.reshape(
+                    xs_, (xs_.shape[0], xs_.shape[1], xs_.shape[2] * xs_.shape[3]))
+                xs_ = [xs_[i, :ilens[i], :] for i in range(len(ilens))]
+                xs.append((xs_, measure[0]))
+
+        return xs, ilens
