@@ -73,6 +73,22 @@ def converter_kaldi(batch, device=None):
     return batch
 
 
+def converter_raw(batch, device=None):
+    # batch only has one minibatch utterance, which is specified by batch[0]
+    batch = batch[0]
+    for data in batch:
+        n_inputs = len(data[1]['input'])
+        for i in range(n_inputs):
+            _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
+            if 'feat' not in locals():
+                feat = _feat[:,None,:]
+            else:
+                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
+        data[1]['feat'] = feat
+        del(feat)
+    return batch
+
+
 def delete_feat(batch):
     for data in batch:
         del data[1]['feat']
