@@ -7,7 +7,8 @@ import glob
 import os
 import platform
 import random
-import subprocess
+import multiprocessing as mp
+import six
 import sys
 import shutil
 
@@ -82,6 +83,16 @@ def add_noise(_AUDIO, _NOISE='clean', _SNR=None):
     return _AUDIO
 
 
+def donoisy(arguments):
+    args, audio, noisefile = arguments
+    snr = np.random.randint(7, 12)
+    audio_out = audio.replace(args.audio_folder, args.folder)
+    inwave, _ = sf.read(audio)
+    inwave = inwave / np.amax(np.absolute(inwave))
+    outwave = add_noise(inwave, noisefile, snr)
+    sf.write(audio_out, outwave, 16000)
+
+
 def main():
     parser = argparse.ArgumentParser()
     # general configuration
@@ -95,6 +106,7 @@ def main():
                         help='Verbosity')
     args = parser.parse_args()
 
+    pool = mp.Pool(processes=10)
     # logging info
     if args.verbose > 0:
         logging.basicConfig(
@@ -116,13 +128,9 @@ def main():
 
     if not os.path.exists(args.folder):
         os.makedirs(args.folder)
-    for audio in audiolist:
-        snr = np.random.randint(7, 12)
-        audio_out = audio.replace(args.audio_folder, args.folder)
-        inwave, _ = sf.read(audio)
-        inwave = inwave / np.amax(np.absolute(inwave))
-        outwave = add_noise(inwave, noisefile, snr)
-        sf.write(audio_out, outwave, 16000)
+    thislist = ([args, x, noisefile] for x in six.moves.range(audiolist))
+    pool.map(donoisy, thislist)
+        
     shutil.rmtree('./tmp')
 
 
