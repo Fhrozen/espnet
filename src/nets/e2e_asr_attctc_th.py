@@ -2024,40 +2024,35 @@ class Encoder(torch.nn.Module):
 
     def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None):
         super(Encoder, self).__init__()
-
-        if etype == 'blstm':
-            self.enc1 = BLSTM(idim, elayers, eunits, eprojs, dropout)
-            logging.info('BLSTM without projection for encoder')
-        elif etype == 'blstmp':
-            self.enc1 = BLSTMP(idim, elayers, eunits,
-                               eprojs, subsample, dropout)
-            logging.info('BLSTM with every-layer projection for encoder')
-        elif etype == 'vggblstmp':
-            self.enc1 = VGG2L(in_channel, mode=mode)
-            self.enc2 = BLSTMP(_get_vgg2l_odim(idim, in_channel=in_channel),
-                               elayers, eunits, eprojs,
-                               subsample, dropout)
-            logging.info('Use CNN-VGG + BLSTMP for encoder')
-        elif etype == 'vggblstm':
-            self.enc1 = VGG2L(in_channel)
-            self.enc2 = BLSTM(_get_vgg2l_odim(idim, in_channel=in_channel),
-                              elayers, eunits, eprojs, dropout)
-            logging.info('Use CNN-VGG + BLSTM for encoder')
-        elif etype == 'resblstmp':
-            self.enc1 = RESNET(in_channel, mode=mode)
-            self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
-                               subsample, dropout)
-            logging.info('Use CNN-ResNet + BLSTM for encoder')
-        elif etype == 'reslocv1':
-            self.enc1 = ResLocV1(in_channel, mode=mode)
-            self.enc2 = BLSTMP(_get_vgg2l_odim(idim), elayers, eunits, eprojs,
-                               subsample, dropout)
-            logging.info('Use CapsNet for encoder')
-        else:
-            logging.error(
-                "Error: need to specify an appropriate encoder archtecture")
-            sys.exit()
-
+        encoders = etype.split('_')
+        self._forward = list()
+        for i in range(len(encoders)):
+            name = 'enc{}'.format(i + 1)
+            if encoders[i] == 'blstm':
+                _encoder = BLSTM(idim, elayers, eunits, eprojs, dropout)
+                logging.info('BLSTM without projection for encoder')
+            elif encoders[i] == 'blstmp':
+                _encoder = BLSTMP(idim, elayers, eunits,
+                                   eprojs, subsample, dropout)
+                logging.info('BLSTM with every-layer projection added for encoder')
+            elif encoders[i] == 'vgg':
+                _encoder = VGG2L(in_channel, mode=mode)
+                idim = _get_vgg2l_odim(idim)
+                logging.info('CNN-VGG added for encoder')
+            elif encoders[i] == 'res':
+                _encoder = RESNET(in_channel, mode=mode)
+                idim = _get_vgg2l_odim(idim)
+                logging.info('CNN-Res added for encoder')
+            elif encoders[i] == 'resinm':
+                _encoder = RESINM(in_channel, mode=mode)
+                idim = _get_vgg2l_odim(idim)
+                logging.info('CNN-Res added for encoder')
+            else:
+                logging.error(
+                    "Error: need to specify an appropriate encoder archtecture")
+                sys.exit(1)
+            setattr(self, name, _encoder)
+            self._forward.append(name)
         self.etype = etype
 
     def forward(self, xs, ilens):
@@ -2067,27 +2062,9 @@ class Encoder(torch.nn.Module):
         :param ilens:
         :return:
         '''
-        if self.etype == 'blstm':
-            xs, ilens = self.enc1(xs, ilens)
-        elif self.etype == 'blstmp':
-            xs, ilens = self.enc1(xs, ilens)
-        elif self.etype == 'vggblstmp':
-            xs, ilens = self.enc1(xs, ilens)
-            xs, ilens = self.enc2(xs, ilens)
-        elif self.etype == 'vggblstm':
-            xs, ilens = self.enc1(xs, ilens)
-            xs, ilens = self.enc2(xs, ilens)
-        elif self.etype == 'resblstmp':
-            xs, ilens = self.enc1(xs, ilens)
-            xs, ilens = self.enc2(xs, ilens)
-        elif self.etype == 'reslocv1':
-            xs, ilens = self.enc1(xs, ilens)
-            xs, ilens = self.enc2(xs, ilens)
-        else:
-            logging.error(
-                "Error: need to specify an appropriate encoder archtecture")
-            sys.exit()
-
+        for name in self._forward:
+            enc = getattr(self, name)
+            xs, ilens =  enc(xs, ilens)
         return xs, ilens
 
 
@@ -2250,7 +2227,7 @@ class VGG2L(torch.nn.Module):
 
 class BottleneckA(torch.nn.Module):
     def __init__(self, in_channels, mid_channels, out_channels,
-                 stride=1, initialW=None):
+                 stride=1, initialW=None, act=F.relu, bn=False):
         super(BottleneckA, self).__init__()
         self.shortcut = torch.nn.Conv2d(
             in_channels, out_channels, 1, stride=stride, padding=0, bias=False)
@@ -2258,12 +2235,24 @@ class BottleneckA(torch.nn.Module):
             in_channels, mid_channels, 3, stride=1, padding=1, bias=False)
         self.conv2 = torch.nn.Conv2d(
             mid_channels, out_channels, 3, stride=stride, padding=1, bias=False)
+        self.act = act
+        if bn:
+            self.bn1 = torch.nn.InstanceNorm2d(mid_channels, affine=True)
+            self.bn2 = torch.nn.InstanceNorm2d(out_channels, affine=True)
+            self.bnsc = torch.nn.InstanceNorm2d(out_channels, affine=True)
+        self.bn = bn
 
     def __call__(self, x):
-        res_x = F.relu(self.conv1(x))
+        res_x = self.conv1(x)
+        if self.bn:
+            res_x = self.bn1(x)
+        res_x = self.act(res_xx)
         res_x = self.conv2(res_x)
         x = self.shortcut(x)
-        return F.relu(x + res_x)
+        if self.bn:
+            res_x = self.bn2(res_x)
+            x = self.bnsc(res_x)
+        return self.act(x + res_x)
 
 
 class BottleneckB(torch.nn.Module):
@@ -2385,22 +2374,19 @@ class RESNET(torch.nn.Module):
         return xs, ilens
 
 
-class ResLocV1(torch.nn.Module):
+class RESINM(torch.nn.Module):
     def __init__(self, in_channel=1, mode=None):
-        super(ResLocV1, self).__init__()
-        # CNN layer (RESNET motivated)
+        super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
-            
+        # CNN layer (RESNET motivated)
         if mode == 'parallel':
-            self.conv0_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
-            self.resblock1_1 = BottleneckA(16, 64, 64, stride=2)
-            self.resblock2_1 = BottleneckA(64, 128, 128, stride=2)
-
-            self.locbloc0 = BottleneckA(in_channel[1], 1, 16)
-            self.conv0_2 = torch.nn.Conv2d(1, 16, 1, stride=1, bias=False)
-            self.resblock1_2 = BottleneckA(16, 64, 64, stride=2)
-            self.resblock2_2 = BottleneckA(64, 128, 128, stride=2)
+            self.conv1_1 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
+            self.resblock1_1 = BottleneckA(16, 64, 64, bn=True)
+            self.resblock2_1 = BottleneckA(64, 128, 128, bn=True)
+            self.conv1_2 = torch.nn.Conv2d(in_channel[1], 16, 1, stride=1, bias=False)
+            self.resblock1_2 = BottleneckA(16, 64, 64, bn=True)
+            self.resblock2_2 = BottleneckA(64, 128, 128, bn=True)
         else:
             raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
@@ -2416,43 +2402,49 @@ class ResLocV1(torch.nn.Module):
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
         # x: utt x frame x dim
-        #xs = F.pad_sequence(xs)
+        # xs = F.pad_sequence(xs)
 
-        # x: utt x frame x 1 (input channel num) x dim
+        # x: utt x 1 (input channel num) x frame x dim
         xs = xs.transpose(1, 2)
-        if self.mode == 'parallel':
+        #xs = F.swapaxes(F.reshape(
+        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
+        if self.mode == 'regular':
+            xs = self.conv0(xs)
+            xs = self.resblock1(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+
+            xs = self.resblock2(xs)
+            xs = F.max_pooling_2d(xs, 2, stride=2)
+        elif self.mode == 'parallel':
             ch = xs.shape[1]
             if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
+                xs = self.conv1_1(xs)
                 xs = self.resblock1_1(xs)
-                #xs = F.max_pooling_2d(xs, 2, stride=2)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
                 xs = self.resblock2_1(xs)
-                #xs = F.max_pooling_2d(xs, 2, stride=2)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
             elif ch == self.in_channel[1]:
-
-                xs1 = self.locbloc0(xs)
-                xs1 = torch.sum(xs1, dim=1, keepdims=True)
-                xs1 = xs1.expand(xs.shape)
-                xs = xs * xs1
-                xs = torch.sum(xs, dim=1, keepdims=True)
-                xs = self.conv0_2(xs)
+                # logging.info(self.conv1_2.weight.data.dtype)
+                # logging.info(xs.data.dtype)
+                xs = self.conv1_2(xs)
                 xs = self.resblock1_2(xs)
-                #xs = F.max_pooling_2d(xs, 2, stride=2)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
                 xs = self.resblock2_2(xs)
-                #xs = F.max_pooling_2d(xs, 2, stride=2)
+                xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
         # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = np.array(
+            np.ceil(np.array(ilens, dtype=np.float32) / 2), dtype=np.int64)
+        ilens = np.array(
+            np.ceil(np.array(ilens, dtype=np.float32) / 2), dtype=np.int64).tolist()
 
         # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
         xs = xs.transpose(1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        xs = xs.contiguous().view(
+            xs.size(0), xs.size(1), xs.size(2) * xs.size(3))
+        xs = [xs[i, :ilens[i]] for i in range(len(ilens))]
+        xs = pad_list(xs, 0.0)
 
         return xs, ilens
