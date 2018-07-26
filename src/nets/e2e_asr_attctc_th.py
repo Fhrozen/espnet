@@ -2089,7 +2089,7 @@ class BLSTMP(torch.nn.Module):
         :return:
         '''
         # logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-        if len(xpad.shape) > 2:
+        if len(xpad.shape) > 3:
             xpad = xpad.contiguous().view(
             xpad.size(0), xpad.size(1), xpad.size(2) * xpad.size(3))
         for layer in six.moves.range(self.elayers):
