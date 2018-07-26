@@ -89,8 +89,8 @@ if ! [[ -n ${docker_image}  ]]; then
   else
     build_args="${build_args} --build-arg THIS_USER=root"
   fi
-  echo "Now running docker build ${build_args} -f docker/espnet.devel -t ${image_label} ."
-  (docker build ${build_args} -f docker/espnet.devel -t ${image_label} .) || exit 1
+  echo "Now running docker build ${build_args} -f docker/Dockerfile -t ${image_label} ."
+  (docker build ${build_args} -f docker/Dockerfile -t ${image_label} .) || exit 1
 fi
 
 vols="-v ${PWD}/egs:/espnet/egs -v ${PWD}/src:/espnet/src -v ${PWD}/test:/espnet/test"

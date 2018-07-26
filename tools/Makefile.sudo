@@ -1,0 +1,53 @@
+KALDI =
+
+.PHONY: all clean
+
+all: pip-utils kaldi nkf kaldi-io-for-python pytorch warp-ctc chainer_ctc sentencepiece
+
+kaldi-io-for-python:
+	git clone https://github.com/vesis84/kaldi-io-for-python.git
+	cd ../src/utils; ln -s ../../tools/kaldi-io-for-python/kaldi_io.py kaldi_io_py.py
+
+ifneq ($(strip $(KALDI)),)
+kaldi:
+	ln -s $(KALDI) kaldi
+else
+kaldi:
+	git clone https://github.com/kaldi-asr/kaldi.git kaldi_github; cd kaldi_github/tools; $(MAKE) all
+	cd kaldi_github/src; ./configure --shared --use-cuda=no; $(MAKE) depend; $(MAKE) all
+	ln -s kaldi_github kaldi	
+endif
+
+# for some reason, including matplotlib in requirements.txt causes errors, and
+# matplotlib should be separately pip installed
+pip-utils: requirements.txt
+	sudo pip install pip --upgrade; sudo pip install -r requirements.txt; sudo pip install matplotlib
+
+nkf:
+	mkdir -p nkf
+	cd nkf; wget https://ja.osdn.net/dl/nkf/nkf-2.1.4.tar.gz
+	cd nkf; tar zxvf nkf-2.1.4.tar.gz; cd nkf-2.1.4; $(MAKE) prefix=.
+
+pytorch: pip-utils
+	sudo pip install pip --upgrade; sudo pip install torch
+
+warp-ctc: pytorch
+	git clone https://github.com/jnishi/warp-ctc.git
+	cd warp-ctc && mkdir build && cd build && cmake .. && make -j4 ; true
+	sudo pip install cffi
+	cd warp-ctc/pytorch_binding && sudo -E python setup.py install # maybe need to: apt-get install python-dev
+
+chainer_ctc: pip-utils
+	git clone https://github.com/jheymann85/chainer_ctc.git
+	sudo pip install cython
+	cd chainer_ctc && chmod +x install_warp-ctc.sh && ./install_warp-ctc.sh ; true
+	cd chainer_ctc && sudo pip install .
+
+sentencepiece:
+	git clone https://github.com/google/sentencepiece.git
+	cd sentencepiece && mkdir build && cd build && (cmake3 .. || cmake ..) && $(MAKE)
+
+clean:
+	rm -fr kaldi_github kaldi kaldi_python venv nkf kaldi-io-for-python ../src/utils/kaldi_io_py.py warp-ctc chainer_ctc sentencepiece
+	rm -f miniconda.sh
+	find . -iname "*.pyc" -delete
