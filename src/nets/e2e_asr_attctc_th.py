@@ -2246,8 +2246,8 @@ class BottleneckA(torch.nn.Module):
     def __call__(self, x):
         res_x = self.conv1(x)
         if self.bn:
-            res_x = self.bn1(x)
-        res_x = self.act(res_xx)
+            res_x = self.bn1(res_x)
+        res_x = self.act(res_x)
         res_x = self.conv2(res_x)
         x = self.shortcut(x)
         if self.bn:
