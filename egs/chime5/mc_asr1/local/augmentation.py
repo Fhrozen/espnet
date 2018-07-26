@@ -131,7 +131,7 @@ def main():
 
     if not os.path.exists(args.folder):
         os.makedirs(args.folder)
-    thislist = ([args, x, noisefile] for x in six.moves.range(audiolist))
+    thislist = ([args, x, noisefile] for x in audiolist)
     pool.map(donoisy, thislist)
 
     if os.path.exists(args.noise_type): 
