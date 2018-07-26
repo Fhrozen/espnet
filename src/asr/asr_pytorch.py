@@ -71,6 +71,10 @@ class PytorchSeqEvaluaterKaldi(extensions.Evaluator):
 
         summary = reporter_module.DictSummary()
 
+        self.model.eval()
+        if not torch_is_old:
+            torch.set_grad_enabled(False)
+
         for batch in it:
             observation = {}
             with reporter_module.report_scope(observation):
@@ -78,13 +82,14 @@ class PytorchSeqEvaluaterKaldi(extensions.Evaluator):
                 # x: original json with loaded features
                 #    will be converted to chainer variable later
                 x = self.converter(batch)
-                self.model.eval()
                 self.model(x)
                 delete_feat(x)
 
             summary.add(observation)
 
         self.model.train()
+        if not torch_is_old:
+            torch.set_grad_enabled(True)
 
         return summary.compute_mean()
 
@@ -442,6 +447,9 @@ def recog(args):
     # read json data
     with open(args.recog_json, 'rb') as f:
         recog_json = json.load(f)['utts']
+
+    if not torch_is_old:
+        torch.set_grad_enabled(False)
 
     new_json = {}
     for name in recog_json.keys():
