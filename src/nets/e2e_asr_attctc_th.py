@@ -2400,10 +2400,10 @@ class RESINM(torch.nn.Module):
         xs = xs.transpose(1, 2)
         xs = self.conv0(xs)
         xs = self.resblock1(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
         xs = self.resblock2(xs)
-        xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = F.max_pool2d(xs, 2, stride=2, ceil_mode=True)
 
         # change ilens accordingly
         ilens = np.array(
