@@ -2379,7 +2379,7 @@ class RESINM(torch.nn.Module):
     def __init__(self, in_channel=1, mode=None):
         super(RESINM, self).__init__()
         # CNN layer (RESNET motivated)
-        self.conv0 = torch.nn.Conv2d(in_channel[0], 16, 1, stride=1, bias=False)
+        self.conv0 = torch.nn.Conv2d(in_channel, 16, 1, stride=1, bias=False)
         self.resblock1 = BottleneckA(16, 64, 64, bn=True)
         self.resblock2 = BottleneckA(64, 128, 128, bn=True)
         self.mode = mode
