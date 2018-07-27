@@ -145,7 +145,7 @@ if [ ${stage} -le 0 ]; then
         data/${dset}_ref
     done
 
-    for eset in "eval eval_wpe"; do
+    for eset in eval eval_wpe; do
         local/prepare_data.sh --mictype ref \
         ${audio_dir}/${eset} ${json_dir}/eval \
         data/${eset}_ref
