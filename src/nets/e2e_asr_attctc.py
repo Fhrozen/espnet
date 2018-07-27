@@ -224,9 +224,7 @@ class E2E(chainer.Chain):
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
             # 1. encoder
             # make a utt list (1) to use the same interface for encoder
-            _h, _ = self.enc([h], [ilen])
-
-             h = _h
+            h, _ = self.enc([h], [ilen])
             # calculate log P(z_t|X) for CTC scores
             if recog_args.ctc_weight > 0.0:
                 lpz = self.ctc.log_softmax(h).data[0]
