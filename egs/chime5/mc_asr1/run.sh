@@ -161,63 +161,16 @@ for noise in ${noises}; do
     trainsets="${trainset} ${trainsets}"
 done
 
-
-if [ ${stage} -le 1 ]; then
-    echo "stage 1: (0.1) Data files split"
-    # It is probably that this stage will be deleted and 
-    # try to prepare all the dataset and split only the requested amount
-    # for the training
-
-    # use ch 1 to split
-    for trainset in ${trainsets}; do
-        utils/copy_data_dir.sh data/${trainset}_uall data/${trainset}_u${datasize}k_per_ch/CH1
-        grep "\.CH1-" data/${trainset}_uall/text > data/${trainset}_u${datasize}k_per_ch/CH1/text
-        echo "Subset file"
-        local/subset.py --text data/${trainset}_u${datasize}k_per_ch/CH1/text --outfolder data/${trainset}_u${datasize}k_per_ch/CH1 --utters $((${datasize} * 1000))
-        utils/fix_data_dir.sh data/${trainset}_u${datasize}k_per_ch/CH1
-        for CH in 2 3 4; do
-            utils/copy_data_dir.sh data/${trainset}_uall data/${trainset}_u${datasize}k_per_ch/CH${CH}
-            sed -e "s/.CH1-/.CH${CH}-/g" data/${trainset}_u${datasize}k_per_ch/CH1/text > data/${trainset}_u${datasize}k_per_ch/CH${CH}/text
-            utils/fix_data_dir.sh data/${trainset}_u${datasize}k_per_ch/CH${CH}
-        done
-        utils/combine_data.sh data/${trainset}_u${datasize}k \
-            data/${trainset}_u${datasize}k_per_ch/CH1 \
-            data/${trainset}_u${datasize}k_per_ch/CH2 \
-            data/${trainset}_u${datasize}k_per_ch/CH3 \
-            data/${trainset}_u${datasize}k_per_ch/CH4
-        
-        rm -rf data/${trainset}_u${datasize}k_per_ch
-    done
-
-    # use ch L to split
-    for trainset in ${trainsets}; do
-        utils/copy_data_dir.sh data/${trainset}_worn data/${trainset}_worn_u${worn_size}k_per_ch/L
-        grep "\.L-" data/${trainset}_worn/text > data/${trainset}_worn_u${worn_size}k_per_ch/L/text
-        echo "subset file"
-        local/subset.py --text data/${trainset}_worn_u${worn_size}k_per_ch/L/text --outfolder data/${trainset}_worn_u${worn_size}k_per_ch/L --utters $((${worn_size} * 1000))
-        utils/fix_data_dir.sh data/${trainset}_worn_u${worn_size}k_per_ch/L
-        for CH in R; do
-            utils/copy_data_dir.sh data/${trainset}_worn data/${trainset}_worn_u${worn_size}k_per_ch/${CH}
-            sed -e "s/.L-/.${CH}-/g" data/${trainset}_worn_u${worn_size}k_per_ch/L/text > data/${trainset}_worn_u${worn_size}k_per_ch/${CH}/text
-            utils/fix_data_dir.sh data/${trainset}_worn_u${worn_size}k_per_ch/${CH}
-        done
-
-        utils/combine_data.sh data/${trainset}_worn_u${worn_size}k data/${trainset}_worn_u${worn_size}k_per_ch/L data/${trainset}_worn_u${worn_size}k_per_ch/R  
-        rm -rf data/${trainset}_worn_u${worn_size}k_per_ch
-    done
-
-fi
-
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
-if [ ${stage} -le 2 ]; then
+if [ ${stage} -le 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
     folders=""
-    for x in u${datasize}k worn_u${worn_size}k ; do
+    for x in uall worn ; do
         for y in ${trainsets}; do
             folders="${y}_${x} ${folders}"
         done
@@ -227,7 +180,7 @@ if [ ${stage} -le 2 ]; then
         utils/fix_data_dir.sh data/${x}
     done
     folders=""
-    for x in u${datasize}k worn_u${worn_size}k ; do
+    for x in uall worn ; do
         for y in ${trainsets}; do
             folders="data/${y}_${x} ${folders}"
         done
@@ -240,7 +193,7 @@ dict=data/lang_1char/${train_set}_units.txt
 nlsyms=data/lang_1char/non_lang_syms.txt
 
 echo "dictionary: ${dict}"
-if [ ${stage} -le 3 ]; then
+if [ ${stage} -le 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
     mkdir -p data/lang_1char/
@@ -260,7 +213,7 @@ if [ ${stage} -le 3 ]; then
     #remove_longshortdata.sh --nlsyms ${nlsyms} --minchars 1 data/train_worn_u200k_org data/train_worn_u200k
 
     folders=""
-    for x in u${datasize}k worn_u${worn_size}k ; do
+    for x in uall worn ; do
         for y in ${trainsets}; do
             folders="${y}_${x} ${folders}"
         done
@@ -296,9 +249,9 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
-lmexpdir=exp/train_rnnlm_2layer_bs256
+lmexpdir=exp/train_${backend}_rnnlm_2layer_bs256
 mkdir -p ${lmexpdir}
-if [ ${stage} -le 4 ]; then
+if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
     lmdatadir=data/local/lm_train
     mkdir -p ${lmdatadir}
@@ -324,7 +277,7 @@ if [ ${stage} -le 4 ]; then
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${etype}_e${elayers}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -336,16 +289,17 @@ else
 fi
 mkdir -p ${expdir}
 
-if [ ${stage} -le 5 ]; then
+if [ ${stage} -le 4 ]; then
     if [ "${emode}" == "regular" ]; then
         cp ${dumpdir}/train_u${datasize}k/delta${do_delta}/data.json ${feat_tr_dir}/data.json
     else
+        #TODO: needs to add subset if necessary
         dfiles=""
         for dset in ${trainsets}; do
-            dfiles="${dumpdir}/${dset}_worn_u${worn_size}k/delta${do_delta}/data.json ${dfiles}"
+            dfiles="${dumpdir}/${dset}_worn/delta${do_delta}/data.json ${dfiles}"
         done
         for dset in train; do
-            dfiles="${dumpdir}/${dset}_u${datasize}k/delta${do_delta}/data.json ${dfiles}"
+            dfiles="${dumpdir}/${dset}_uall/delta${do_delta}/data.json ${dfiles}"
         done
         joinjson.py ${dfiles} > ${feat_tr_dir}/data.json    
     fi
@@ -386,7 +340,7 @@ if [ ${stage} -le 5 ]; then
         --epochs ${epochs}
 fi
 
-if [ ${stage} -le 6 ]; then
+if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
     nj=16
 

@@ -39,7 +39,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get -y install --no-ins
         protobuf-compiler \
         python-dev \
         python-tk \
-        python-numpy-dev \ 
+        python-numpy-dev \
+        python3-numpy-dev \ 
         software-properties-common \
         sox \
         subversion \
@@ -82,7 +83,7 @@ RUN if [ ! -z "${THIS_UID}"  ];then \
 RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
-RUN pip install -U soundfile virtualenv
+RUN pip install -U virtualenv
 
 # Install espnet
 RUN mkdir -p /espnet
