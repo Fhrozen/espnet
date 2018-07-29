@@ -1496,9 +1496,7 @@ class RESXVC(chainer.Chain):
             xs1 = self.blockx_1(xs1)
             xs1 = self.blockx_2(xs1)
             # bs * 64 * length * dim 
-            logging.info(xs1.shape)
             xs1 = F.relu(self.fcvx(F.average(xs1, axis=2)))
-            logging.info(xs1.shape)
 
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
@@ -1510,8 +1508,7 @@ class RESXVC(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         xs = F.reshape(
             xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        logging.info(xs.shape)
-        xs1 = F.broadcast_to(xs1[:, :, None], xs.shape)
+        xs1 = F.broadcast_to(F.expand_dims(xs1, axis=1), (xs1.shape[0], xs.shape[1], xs1.shape[1]))
         xs = F.concat((xs, xs1), axis=2)
         xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
 
