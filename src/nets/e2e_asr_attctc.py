@@ -1453,9 +1453,9 @@ class RESXVC(chainer.Chain):
                 self.resblock1_2 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
                 self.resblock2_2 = BottleneckA(64, 128, outs, bn=L.BatchRenormalization)
 
-                self.blockx_1 = BottleneckA(64, 128, 128, bn=L.BatchRenormalization, stride=2)
-                self.blockx_2 = BottleneckA(64, 128, 256, bn=L.BatchRenormalization, stride=2)
-                self.fcvx = L.linear(64)
+                self.blockx_1 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=2)
+                self.blockx_2 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=2)
+                self.fcvx = L.Linear(64)
             else:
                 raise ValueError('Incorrect mode.')
         self.in_channel = in_channel
