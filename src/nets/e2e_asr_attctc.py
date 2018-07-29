@@ -1453,8 +1453,8 @@ class RESXVC(chainer.Chain):
                 self.resblock1_2 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
                 self.resblock2_2 = BottleneckA(64, 128, outs, bn=L.BatchRenormalization)
 
-                self.blockx_1 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=2)
-                self.blockx_2 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=2)
+                self.blockx_1 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=(1, 2))
+                self.blockx_2 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=(1, 2))
                 self.fcvx = L.Linear(64)
             else:
                 raise ValueError('Incorrect mode.')
@@ -1495,7 +1495,10 @@ class RESXVC(chainer.Chain):
 
             xs1 = self.blockx_1(xs1)
             xs1 = self.blockx_2(xs1)
-            xs1 = F.relu(self.fcvx(xs1))
+            # bs * 64 * length * dim 
+            logging.info(xs1.shape)
+            xs1 = F.relu(self.fcvx(F.average(xs1, axis=2)))
+            logging.info(xs1.shape)
 
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
@@ -1507,7 +1510,7 @@ class RESXVC(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         xs = F.reshape(
             xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-
+        logging.info(xs.shape)
         xs1 = F.broadcast_to(xs1[:, :, None], xs.shape)
         xs = F.concat((xs, xs1), axis=2)
         xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
