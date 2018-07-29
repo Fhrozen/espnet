@@ -1453,8 +1453,7 @@ class RESXVC(chainer.Chain):
                 self.resblock1_2 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
                 self.resblock2_2 = BottleneckA(64, 128, outs, bn=L.BatchRenormalization)
 
-                self.blockx_1 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=(1, 2))
-                self.blockx_2 = BottleneckA(64, 64, 64, bn=L.BatchRenormalization, stride=(1, 2))
+                self.blockx_1 = BottleneckA(64, 64, 64, stride=(1, 2))
                 self.fcvx = L.Linear(64)
             else:
                 raise ValueError('Incorrect mode.')
@@ -1494,7 +1493,6 @@ class RESXVC(chainer.Chain):
                 xs = F.max_pooling_2d(xs, 2, stride=2)
 
             xs1 = self.blockx_1(xs1)
-            xs1 = self.blockx_2(xs1)
             # bs * 64 * length * dim 
             xs1 = F.relu(self.fcvx(F.average(xs1, axis=2)))
 
