@@ -22,6 +22,7 @@ from chainer_ctc.warpctc import ctc as warp_ctc
 from ctc_prefix_score import CTCPrefixScore
 from e2e_asr_common import end_detect
 from e2e_asr_common import label_smoothing_dist
+from nets.utils import GridLSTM
 
 import deterministic_embed_id as DL
 
@@ -982,6 +983,10 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif _etype == 'grdlstm':
+                    _encoder = GrdLSTM(idim, elayers, eunits,
+                                       eprojs, subsample, dropout)
+                    logging.info('GridLSTM added for encoder')
                 elif _etype == 'vgg':
                     _encoder = VGG2L(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
@@ -1074,6 +1079,41 @@ class BLSTMP(chainer.Chain):
         return xs, ilens  # x: utt list of frame x dim
 
 
+class GrdLSTM(chainer.Chain):
+    def __init__(self, idim, elayers, cdim, hdim, dropout):
+        super(GrdLSTM, self).__init__()
+        shared_dims = [[1], [x for x in range(2, elayers + 1)]]
+
+        with self.init_scope():
+            self.grid = GridLSTM([idim, cdim], shared_dims, elayers) 
+            self.l_last = L.Linear(cdim * 2, hdim)
+
+    def __call__(self, ys, ilens):
+        '''BLSTM forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        ilens = np.asarray([x for x in ilens], dtype=np.int32)
+        cy = None
+        for x in range(ys.shape[1]):
+            cy, ys = self.grid(cy, ys[x])
+        ys = self.l_last(F.vstack(ys))  # (sum _utt frame_utt) x dim
+        xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+        del cy
+
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
+
+
 class BLSTM(chainer.Chain):
     def __init__(self, idim, elayers, cdim, hdim, dropout):
         super(BLSTM, self).__init__()
@@ -1093,7 +1133,7 @@ class BLSTM(chainer.Chain):
         hy, cy, ys = self.nblstm(None, None, xs)
         ys = self.l_last(F.vstack(ys))  # (sum _utt frame_utt) x dim
         xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
-        del hy, cy
+        del cy
 
         # final tanh operation
         xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
