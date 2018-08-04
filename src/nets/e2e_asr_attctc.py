@@ -1000,6 +1000,9 @@ class Encoder(chainer.Chain):
                 elif _etype == 'resbrn':
                     _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization)
                     idim = _get_vgg2l_odim(idim)
+                elif _etype == 'resprebrn':
+                    _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, preact=True)
+                    idim = _get_vgg2l_odim(idim)
                 elif _etype == 'resbrn256':
                     _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = _get_vgg2l_odim(idim)    
@@ -1283,6 +1286,30 @@ class BottleneckA(chainer.Chain):
         return self.act(x + res_x)
 
 
+class PreBottleneckA(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None, act=F.relu):
+        super(PreBottleneckA, self).__init__()
+        with self.init_scope():
+            self.shortcut = L.Convolution2D(
+                in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
+            
+            self.bn1 = L.BatchRenormalization(in_channels)
+            self.conv1 = L.Convolution2D(
+                in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2 = L.Convolution2D(
+                mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+            
+            self.bn2 = L.BatchRenormalization(mid_channels)
+        self.act = act
+
+    def __call__(self, x):
+        res_x = self.conv1(self.act(self.bn1(x)))
+        res_x = self.conv2(self.act(self.bn2(res_x)))
+        x = self.shortcut(x)
+        return x + res_x
+
+
 class BottleneckB(chainer.Chain):
     def __init__(self, in_channels, mid_channels, initialW=None):
         super(BottleneckB, self).__init__()
@@ -1423,15 +1450,23 @@ class RESNET(chainer.Chain):
 
 
 class RESBRN(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, preact=False):
         super(RESBRN, self).__init__()
         with self.init_scope():
             self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-            self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-            self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
             self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-            self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
-            self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
+            if preact:
+                self.resblock1_1 = PreBottleneckA(16, 64, 64, act=act)
+                self.resblock2_1 = PreBottleneckA(64, 128, outs, act=act)
+                
+                self.resblock1_2 = PreBottleneckA(16, 64, 64, act=act)
+                self.resblock2_2 = PreBottleneckA(64, 128, outs, act=act)
+            else:
+                self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
+                self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
+
+                self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
+                self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
         self.in_channel = in_channel
         self.mode = mode
 
