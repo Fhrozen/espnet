@@ -22,7 +22,7 @@ from chainer_ctc.warpctc import ctc as warp_ctc
 from ctc_prefix_score import CTCPrefixScore
 from e2e_asr_common import end_detect
 from e2e_asr_common import label_smoothing_dist
-from nets.utils import GridLSTM
+from net_utils import GridLSTM
 
 import deterministic_embed_id as DL
 
