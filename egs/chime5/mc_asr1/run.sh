@@ -66,6 +66,7 @@ recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.
 
 # data
 chime5_corpus=${CHIME5_CORPUS}
+datanoise=None
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -275,7 +276,7 @@ if [ ${stage} -le 3 ]; then
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_n${datanoise}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -292,6 +293,9 @@ if [ ${stage} -le 4 ]; then
         cp ${dumpdir}/train_uall/delta${do_delta}/data.json ${feat_tr_dir}/data.json
     else
         #TODO: needs to add subset if necessary
+        if [ "${datanoise}" == "None" ]; then
+            trainsets=train
+        fi
         dfiles=""
         for dset in ${trainsets}; do
             dfiles="${dumpdir}/${dset}_worn/delta${do_delta}/data.json ${dfiles}"
