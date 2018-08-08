@@ -24,7 +24,7 @@ do_delta=false # true when using CNN
 # encoder related
 einputs=4
 emode=regular
-etype=vggblstmp     # encoder architecture type
+etype=vgg_blstmp     # encoder architecture type
 elayers=6
 eunits=320
 eprojs=320
@@ -65,8 +65,6 @@ ctc_weight=0.1
 recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
 # data
-datasize=350 # in K
-worn_size=75 # in K
 chime5_corpus=${CHIME5_CORPUS}
 
 # exp tag
@@ -96,11 +94,11 @@ set -o pipefail
 
 json_dir=${chime5_corpus}/transcriptions
 audio_dir=${chime5_corpus}/audio
-train_set=train_mix_worn_u${datasize}k
+train_set=train_mix_worn_uall
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_ref dev_wpe_ref eval_ref eval_wpe_ref"  
+recog_set="dev_worn dev_ref dev_wpe_ref" # eval_ref eval_wpe_ref"  
 noises="None white"
 
 if [ ${stage} -le -1 ]; then
@@ -291,7 +289,7 @@ mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ]; then
     if [ "${emode}" == "regular" ]; then
-        cp ${dumpdir}/train_u${datasize}k/delta${do_delta}/data.json ${feat_tr_dir}/data.json
+        cp ${dumpdir}/train_uall/delta${do_delta}/data.json ${feat_tr_dir}/data.json
     else
         #TODO: needs to add subset if necessary
         dfiles=""
