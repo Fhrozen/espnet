@@ -20,6 +20,8 @@ egs/*/*/enhan
 egs/*/*/in_run*
 egs/*/*/wav*
 egs/*/*/tmp*
+egs/*/*/CHiME*
+egs/*/*/spectrogram*
 
 # tools related
 src/utils/kaldi_io_py.py

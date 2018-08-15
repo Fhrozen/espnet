@@ -98,8 +98,8 @@ def main():
     # general configuration
     parser.add_argument('--folder', default=None, type=str,
                         help='Folder to save')
-    parser.add_argument('--noise-file', default=None, type=str,
-                        help='Noise File')
+    parser.add_argument('--noise-type', default=None, type=str,
+                        help='Noise File/Type')
     parser.add_argument('--audio-folder', default=None, type=str,
                         help='Audio Folder')
     parser.add_argument('--verbose', default=0, type=int,
@@ -116,22 +116,26 @@ def main():
             level=logging.WARN, format='%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s')
         logging.warning('Skip DEBUG/INFO messages')
 
-    # Formatting Noise
-    fn = os.path.basename(args.noise_file)
-    outdir = './tmp'
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-    noisefile = os.path.join(outdir, fn)
-    os.system('sox {} -c 1 -r 16000 {}'.format(args.noise_file, noisefile))
+    if os.path.exists(args.noise_type):
+        # Formatting Noise
+        fn = os.path.basename(args.noise_type)
+        outdir = './tmp'
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+        noisefile = os.path.join(outdir, fn)
+        os.system('sox {} -c 1 -r 16000 {}'.format(args.noise_type, noisefile))
+    else:
+        noisefile = args.noise_type
 
     audiolist = glob.glob('{}/*.wav'.format(args.audio_folder))
 
     if not os.path.exists(args.folder):
         os.makedirs(args.folder)
-    thislist = ([args, x, noisefile] for x in six.moves.range(audiolist))
+    thislist = ([args, x, noisefile] for x in audiolist)
     pool.map(donoisy, thislist)
-        
-    shutil.rmtree('./tmp')
+
+    if os.path.exists(args.noise_type): 
+        shutil.rmtree('./tmp')
 
 
 if __name__ == '__main__':
