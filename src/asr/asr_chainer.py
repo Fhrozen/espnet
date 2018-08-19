@@ -30,7 +30,8 @@ from chainer.training.updaters.multiprocess_parallel_updater import scatter_para
 # espnet related
 from asr_utils import adadelta_eps_decay
 from asr_utils import CompareValueTrigger
-from asr_utils import converter_kaldi
+from asr_utils import converter_fbank
+from asr_utils import converter_spectro
 from asr_utils import delete_feat
 from asr_utils import load_labeldict
 from asr_utils import make_batchset
@@ -305,6 +306,11 @@ def train(args):
     else:
         mtl_mode = 'mtl'
         logging.info('Multitask learning mode')
+
+    if args.converter == 'fbank':
+        converter_kaldi = converter_fbank
+    elif args.converter == 'spec': 
+        converter_kaldi = converter_spectro
 
     # specify model architecture
     e2e = E2E(idim, odim, args)

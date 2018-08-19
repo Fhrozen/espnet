@@ -57,7 +57,7 @@ def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0
 
 # TODO(watanabe) perform mean and variance normalization during the python program
 # and remove the data dump process in run.sh
-def converter_kaldi(batch, device=None):
+def converter_fbank(batch, device=None):
     # batch only has one minibatch utterance, which is specified by batch[0]
     batch = batch[0]
     for data in batch:
@@ -69,6 +69,30 @@ def converter_kaldi(batch, device=None):
             else:
                 feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
         data[1]['feat'] = feat
+        del(feat)
+    return batch
+
+
+def converter_spectro(batch, device=None):
+    # batch only has one minibatch utterance, which is specified by batch[0]
+    batch = batch[0]
+    for data in batch:
+        n_inputs = len(data[1]['input'])
+        for i in range(n_inputs):
+            _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
+            _len = int(_feat.shape[0] / 2) 
+            _feat_r = _feat[:_len]
+            _feat_i = _feat[:_len]
+            if 'feat_r' not in locals():
+                feat_r = _feat_r[:,None,:]
+                feat_i = _feat_i[:,None,:]
+            else:
+                feat_r = np.concatenate((feat_r, _feat_r[:,None,:]), axis=1)
+                feat_i = np.concatenate((feat_i, _feat_i[:,None,:]), axis=1)
+        feat = np.concatenate((feat_r, feat_i), axis=1)
+        data[1]['feat'] = feat
+        del(feat_r)
+        del(feat_i)
         del(feat)
     return batch
 
