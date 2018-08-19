@@ -1550,19 +1550,40 @@ class RESBRN(chainer.Chain):
         return xs, ilens
 
 
+class filter1(chainer.Chain):
+    def __init__(self, nchannels=1, shape=None):
+        super(filter1, self).__init__()
+        filters = list()
+        with self.init_scope():
+            for i in range(nchannels):
+                name = 'b{}'.format(i)
+                _filt = chainer.variable.Parameter(1, shape)
+                setattr(self, name, _filt)
+                filters.append(name)
+        self.filters = filters
+        self.channels = nchannels
+    
+    def __call__(self, xs):
+        xs1 = list()
+        for i in range(self.channels):
+            name = 'b{}'.format(i)
+            layer = getattr(self, name)
+            xs1.append(F.matmul(xs[i], self.b))
+        return xs1
+
 class NBRESBRN(chainer.Chain):
     def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128):
         super(NBRESBRN, self).__init__()
         with self.init_scope():
-            self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-            self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
+            self.filt_1 = filter1(in_channel[0] * 2, [256, 80])
+            self.filt_2 = filter1(in_channel[1] * 2, [256, 80])
             
-            
-                self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
-
-                self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
+            self.conv_1 = L.Convolution2D(in_channel[0], 16, 1, nobias=True)
+            self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
+            self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
+            self.conv_2 = L.Convolution2D(in_channel[1], 16, 1, nobias=True)
+            self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
+            self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
         self.in_channel = in_channel
         self.mode = mode
 
@@ -1580,15 +1601,19 @@ class NBRESBRN(chainer.Chain):
 
         # x: utt x 1 (input channel num) x frame x dim
         xs = F.swapaxes(xs, 1, 2)
-        if xs.shape[1] == self.in_channel[0]:
-            xs = self.conv0_1(xs)
+        if xs.shape[1] == self.in_channel[0] * 2:
+            xs = self.filt_1(xs)
+            xs = F.log(F.absolute(xs))
+            xs = self.conv_1(xs)
             xs = self.resblock1_1(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
 
             xs = self.resblock2_1(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif xs.shape[1] == self.in_channel[1]:
-            xs = self.conv0_2(xs)
+        elif xs.shape[1] == self.in_channel[1] * 2:
+            xs = self.filt_2(xs)
+            xs = F.log(F.absolute(xs))
+            xs = self.conv_2(xs)
             xs = self.resblock1_2(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
 
