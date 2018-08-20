@@ -54,7 +54,7 @@ def main():
                         help='Filename of train label data (json)')
     parser.add_argument('--valid-label', type=str, default=None,
                         help='Filename of validation label data (json)')
-    parser.add_argument('--converter', type=str, default=None,
+    parser.add_argument('--converter', type=str, default='fbank',
                         help='Data Converter')
     # network archtecture
     # encoder
