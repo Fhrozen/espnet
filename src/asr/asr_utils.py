@@ -83,16 +83,12 @@ def converter_spectro(batch, device=None):
             _len = int(_feat.shape[0] / 2) 
             _feat_r = _feat[:_len]
             _feat_i = _feat[:_len]
-            if 'feat_r' not in locals():
-                feat_r = _feat_r[:,None,:]
-                feat_i = _feat_i[:,None,:]
+            if 'feat' not in locals():
+                feat = np.concatenate((_feat_r[:,None,:], _feat_i[:,None,:]), axis=1)
             else:
-                feat_r = np.concatenate((feat_r, _feat_r[:,None,:]), axis=1)
-                feat_i = np.concatenate((feat_i, _feat_i[:,None,:]), axis=1)
-        feat = np.concatenate((feat_r, feat_i), axis=1)
+                feat = np.concatenate((feat, _feat_r[:,None,:]), axis=1)
+                feat = np.concatenate((feat, _feat_i[:,None,:]), axis=1)
         data[1]['feat'] = feat
-        del(feat_r)
-        del(feat_i)
         del(feat)
     return batch
 

@@ -70,20 +70,21 @@ if __name__ == '__main__':
 
     data = sys.stdin.read()
     i = 0
+    max_range = 16000 * 3 * 60 * 2
     while i < len(data):
         try:
-            key, _i = get_key(data[i:])
+            key, _i = get_key(data[i:i+120])
             i += _i
-            sio =  StringIO(data[i:])
+            sio =  StringIO(data[i:i + max_range])
             fs, new_data = wavfile.read(sio)
             i += new_data.shape[0]*2 + 44
             if args.use_log_bank < 1:
                 feats = spectrogram(new_data, fs,  winlen=0.001 * args.frame_lenght, winstep=0.001 * args.frame_shift,
                     preemph=args.preemph, winfunc=lambda x:np.hamming(x))
             else:
-                fbanks, energy = fbank(new_data, samplerate=fs, winlen=0.001 * args.frame_lenght, winstep=0.001 * args.frame_shift,
+                feats, _ = fbank(new_data, samplerate=fs, winlen=0.001 * args.frame_lenght, winstep=0.001 * args.frame_shift,
                     preemph=args.preemph, nfilt=args.num_mel_bins, winfunc=lambda x:np.hamming(x))
-                feats = np.concatenate((fbanks.astype(np.float32), energy[:, None].astype(np.float32)), axis=1)
+                #feats = np.concatenate((fbanks.astype(np.float32), energy[:, None].astype(np.float32)), axis=1)
             # print(key)
             # with h5py.File('{}.h5'.format(key), 'w') as f:
             #    f.create_dataset('data', data=feats)

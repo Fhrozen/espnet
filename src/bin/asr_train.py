@@ -122,6 +122,8 @@ def main():
                         help='Batch size is reduced if the input sequence length > ML')
     parser.add_argument('--maxlen-out', default=150, type=int, metavar='ML',
                         help='Batch size is reduced if the output sequence length > ML')
+    parser.add_argument('--norm-file', type=str, 
+                        help='Batch size is reduced if the output sequence length > ML')
     # optimization related
     parser.add_argument('--opt', default='adadelta', type=str,
                         choices=['adadelta', 'adam'],

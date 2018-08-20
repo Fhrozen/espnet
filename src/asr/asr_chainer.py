@@ -192,6 +192,7 @@ class CustomWorker(multiprocessing.Process):
         self.device = master._devices[proc_id]
         self.iterator = master._mpu_iterators[proc_id]
         self.n_devices = len(master._devices)
+        self.converter = master.converter
 
     def setup(self):
         from cupy.cuda import nccl
@@ -219,7 +220,7 @@ class CustomWorker(multiprocessing.Process):
                 self.model.cleargrads()
 
                 batch = self.iterator.next()
-                x = converter_kaldi(batch)
+                x = self.converter(batch)
                 observation = {}
                 with self.reporter.scope(observation):
                     loss = self.model(x)

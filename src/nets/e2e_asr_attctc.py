@@ -23,6 +23,7 @@ from ctc_prefix_score import CTCPrefixScore
 from e2e_asr_common import end_detect
 from e2e_asr_common import label_smoothing_dist
 from net_utils import GridLSTM
+import kaldi_io_py
 
 import deterministic_embed_id as DL
 
@@ -135,7 +136,7 @@ class E2E(chainer.Chain):
         with self.init_scope():
             # encoder
             self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                               self.subsample, args.dropout_rate, args.einputs, args.minput)
+                               self.subsample, args.dropout_rate, args.einputs, args.minput, args.norm_file)
             # ctc
             ctc_type = vars(args).get("ctc_type", "chainer")
             if ctc_type == 'chainer':
@@ -968,7 +969,7 @@ class Encoder(chainer.Chain):
 
     '''
 
-    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None):
+    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None, normfile=None):
         super(Encoder, self).__init__()
         encoders = etype.split('_')
         with self.init_scope():
@@ -1001,8 +1002,8 @@ class Encoder(chainer.Chain):
                     _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization)
                     idim = _get_vgg2l_odim(idim)
                 elif _etype == 'nbresbrn':
-                    _encoder = NBRESBRN(in_channel, mode=mode, bn=L.BatchRenormalization)
-                    idim = _get_vgg2l_odim(idim) # 
+                    _encoder = NBRESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, normfile=normfile)
+                    idim = 2560 # _get_vgg2l_odim(idim) # 
                 elif _etype == 'resprebrn':
                     _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, preact=True)
                     idim = _get_vgg2l_odim(idim)
@@ -1557,35 +1558,72 @@ class filter1(chainer.Chain):
         with self.init_scope():
             for i in range(nchannels):
                 name = 'b{}'.format(i)
-                _filt = chainer.variable.Parameter(1, shape)
+                _filt = chainer.variable.Parameter(1., shape)
                 setattr(self, name, _filt)
                 filters.append(name)
         self.filters = filters
         self.channels = nchannels
     
     def __call__(self, xs):
+        bs, ch = xs.shape[0:2]
+        xs = F.split_axis(xs, ch, axis=1)
+        #logging.info(len(xs))
         xs1 = list()
-        for i in range(self.channels):
+        xp = self.xp
+        min_range = chainer.Variable(xp.asarray([1e-20], dtype=np.float32))
+        for i in range(0, self.channels, 2):
             name = 'b{}'.format(i)
-            layer = getattr(self, name)
-            xs1.append(F.matmul(xs[i], self.b))
-        return xs1
+            real_filt = getattr(self, name)
+            real_filt = F.broadcast_to(real_filt, [bs, 1, 257, 80])
+            name = 'b{}'.format(i + 1)
+            imag_filt = getattr(self, name)
+            imag_filt = F.broadcast_to(imag_filt, [bs, 1, 257, 80])
+            real_val = F.matmul(xs[i], real_filt) - F.matmul(xs[i + 1], imag_filt)
+            imag_val = F.matmul(xs[i], imag_filt) + F.matmul(xs[i + 1], real_filt)
+            feat = real_val ** 2 + imag_val ** 2 #
+            min_range = F.broadcast_to(min_range, feat.shape)
+            feat = F.log10(F.maximum(feat / 512., min_range))
+            xs1.append(feat)
+        xs = F.concat(xs1, axis=1)
+        return xs
+
+
+def get_norm(filename):
+    mat = kaldi_io_py.read_mat(filename)
+    logging.info('Norm File size {}'.format(mat.shape))
+    count = mat[0, 80]
+    logging.info('Counted Files {}'.format(count))
+    mean = mat[1, :80] / count
+    var = (mat[0, :80] / count) - mean * mean
+    floor = 1e-20
+    var[var < floor] = floor
+    scale = 1. / np.sqrt(var)
+    offset = -1. * (mean * scale) 
+    return offset, scale
+
 
 class NBRESBRN(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, normfile=None):
         super(NBRESBRN, self).__init__()
+        offset, scale = get_norm(normfile)
         with self.init_scope():
-            self.filt_1 = filter1(in_channel[0] * 2, [256, 80])
-            self.filt_2 = filter1(in_channel[1] * 2, [256, 80])
-            
+            self.filt_1 = filter1(in_channel[0] * 2, [257, 80])
+            self.bn_1 = L.BatchRenormalization(in_channel[0])
+            self.filt_2 = filter1(in_channel[1] * 2, [257, 80])
+            self.bn_2 = L.BatchRenormalization(in_channel[1])
             self.conv_1 = L.Convolution2D(in_channel[0], 16, 1, nobias=True)
             self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
             self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
             self.conv_2 = L.Convolution2D(in_channel[1], 16, 1, nobias=True)
             self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
             self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
+            
         self.in_channel = in_channel
         self.mode = mode
+        self.offset = offset
+        self.scale = scale
+        return 
+
 
     def __call__(self, xs, ilens):
         '''RESNET forward
@@ -1598,12 +1636,17 @@ class NBRESBRN(chainer.Chain):
 
         # x: utt x frame x dim
         xs = F.pad_sequence(xs)
-
+        #logging.info(xs.shape)
+        xp = self.xp
+        offset = xp.asarray(self.offset)
+        scale = xp.asarray(self.scale)
         # x: utt x 1 (input channel num) x frame x dim
         xs = F.swapaxes(xs, 1, 2)
+        logging.info(xs.shape)
         if xs.shape[1] == self.in_channel[0] * 2:
             xs = self.filt_1(xs)
-            xs = F.log(F.absolute(xs))
+            #xs = xs * scale + offset
+            xs = self.bn_1(xs)
             xs = self.conv_1(xs)
             xs = self.resblock1_1(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
@@ -1612,13 +1655,15 @@ class NBRESBRN(chainer.Chain):
             xs = F.max_pooling_2d(xs, 2, stride=2)
         elif xs.shape[1] == self.in_channel[1] * 2:
             xs = self.filt_2(xs)
-            xs = F.log(F.absolute(xs))
+            #xs = xs * scale + offset
+            xs = self.bn_2(xs)
             xs = self.conv_2(xs)
             xs = self.resblock1_2(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
 
             xs = self.resblock2_2(xs)
             xs = F.max_pooling_2d(xs, 2, stride=2)
+        logging.info(xs.shape)
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
