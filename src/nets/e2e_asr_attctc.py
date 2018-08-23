@@ -983,6 +983,10 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif _etype == 'mcblstmp':
+                    _encoder = MultiChannelBLSTMP(in_channel, idim, elayers, eunits,
+                                       eprojs, subsample, dropout)
+                    logging.info('BLSTM with every-layer projection added for encoder')
                 elif _etype == 'grdlstm':
                     _encoder = GrdLSTM(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
@@ -1036,6 +1040,61 @@ class Encoder(chainer.Chain):
     def forward(self):
         return [getattr(self, name) for name in self._forward]
         
+
+# TODO(watanabe) explanation of BLSTMP
+class MultiChannelBLSTMP(chainer.Chain):
+    def __init__(self, in_channels, idim, elayers, cdim, hdim, subsample, dropout):
+        super(MultiChannelBLSTMP, self).__init__()
+        if isinstance(in_channels, int):
+            in_channels = [in_channels]
+        comb = [(x, y) for x in six.moves.range(len(in_channels)) for y in six.moves.range(elayers)]
+        with self.init_scope():
+            for i, j in comb:
+                if j == 0:
+                    idim = idim * in_channels[i] 
+                else:
+                    inputdim = hdim
+                setattr(self, 'bilstm{}_l{}'.format(i, j), L.NStepBiLSTM(
+                    1, inputdim, cdim, dropout))
+                # bottleneck layer to merge
+                setattr(self, 'bt{}_l{}'.format(i, j), L.Linear(2 * cdim, hdim))
+
+        self.elayers = elayers
+        self.cdim = cdim
+        self.subsample = subsample
+        self.in_channels = in_channels
+        self.idim = idim
+
+    def __call__(self, xs, ilens):
+        '''BLSTMP forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        ch = xs[0].shape[2]
+        idx = self.in_channels.index(ch)
+        xs = [xs[i].reshape[ilens(i), ch * self.idim]]
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        for layer in six.moves.range(self.elayers):
+            hy, cy, ys = self['bilstm{}_l{}'.format(idx, layer)](None, None, xs)
+            # ys: utt list of frame x cdim x 2 (2: means bidirectional)
+            # TODO(watanabe) replace subsample and FC layer with CNN
+            ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
+            # (sum _utt frame_utt) x dim
+            ys = self['bt{}_l{}'.format(idx, layer)](F.vstack(ys))
+            xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+            del hy, cy
+
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
 
 
 # TODO(watanabe) explanation of BLSTMP
@@ -1640,11 +1699,10 @@ class filternet(chainer.Chain):
             imag_filt = ifilt[i].reshape(1, ilens[i], channels, -1)
             real_val = F.matmul(rxs, real_filt) - F.matmul(ixs, imag_filt)
             imag_val = F.matmul(rxs, imag_filt) + F.matmul(ixs, real_filt)
-            feat = real_val ** 2 + imag_val ** 2
+            feat = F.sum(real_val, axis=2, keepdims=True) ** 2 + F.sum(imag_val, axis=2, keepdims=True) ** 2
             min_range = F.broadcast_to(min_range, feat.shape)
-            feat = F.sum(F.maximum(feat, min_range), axis=2, keepdims=True)
             fbanks = F.broadcast_to(self.fbanks, [1, ilens[i], self.nfft // 2, self.nfilt])
-            feat = F.matmul(feat, fbanks)
+            feat = F.log10(F.matmul(F.maximum(feat, min_range), fbanks))
             feat = self['brn_{}'.format(idx)](F.swapaxes(feat, 2, 3))
             out_xs[i] = F.swapaxes(feat, 2, 3)
 
