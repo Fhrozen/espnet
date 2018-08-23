@@ -15,7 +15,6 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 
-
 from chainer import cuda
 from chainer import reporter
 from chainer_ctc.warpctc import ctc as warp_ctc
@@ -1009,10 +1008,10 @@ class Encoder(chainer.Chain):
                     idim = _get_vgg2l_odim(idim)
                 elif _etype == 'resbrn256':
                     _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
-                    idim = _get_vgg2l_odim(idim)    
-                elif _etype == 'resxvc':
-                    _encoder = RESXVC(in_channel, mode=mode)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = _get_vgg2l_odim(idim)  
+                elif _etype == 'fn':
+                    _encoder = filternet(3, nchannel=in_channel)
+                    in_channel = 1    
                 else:
                     logging.error(
                         "Error: {} not found. Need to specify an appropriate encoder archtecture".format(_etype))
@@ -1156,7 +1155,7 @@ class BLSTM(chainer.Chain):
 class VGG2L(chainer.Chain):
     def __init__(self, in_channel=1, mode=None):
         super(VGG2L, self).__init__()
-        if type(in_channel) is int:
+        if isinstance(in_channel, int):
             in_channel = [in_channel]
         with self.init_scope():
             # CNN layer (VGG motivated)
@@ -1551,41 +1550,105 @@ class RESBRN(chainer.Chain):
         return xs, ilens
 
 
-class filter1(chainer.Chain):
-    def __init__(self, nchannels=1, shape=None):
-        super(filter1, self).__init__()
-        filters = list()
+def hz2mel(hz):
+    return 2595 * np.log10(1+hz/700.)
+
+
+def mel2hz(mel):
+    return 700*(10**(mel/2595.0)-1)
+
+
+def get_filterbanks(nfilt=20, nfft=512, samplerate=16000, lowfreq=0, highfreq=None):
+    highfreq= highfreq or samplerate/2
+    assert highfreq <= samplerate/2, "highfreq is greater than samplerate/2"
+
+    # compute points evenly spaced in mels
+    lowmel = hz2mel(lowfreq)
+    highmel = hz2mel(highfreq)
+    melpoints = np.linspace(lowmel,highmel,nfilt+2)
+    # our points are in Hz, but we use fft bins, so we have to convert
+    #  from Hz to fft bin number
+    bin = np.floor((nfft+1)*mel2hz(melpoints)/samplerate)
+
+    fbank = np.zeros([nfilt,nfft//2+1], astype=np.float32)
+    for j in range(0,nfilt):
+        for i in range(int(bin[j]), int(bin[j+1])):
+            fbank[j,i] = (i - bin[j]) / (bin[j+1]-bin[j])
+        for i in range(int(bin[j+1]), int(bin[j+2])):
+            fbank[j,i] = (bin[j+2]-i) / (bin[j+2]-bin[j+1])
+    return fbank
+
+
+class filternet(chainer.Chain):
+    def __init__(self, layers=1, nchannels=1, hdim=320, cdim=320, nfft=512, nfilt=40):
+        super(filternet, self).__init__()
+        if isinstance(nchannels, int):
+            nchannels = [nchannels]
+        combs1 = [(x, y) for x in range(len(nchannels)) for y in range(layers)]
+        combs2 = [(x, y) for x in range(len(nchannels)) for y in range(2)]
         with self.init_scope():
-            for i in range(nchannels):
-                name = 'b{}'.format(i)
-                _filt = chainer.variable.Parameter(1., shape)
+            for i, j in combs1:
+                if j == 0:
+                    inputdim = nchannels[i] * 2 * (nfft // 2 + 1)
+                else:
+                    inputdim = hdim
+                setattr(self, "bilstm{}_l{}".format(i, j), L.NStepBiLSTM(
+                    1, inputdim, cdim, 0.0))
+                setattr(self, "bt{}_l{}".format(i, j), L.Linear(2 * cdim, hdim))
+
+            _type = ['r', 'i']
+            for i, j in combs2:
+                name = 'filt{}_{}'.format(_type(j), i)
+                _filt = L.Linear(2 * cdim, nchannels[i] * (nfft // 2 + 1))
                 setattr(self, name, _filt)
-                filters.append(name)
-        self.filters = filters
+
+            for i in range(len(nchannels)):
+                name = 'brn_{}'.format(i)
+                brn = L.BatchRenormalization(nchannels[i])
+                setattr(self, name, brn)
+
         self.channels = nchannels
+        self.layers = layers
+        fbanks = get_filterbanks(nfilt=nfilt).T
+        self.fbanks = chainer.Variable(fbanks[None, None, :, :])
+        self.nfilt = nfilt
+        self.nfft = nfft
     
-    def __call__(self, xs):
-        bs, ch = xs.shape[0:2]
-        xs = F.split_axis(xs, ch, axis=1)
-        #logging.info(len(xs))
-        xs1 = list()
-        xp = self.xp
+    def __call__(self, xs, ilens):
+        # x: utt x frame x channel x dim
+
+        bs = len(xs)
+        channels = xs[0].shape[2]
+        idx = self.channels.index(channels // 2)
+        xs1 = [xs[i].reshape(1, ilens[i], -1) for i in range(bs)]
+        for layer in six.moves.range(self.layers):
+            hy, cy, ys = self['bilstm{}_l{}'.format() ](None, None, xs1)
+            ys = self['bt' + str(layer)](F.vstack(ys))
+            xs1 = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+            del hy, cy
+
+        # final tanh operation
+        vxs = F.vstack(xs1)
+        rfilt = F.split_axis(F.tanh(self['filtr_{}'.format(idx)](vxs)), np.cumsum(ilens[:-1]), axis=0)
+        ifilt = F.split_axis(F.tanh(self['filti_{}'.format(idx)](vxs)), np.cumsum(ilens[:-1]), axis=0)
+
+        out_xs = [None] * bs
         min_range = chainer.Variable(xp.asarray([1e-20], dtype=np.float32))
-        for i in range(0, self.channels, 2):
-            name = 'b{}'.format(i)
-            real_filt = getattr(self, name)
-            real_filt = F.broadcast_to(real_filt, [bs, 1, 257, 80])
-            name = 'b{}'.format(i + 1)
-            imag_filt = getattr(self, name)
-            imag_filt = F.broadcast_to(imag_filt, [bs, 1, 257, 80])
-            real_val = F.matmul(xs[i], real_filt) - F.matmul(xs[i + 1], imag_filt)
-            imag_val = F.matmul(xs[i], imag_filt) + F.matmul(xs[i + 1], real_filt)
-            feat = real_val ** 2 + imag_val ** 2 #
+        for i in range(bs):
+            rxs, ixs = F.split_axis(xs[i], 2, axis=1)
+            real_filt = rfilt[i].reshape(1, ilens[i], channels, -1)
+            imag_filt = ifilt[i].reshape(1, ilens[i], channels, -1)
+            real_val = F.matmul(rxs, real_filt) - F.matmul(ixs, imag_filt)
+            imag_val = F.matmul(rxs, imag_filt) + F.matmul(ixs, real_filt)
+            feat = real_val ** 2 + imag_val ** 2
             min_range = F.broadcast_to(min_range, feat.shape)
-            feat = F.log10(F.maximum(feat / 512., min_range))
-            xs1.append(feat)
-        xs = F.concat(xs1, axis=1)
-        return xs
+            feat = F.sum(F.maximum(feat, min_range), axis=2, keepdims=True)
+            fbanks = F.broadcast_to(self.fbanks, [1, ilens[i], self.nfft // 2, self.nfilt])
+            feat = F.matmul(feat, fbanks)
+            feat = self['brn_{}'.format(idx)](F.swapaxes(feat, 2, 3))
+            out_xs[i] = F.swapaxes(feat, 2, 3)
+
+        return xs, ilens
 
 
 def get_norm(filename):
@@ -1607,17 +1670,13 @@ class NBRESBRN(chainer.Chain):
         super(NBRESBRN, self).__init__()
         offset, scale = get_norm(normfile)
         with self.init_scope():
-            self.filt_1 = filter1(in_channel[0] * 2, [257, 80])
+            self.filt_1 = filternet(in_channel[0], [257, 80])
             self.bn_1 = L.BatchRenormalization(in_channel[0])
-            self.filt_2 = filter1(in_channel[1] * 2, [257, 80])
+            self.filt_2 = filternet(in_channel[1], [257, 80])
             self.bn_2 = L.BatchRenormalization(in_channel[1])
             self.conv_1 = L.Convolution2D(in_channel[0], 16, 1, nobias=True)
             self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
             self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
-            self.conv_2 = L.Convolution2D(in_channel[1], 16, 1, nobias=True)
-            self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
-            self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
-            
         self.in_channel = in_channel
         self.mode = mode
         self.offset = offset
@@ -1674,81 +1733,6 @@ class NBRESBRN(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         xs = F.reshape(
             xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
-
-        return xs, ilens
-
-
-class RESXVC(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128):
-        super(RESXVC, self).__init__()
-        if type(in_channel) is int:
-            in_channel = [in_channel]
-        with self.init_scope():
-            # CNN layer (RESNET motivated)
-            if mode == 'parallel':
-                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-                self.resblock1_1 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
-                self.resblock2_1 = BottleneckA(64, 128, outs, bn=L.BatchRenormalization)
-                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-                self.resblock1_2 = BottleneckA(16, 64, 64, bn=L.BatchRenormalization)
-                self.resblock2_2 = BottleneckA(64, 128, outs, bn=L.BatchRenormalization)
-
-                self.blockx_1 = BottleneckA(64, 64, 64, stride=(1, 2))
-                self.fcvx = L.Linear(64)
-            else:
-                raise ValueError('Incorrect mode.')
-        self.in_channel = in_channel
-        self.mode = mode
-
-    def __call__(self, xs, ilens):
-        '''RESNET forward
-
-        :param xs:
-        :param ilens:
-        :return:
-        '''
-        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
-        # x: utt x frame x dim
-        xs = F.pad_sequence(xs)
-
-        # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
-
-        if self.mode == 'parallel':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
-                xs = self.resblock1_1(xs)
-                xs1 = F.max_pooling_2d(xs, 2, stride=2)
-
-                xs = self.resblock2_1(xs1)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-            elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
-                xs = self.resblock1_2(xs)
-                xs1 = F.max_pooling_2d(xs, 2, stride=2)
-
-                xs = self.resblock2_2(xs1)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs1 = self.blockx_1(xs1)
-            # bs * 64 * length * dim 
-            xs1 = F.relu(self.fcvx(F.average(xs1, axis=2)))
-
-        # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs1 = F.broadcast_to(F.expand_dims(xs1, axis=1), (xs1.shape[0], xs.shape[1], xs1.shape[1]))
-        xs = F.concat((xs, xs1), axis=2)
         xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
 
         return xs, ilens
