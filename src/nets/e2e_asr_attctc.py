@@ -983,11 +983,15 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif _etype == 'lstm':
+                    _encoder = LSTM(idim, elayers, eunits,
+                                       eprojs, subsample, dropout)
+                    logging.info('LSTM added for encoder')
                 elif _etype == 'mcblstmp':
                     _encoder = MultiChannelBLSTMP(in_channel, idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
-                elif _etype == 'grdlstm':
+                elif _etype == 'grid':
                     _encoder = GrdLSTM(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('GridLSTM added for encoder')
@@ -998,24 +1002,23 @@ class Encoder(chainer.Chain):
                 elif _etype == 'res':
                     _encoder = RESNET(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET added for encoder')
                 elif _etype == 'reselu':
                     _encoder = RESNET(in_channel, mode=mode, act=F.elu)
                     idim = _get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with ELU activation added for encoder')
                 elif _etype == 'resbrn':
-                    _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization)
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization)
                     idim = _get_vgg2l_odim(idim)
-                elif _etype == 'nbresbrn':
-                    _encoder = NBRESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, normfile=normfile)
-                    idim = 2560 # _get_vgg2l_odim(idim) # 
-                elif _etype == 'resprebrn':
-                    _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, preact=True)
-                    idim = _get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization added for encoder')
                 elif _etype == 'resbrn256':
-                    _encoder = RESBRN(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = _get_vgg2l_odim(idim)  
+                    logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannel=in_channel)
                     in_channel = 1    
+                    logging.info('FilterNet added for encoder')
                 else:
                     logging.error(
                         "Error: {} not found. Need to specify an appropriate encoder archtecture".format(_etype))
@@ -1216,37 +1219,28 @@ class VGG2L(chainer.Chain):
         super(VGG2L, self).__init__()
         if isinstance(in_channel, int):
             in_channel = [in_channel]
+        if mode == 'regular':
+            combs = [(0, y) for y in range(4)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(4)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 4)]
+        else:
+            raise ValueError('Incorrect mode.')
+
         with self.init_scope():
             # CNN layer (VGG motivated)
-            if mode == 'regular':
-                in_channel = in_channel[0]
-                self.conv1_1 = L.Convolution2D(in_channel, 64, 3, stride=1, pad=1)
-                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-            elif mode == 'parallel':
-                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
-                self.conv1_2_1 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2_1 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
-                self.conv1_2_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1_2 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-            elif mode == 'entry':
-                self.conv1_1_1 = L.Convolution2D(in_channel[0], 64, 3, stride=1, pad=1)
-                self.conv1_1_2 = L.Convolution2D(in_channel[1], 64, 3, stride=1, pad=1)
-                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-            elif mode == 'recursive':
-                self.conv1_1 = L.Convolution2D(1, 64, 3, stride=1, pad=1)
-                self.conv1_2 = L.Convolution2D(64, 64, 3, stride=1, pad=1)
-                self.conv2_1 = L.Convolution2D(64, 128, 3, stride=1, pad=1)
-                self.conv2_2 = L.Convolution2D(128, 128, 3, stride=1, pad=1)
-                in_channel = 1
-            else:
-                raise ValueError('Incorrect mode.')
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 64, 3, stride=1, pad=1)
+                elif j == 1:
+                    layer = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                elif j == 2:
+                    layer = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                else:
+                    layer = L.Convolution2D(128, 128, 3, stride=1, pad=1)
+                setattr(self, l_name, layer)
         self.in_channel = in_channel
         self.mode = mode
 
@@ -1258,66 +1252,25 @@ class VGG2L(chainer.Chain):
         :return:
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-        # x: utt x frame x dim
+        # x: utt x frame x input channel x dim
         xs = F.pad_sequence(xs)
+
+        # x: utt x input channel x frame x dim     
         xs = F.swapaxes(xs, 1, 2)
-        # x: utt x  (input channel num) x frame x dim
-        # xs = F.swapaxes(F.reshape(
-        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
-        if self.mode == 'regular':
-            xs = F.relu(self.conv1_1(xs))
-            xs = F.relu(self.conv1_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
 
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'parallel':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = F.relu(self.conv1_1_1(xs))
-                xs = F.relu(self.conv1_2_1(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = F.relu(self['conv{}_0'.format(idx)](xs))
+        if self.mode == 'entry': 
+            idx = 0
 
-                xs = F.relu(self.conv2_1_1(xs))
-                xs = F.relu(self.conv2_2_1(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-            elif ch == self.in_channel[1]:
-                xs = F.relu(self.conv1_1_2(xs))
-                xs = F.relu(self.conv1_2_2(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = F.relu(self['conv{}_1'.format(idx)](xs))
+        xs = F.max_pooling_2d(xs, 2, stride=2)
 
-                xs = F.relu(self.conv2_1_2(xs))
-                xs = F.relu(self.conv2_2_2(xs))
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'entry':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = F.relu(self.conv1_1_1(xs))
-            elif ch == self.in_channel[1]:
-                xs = F.relu(self.conv1_1_2(xs))
-            xs = F.relu(self.conv1_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = F.relu(self['conv{}_2'.format(idx)](xs))
+        xs = F.relu(self['conv{}_3'.format(idx)](xs))
+        xs = F.max_pooling_2d(xs, 2, stride=2)
 
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'recursive':
-            ch = xs.shape[1]
-            for i in range(ch):
-                if i == 0:
-                    _xs = F.relu(self.conv1_1(xs[:,i:i+1]))
-                else:
-                    _xs = np.concat((_xs, F.relu(self.conv1_1(xs[:,i:i+1]))), axis=1)
-            xs = F.swapaxes(_xs, 1, 2)
-            xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
-            xs = F.swapaxes(xs, 1, 2)
-
-            xs = F.relu(self.conv1_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
@@ -1435,134 +1388,26 @@ class RESNET(chainer.Chain):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
+        if mode == 'regular':
+            combs = [(0, y) for y in range(3)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(3)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 3)]
+        else:
+            raise ValueError('Incorrect mode.')
         with self.init_scope():
             # CNN layer (RESNET motivated)
-            if mode == 'regular':
-                in_channel = in_channel[0]
-                self.conv0 = L.Convolution2D(in_channel, 16, 1, stride=1, nobias=True)
-                self.resblock1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2 = BottleneckA(64, 128, outs, act=act, bn=bn)
-            elif mode == 'parallel':
-                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-                self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
-                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-                self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
-            elif mode == 'entry':
-                self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-                self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-                self.resblock1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2 = BottleneckA(64, 128, outs, act=act, bn=bn)
-            elif mode == 'recursive':
-                self.conv0 = L.Convolution2D(1, 16, 1, stride=1, nobias=True)
-                self.resblock1 = BottleneckA(16, 64, 64)
-                self.resblock2 = BottleneckA(64, 128, outs)
-                in_channel = 1
-            else:
-                raise ValueError('Incorrect mode.')
-        self.in_channel = in_channel
-        self.mode = mode
-
-    def __call__(self, xs, ilens):
-        '''RESNET forward
-
-        :param xs:
-        :param ilens:
-        :return:
-        '''
-        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
-        # x: utt x frame x dim
-        xs = F.pad_sequence(xs)
-
-        # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
-        #xs = F.swapaxes(F.reshape(
-        #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
-        if self.mode == 'regular':
-            xs = self.conv0(xs)
-            xs = self.resblock1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'parallel':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
-                xs = self.resblock1_1(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-                xs = self.resblock2_1(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-            elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
-                xs = self.resblock1_2(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-
-                xs = self.resblock2_2(xs)
-                xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'entry':
-            ch = xs.shape[1]
-            if ch == self.in_channel[0]:
-                xs = self.conv0_1(xs)
-            elif ch == self.in_channel[1]:
-                xs = self.conv0_2(xs)
-            xs = self.resblock1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif self.mode == 'recursive':
-            ch = xs.shape[1]
-            for i in range(ch):
-                if i == 0:
-                    _xs = self.conv0(xs[:,i:i+1])
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 16, 1, stride=1, nobias=True)
+                elif j == 1:
+                    layer = BottleneckA(16, 64, 64, act=act, bn=bn)
                 else:
-                    _xs = np.concat((_xs, self.conv0(xs[:,i:i+1])), axis=1)
-            xs = F.swapaxes(_xs, 1, 2)
-            xs = F.max_pooling_2d(xs, 1, stride=(ch, 1))
-            xs = F.swapaxes(xs, 1, 2)
+                    layer = BottleneckA(64, 128, outs, act=act, bn=bn)
+                setattr(self, l_name, layer)
 
-            xs = F.relu(self.conv1_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-            xs = F.relu(self.conv2_1(xs))
-            xs = F.relu(self.conv2_2(xs))
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
-
-        return xs, ilens
-
-
-class RESBRN(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, preact=False):
-        super(RESBRN, self).__init__()
-        with self.init_scope():
-            self.conv0_1 = L.Convolution2D(in_channel[0], 16, 1, stride=1, nobias=True)
-            self.conv0_2 = L.Convolution2D(in_channel[1], 16, 1, stride=1, nobias=True)
-            if preact:
-                self.resblock1_1 = PreBottleneckA(16, 64, 64, act=act)
-                self.resblock2_1 = PreBottleneckA(64, 128, outs, act=act)
-                
-                self.resblock1_2 = PreBottleneckA(16, 64, 64, act=act)
-                self.resblock2_2 = PreBottleneckA(64, 128, outs, act=act)
-            else:
-                self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
-
-                self.resblock1_2 = BottleneckA(16, 64, 64, act=act, bn=bn)
-                self.resblock2_2 = BottleneckA(64, 128, outs, act=act, bn=bn)
         self.in_channel = in_channel
         self.mode = mode
 
@@ -1575,25 +1420,24 @@ class RESBRN(chainer.Chain):
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
-        # x: utt x frame x dim
+        # x: utt x frame x input channel x dim
         xs = F.pad_sequence(xs)
 
-        # x: utt x 1 (input channel num) x frame x dim
+        # x: utt x input channel x frame x dim     
         xs = F.swapaxes(xs, 1, 2)
-        if xs.shape[1] == self.in_channel[0]:
-            xs = self.conv0_1(xs)
-            xs = self.resblock1_1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
 
-            xs = self.resblock2_1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif xs.shape[1] == self.in_channel[1]:
-            xs = self.conv0_2(xs)
-            xs = self.resblock1_2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = self['conv{}_0'.format(idx)](xs)
+        if self.mode == 'entry': 
+            idx = 0
 
-            xs = self.resblock2_2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs = self['conv{}_1'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self['conv{}_2'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
@@ -1636,6 +1480,20 @@ def get_filterbanks(nfilt=20, nfft=512, samplerate=16000, lowfreq=0, highfreq=No
         for i in range(int(bin[j+1]), int(bin[j+2])):
             fbank[j,i] = (bin[j+2]-i) / (bin[j+2]-bin[j+1])
     return fbank
+
+
+def get_norm(filename):
+    mat = kaldi_io_py.read_mat(filename)
+    logging.info('Norm File size {}'.format(mat.shape))
+    count = mat[0, 80]
+    logging.info('Counted Files {}'.format(count))
+    mean = mat[1, :80] / count
+    var = (mat[0, :80] / count) - mean * mean
+    floor = 1e-20
+    var[var < floor] = floor
+    scale = 1. / np.sqrt(var)
+    offset = -1. * (mean * scale) 
+    return offset, scale
 
 
 class filternet(chainer.Chain):
@@ -1705,92 +1563,5 @@ class filternet(chainer.Chain):
             feat = F.log10(F.matmul(F.maximum(feat, min_range), fbanks))
             feat = self['brn_{}'.format(idx)](F.swapaxes(feat, 2, 3))
             out_xs[i] = F.swapaxes(feat, 2, 3)
-
-        return xs, ilens
-
-
-def get_norm(filename):
-    mat = kaldi_io_py.read_mat(filename)
-    logging.info('Norm File size {}'.format(mat.shape))
-    count = mat[0, 80]
-    logging.info('Counted Files {}'.format(count))
-    mean = mat[1, :80] / count
-    var = (mat[0, :80] / count) - mean * mean
-    floor = 1e-20
-    var[var < floor] = floor
-    scale = 1. / np.sqrt(var)
-    offset = -1. * (mean * scale) 
-    return offset, scale
-
-
-class NBRESBRN(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, normfile=None):
-        super(NBRESBRN, self).__init__()
-        offset, scale = get_norm(normfile)
-        with self.init_scope():
-            self.filt_1 = filternet(in_channel[0], [257, 80])
-            self.bn_1 = L.BatchRenormalization(in_channel[0])
-            self.filt_2 = filternet(in_channel[1], [257, 80])
-            self.bn_2 = L.BatchRenormalization(in_channel[1])
-            self.conv_1 = L.Convolution2D(in_channel[0], 16, 1, nobias=True)
-            self.resblock1_1 = BottleneckA(16, 64, 64, act=act, bn=bn)
-            self.resblock2_1 = BottleneckA(64, 128, outs, act=act, bn=bn)
-        self.in_channel = in_channel
-        self.mode = mode
-        self.offset = offset
-        self.scale = scale
-        return 
-
-
-    def __call__(self, xs, ilens):
-        '''RESNET forward
-
-        :param xs:
-        :param ilens:
-        :return:
-        '''
-        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
-
-        # x: utt x frame x dim
-        xs = F.pad_sequence(xs)
-        #logging.info(xs.shape)
-        xp = self.xp
-        offset = xp.asarray(self.offset)
-        scale = xp.asarray(self.scale)
-        # x: utt x 1 (input channel num) x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
-        logging.info(xs.shape)
-        if xs.shape[1] == self.in_channel[0] * 2:
-            xs = self.filt_1(xs)
-            #xs = xs * scale + offset
-            xs = self.bn_1(xs)
-            xs = self.conv_1(xs)
-            xs = self.resblock1_1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2_1(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        elif xs.shape[1] == self.in_channel[1] * 2:
-            xs = self.filt_2(xs)
-            #xs = xs * scale + offset
-            xs = self.bn_2(xs)
-            xs = self.conv_2(xs)
-            xs = self.resblock1_2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-
-            xs = self.resblock2_2(xs)
-            xs = F.max_pooling_2d(xs, 2, stride=2)
-        logging.info(xs.shape)
-        # change ilens accordingly
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-        ilens = self.xp.array(self.xp.ceil(self.xp.array(
-            ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
 
         return xs, ilens
