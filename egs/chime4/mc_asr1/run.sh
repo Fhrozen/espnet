@@ -82,7 +82,7 @@ set -e
 set -u
 set -o pipefail
 
-train_set=tr05_multi_noisy
+train_set=tr05_mix_noisy
 train_dev=dt05_real_noisy_6mics
 recog_set="\
 dt05_real_noisy_2mics dt05_simu_noisy_2mics et05_real_noisy_2mics et05_simu_noisy_2mics \
@@ -96,14 +96,17 @@ if [ ${stage} -le 0 ]; then
     wsj0_data=${chime4_data}/data/WSJ0
     local/clean_wsj0_data_prep.sh ${wsj0_data}
     local/clean_chime4_format_data.sh
-    echo "prepartion for chime4 data"
-    local/real_noisy_chime4_data_prep.sh ${chime4_data}
-    local/simu_noisy_chime4_data_prep.sh ${chime4_data}
-    echo "test data for 2ch track"
-    local/real_enhan_chime4_data_prep.sh noisy_2mics ${chime4_data}/isolated_2ch_track
-    local/simu_enhan_chime4_data_prep.sh noisy_2mics ${chime4_data}/isolated_2ch_track
-fi
+    echo "prepartion for chime4 data 2CH"
+    local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track 2mics
+    local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track 2mics
+    echo "prepartion for chime4 data 6CH"
+    local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
+    local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
 
+    #local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track
+    #local/simu_enhan_chime4_data_prep.sh noisy_2mics ${chime4_data}/isolated_2ch_track
+fi
+exit 0
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ]; then

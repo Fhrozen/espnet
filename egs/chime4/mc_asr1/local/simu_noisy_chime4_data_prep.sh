@@ -18,7 +18,7 @@ eval_flag=true # make it true when the evaluation data are released
 
 . utils/parse_options.sh || exit 1;
 
-if [ $# -ne 1 ]; then
+if [ $# -ne 3 ]; then
   printf "\nUSAGE: %s <corpus-directory>\n\n" `basename $0`
   echo "The argument should be a the top-level Chime4 directory."
   echo "It is assumed that there will be a 'data' subdirectory"
@@ -28,8 +28,9 @@ fi
 
 echo "$0 $@"  # Print the command line for logging
 
-audio_dir=$1/data/audio/16kHz/isolated
+audio_dir=$1/data/audio/16kHz/$2
 trans_dir=$1/data/transcriptions
+tag=$3
 
 echo "extract all channels (CH1-6.wav) for noisy data"
 
@@ -38,23 +39,28 @@ local=`pwd`/local
 utils=`pwd`/utils
 
 if ${eval_flag}; then
-list_set="tr05_simu_noisy dt05_simu_noisy et05_simu_noisy"
+list_set="tr05_simu_noisy_${tag} dt05_simu_noisy_${tag} et05_simu_noisy_${tag}"
 else
-list_set="tr05_simu_noisy dt05_simu_noisy"
+list_set="tr05_simu_noisy_${tag} dt05_simu_noisy_${tag}"
 fi
 
 cd ${dir}
 
-find ${audio_dir} -name '*CH[1-6].wav' | grep 'tr05_bus_simu\|tr05_caf_simu\|tr05_ped_simu\|tr05_str_simu' | sort -u > tr05_simu_noisy.flist
-find ${audio_dir} -name '*CH[1-6].wav' | grep 'dt05_bus_simu\|dt05_caf_simu\|dt05_ped_simu\|dt05_str_simu' | sort -u > dt05_simu_noisy.flist
+find ${audio_dir} -name '*CH[1-6].wav' | grep 'tr05_bus_simu\|tr05_caf_simu\|tr05_ped_simu\|tr05_str_simu' | sort -u > tr05_simu_noisy_${tag}.flist
+find ${audio_dir} -name '*CH[1-6].wav' | grep 'dt05_bus_simu\|dt05_caf_simu\|dt05_ped_simu\|dt05_str_simu' | sort -u > dt05_simu_noisy_${tag}.flist
 if ${eval_flag}; then
-find ${audio_dir} -name '*CH[1-6].wav' | grep 'et05_bus_simu\|et05_caf_simu\|et05_ped_simu\|et05_str_simu' | sort -u > et05_simu_noisy.flist
+find ${audio_dir} -name '*CH[1-6].wav' | grep 'et05_bus_simu\|et05_caf_simu\|et05_ped_simu\|et05_str_simu' | sort -u > et05_simu_noisy_${tag}.flist
 fi
 
 # make a dot format from json annotation files
-cp ${trans_dir}/dt05_simu.dot_all dt05_simu.dot
+if ! [ -f dt05_simu.dot ]; then
+  cp ${trans_dir}/dt05_simu.dot_all dt05_simu.dot
+fi
+
 if ${eval_flag}; then
+if ! [ -f et05_simu.dot ]; then
 cp ${trans_dir}/et05_simu.dot_all et05_simu.dot
+fi
 fi
 
 # make a scp file from file list
@@ -70,23 +76,23 @@ if [ ! -e dot_files.flist ]; then
   echo "Could not find ${dir}/dot_files.flist files, first run local/clean_wsj0_data_prep.sh";
   exit 1;
 fi
-cat tr05_simu_noisy_wav.scp | awk -F'[_]' '{print $2}' | tr '[A-Z]' '[a-z]' \
+cat tr05_simu_noisy_${tag}_wav.scp | awk -F'[_]' '{print $2}' | tr '[A-Z]' '[a-z]' \
     | ${local}/find_noisy_transcripts.pl dot_files.flist | cut -f 2- -d" " > tr05_simu_noisy.txt
-cat tr05_simu_noisy_wav.scp | cut -f 1 -d" " > tr05_simu_noisy.ids
-paste -d" " tr05_simu_noisy.ids tr05_simu_noisy.txt | sort -k 1 > tr05_simu_noisy.trans1
+cat tr05_simu_noisy_${tag}_wav.scp | cut -f 1 -d" " > tr05_simu_noisy.ids
+paste -d" " tr05_simu_noisy.ids tr05_simu_noisy.txt | sort -k 1 > tr05_simu_noisy_${tag}.trans1
 # dt05 and et05 simulation data are generated from the CHiME4 booth recording
 # and we use CHiME4 dot files
 cat dt05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1_SIMU"}'> dt05_simu_noisy.ids
 cat dt05_simu.dot | sed -e 's/(.*)//' > dt05_simu_noisy.txt
 paste -d" " dt05_simu_noisy.ids dt05_simu_noisy.txt | \
 awk '{print}{sub(/CH1/, "CH2",$0);print}{sub(/CH2/, "CH3",$0);print}{sub(/CH3/, "CH4",$0);print}{sub(/CH4/, "CH5",$0);print}{sub(/CH5/, "CH6",$0);print}' | \
-sort -k 1 > dt05_simu_noisy.trans1
+sort -k 1 > dt05_simu_noisy_${tag}.trans1
 if ${eval_flag}; then
 cat et05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1_SIMU"}'> et05_simu_noisy.ids
 cat et05_simu.dot | sed -e 's/(.*)//' > et05_simu_noisy.txt
 paste -d" " et05_simu_noisy.ids et05_simu_noisy.txt | \
 awk '{print}{sub(/CH1/, "CH2",$0);print}{sub(/CH2/, "CH3",$0);print}{sub(/CH3/, "CH4",$0);print}{sub(/CH4/, "CH5",$0);print}{sub(/CH5/, "CH6",$0);print}' | \
-sort -k 1 > et05_simu_noisy.trans1
+sort -k 1 > et05_simu_noisy_${tag}.trans1
 fi
 
 # Do some basic normalization steps.  At this point we don't remove OOVs--
@@ -114,6 +120,8 @@ for x in ${list_set}; do
   cp ${x}.txt     ../../${x}/text    || exit 1;
   cp ${x}.spk2utt ../../${x}/spk2utt || exit 1;
   cp ${x}.utt2spk ../../${x}/utt2spk || exit 1;
+  # Check that data dirs are okay!
+  ${utils}/validate_data_dir.sh --no-feats ../../${x} || exit 1
 done
 
 echo "Data preparation succeeded"
