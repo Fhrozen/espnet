@@ -88,6 +88,10 @@ recog_set="\
 dt05_real_noisy_2mics dt05_simu_noisy_2mics et05_real_noisy_2mics et05_simu_noisy_2mics \
 dt05_real_noisy_6mics dt05_simu_noisy_6mics et05_real_noisy_6mics et05_simu_noisy_6mics \
 "
+if [ ${stage} -le -1 ]; then
+    echo "stage -1: Prepare 2CH training data"
+    local/prepare_2ch_tr.py ${chime4_data}
+fi
 
 if [ ${stage} -le 0 ]; then
     ### Task dependent. You have to make the following data preparation part by yourself.
