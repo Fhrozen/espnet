@@ -1063,7 +1063,7 @@ class MultiChannelBLSTMP(chainer.Chain):
         with self.init_scope():
             for i, j in comb:
                 if j == 0:
-                    idim = idim * in_channels[i] 
+                    inputdim = idim * in_channels[i] 
                 else:
                     inputdim = hdim
                 setattr(self, 'bilstm{}_l{}'.format(i, j), L.NStepBiLSTM(
