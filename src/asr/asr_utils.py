@@ -25,7 +25,7 @@ matplotlib.use('Agg')
 def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0):
     # sort it by input lengths (long to short)
     sorted_data = sorted(data.items(), key=lambda data: (len(
-            data[1]['input']), int(data[1]['input'][0]['shape'][0])), reverse=True)
+        data[1]['input']), int(data[1]['input'][0]['shape'][0])), reverse=True)
     logging.info('# utts: ' + str(len(sorted_data)))
     # change batchsize depending on the input and output length
     minibatch = []
@@ -40,7 +40,7 @@ def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0
         b = max(1, int(batch_size / (1 + factor)))
         end = min(len(sorted_data), start + b)
         while True:
-            if len(sorted_data[start][1]['input']) == len(sorted_data[end-1][1]['input']):
+            if len(sorted_data[start][1]['input']) == len(sorted_data[end - 1][1]['input']):
                 break
             else:
                 end = end - 1
@@ -65,9 +65,9 @@ def converter_fbank(batch, device=None):
         for i in range(n_inputs):
             _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
             if 'feat' not in locals():
-                feat = _feat[:,None,:]
+                feat = _feat[:, None, :]
             else:
-                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
+                feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
         data[1]['feat'] = feat
         del(feat)
     return batch
@@ -80,15 +80,15 @@ def converter_spectro(batch, device=None):
         n_inputs = len(data[1]['input'])
         for i in range(n_inputs):
             _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
-            _len = int(_feat.shape[0] / 2) 
+            _len = int(_feat.shape[0] / 2)
             _feat_r = _feat[:_len]
             _feat_i = _feat[:_len]
             if 'feat_r' not in locals():
-                feat_r = _feat_r[:,None,:]
-                feat_i = _feat_i[:,None,:]
+                feat_r = _feat_r[:, None, :]
+                feat_i = _feat_i[:, None, :]
             else:
-                feat_r = np.concatenate((feat_r, _feat_r[:,None,:]), axis=1)
-                feat_i = np.concatenate((feat_i, _feat_i[:,None,:]), axis=1)
+                feat_r = np.concatenate((feat_r, _feat_r[:, None, :]), axis=1)
+                feat_i = np.concatenate((feat_i, _feat_i[:, None, :]), axis=1)
         feat = np.concatenate((feat_r, feat_i), axis=1)
         data[1]['feat'] = feat
         del(feat_r)
@@ -104,9 +104,9 @@ def converter_raw(batch, device=None):
         for i in range(n_inputs):
             _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
             if 'feat' not in locals():
-                feat = _feat[:,None,:]
+                feat = _feat[:, None, :]
             else:
-                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
+                feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
         data[1]['feat'] = feat
         del(feat)
     return batch

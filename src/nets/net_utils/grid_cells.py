@@ -1,6 +1,7 @@
 import inspect
 import six
 
+import chainer
 from chainer.functions.activation import lstm
 from chainer.functions.activation import sigmoid
 from chainer.functions.activation import tanh
@@ -158,8 +159,8 @@ class GridLSTMCell(link.ChainList):
                 cell = StatelessGridLSTMbase(comb_in, cell_sizes[i])
                 setattr(self, name, cell)
                 self._forward.append(name)
-        self.in_indices = [x+y for x, y in zip(cell_sizes,
-                           [0]+cell_sizes[:-1])]
+        self.in_indices = [x + y for x, y in zip(cell_sizes,
+                           [0] + cell_sizes[:-1])]
         self.dimensionality = dimensionality
         self.sharing_dimensions = sharing_dimensions
 
@@ -180,9 +181,7 @@ class GridLSTMCell(link.ChainList):
         # assert c is not None
         if c is None:
             xp = self.xp
-            with cuda.get_device_from_id(self._device_id):
-                c = variable.Variable(
-                    xp.zeros((x.shape[0], self.state_size), dtype=x.dtype))
+            c = chainer.Variable(xp.zeros((h.shape[0], self.state_size), dtype=h.dtype))
         c = split_axis.split_axis(c, self.out_indices, 1, True)
         h_list = []
         h_curr = None
@@ -246,8 +245,8 @@ class GridGRUCell(link.ChainList):
         comb_in = sum(cell_sizes)
         for i in range(sharing_dimensions):
             self.add_link(StatelessGridGRUbase(comb_in, cell_sizes[i]))
-        self.in_indices = [x+y for x, y in zip(cell_sizes,
-                           [0]+cell_sizes[:-1])]
+        self.in_indices = [x + y for x, y in zip(cell_sizes,
+                           [0] + cell_sizes[:-1])]
         self.dimensionality = dimensionality
         self.sharing_dimensions = sharing_dimensions
 
@@ -269,6 +268,7 @@ class GridGRUCell(link.ChainList):
             h_list.append(h_curr)
         h_new = concat.concat(h_list, 1)
         return h_new
+
 
 memory_cell_dictionary = {'GRU': StatelessGridGRUbase,
                           'LSTM': StatelessGridLSTMbase}
@@ -340,8 +340,8 @@ class GridCell(link.ChainList):
             in_sizes_curr, out_sizes_curr = combined_input_size, out_sizes[i]
             cell = memory_cell_dictionary[cell_types[i]]
             self.add_link(cell(in_sizes_curr, out_sizes_curr))
-        self.in_indices = [x+y for x, y in zip(in_sizes,
-                           [0]+in_sizes[:-1])]
+        self.in_indices = [x + y for x, y in zip(in_sizes,
+                           [0] + in_sizes[:-1])]
         self.cell_types = cell_types
         self.dimensionality = dimensionality
         self.sharing_dimensions = sharing_dimensions

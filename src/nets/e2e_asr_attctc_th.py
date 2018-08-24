@@ -2028,7 +2028,7 @@ class Encoder(torch.nn.Module):
                 logging.info('BLSTM without projection for encoder')
             elif encoders[i] == 'blstmp':
                 _encoder = BLSTMP(idim, elayers, eunits,
-                                   eprojs, subsample, dropout)
+                                  eprojs, subsample, dropout)
                 logging.info('BLSTM with every-layer projection added for encoder')
             elif encoders[i] == 'vgg':
                 _encoder = VGG2L(in_channel, mode=mode)
@@ -2059,7 +2059,7 @@ class Encoder(torch.nn.Module):
         '''
         for name in self._forward:
             enc = getattr(self, name)
-            xs, ilens =  enc(xs, ilens)
+            xs, ilens = enc(xs, ilens)
         return xs, ilens
 
 
@@ -2089,8 +2089,8 @@ class BLSTMP(torch.nn.Module):
         '''
         # logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
         if len(xpad.shape) > 3:
-            xpad = xpad.contiguous().view(
-            xpad.size(0), xpad.size(1), xpad.size(2) * xpad.size(3))
+            xpad = xpad.contiguous().view(xpad.size(0), xpad.size(1),
+                                          xpad.size(2) * xpad.size(3))
         for layer in six.moves.range(self.elayers):
             xpack = pack_padded_sequence(xpad, ilens, batch_first=True)
             bilstm = getattr(self, 'bilstm' + str(layer))
@@ -2178,9 +2178,9 @@ class VGG2L(torch.nn.Module):
         # xs = F.pad_sequence(xs)
 
         # x: utt x 1 (input channel num) x frame x dim
-        #xs = xs.view(xs.size(0), xs.size(1), self.in_channel,
+        # xs = xs.view(xs.size(0), xs.size(1), self.in_channel,
         #             xs.size(2) // self.in_channel).transpose(1, 2)
-        xs = xs.transpose(1,2)
+        xs = xs.transpose(1, 2)
 
         if self.mode == 'regular':
             # NOTE: max_pool1d ?
@@ -2330,7 +2330,7 @@ class RESNET(torch.nn.Module):
 
         # x: utt x 1 (input channel num) x frame x dim
         xs = xs.transpose(1, 2)
-        #xs = F.swapaxes(F.reshape(
+        # xs = F.swapaxes(F.reshape(
         #    xs, (xs.shape[0], xs.shape[1], self.in_channel, xs.shape[2] // self.in_channel)), 1, 2)
         if self.mode == 'regular':
             xs = self.conv0(xs)

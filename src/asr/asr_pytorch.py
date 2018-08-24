@@ -460,10 +460,9 @@ def recog(args):
             # feat = kaldi_io_py.read_mat(recog_json[name]['input'][0]['feat'])
             _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
             if 'feat' not in locals():
-                feat = _feat[:,None,:]
+                feat = _feat[:, None, :]
             else:
-                feat = np.concatenate((feat, _feat[:,None,:]), axis=1)
-    
+                feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
         nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm=rnnlm)
         del(feat)
         # get 1best and remove sos

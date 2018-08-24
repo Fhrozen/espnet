@@ -310,7 +310,7 @@ def train(args):
 
     if args.converter == 'fbank':
         converter_kaldi = converter_fbank
-    elif args.converter == 'spec': 
+    elif args.converter == 'spec':
         converter_kaldi = converter_spectro
 
     # specify model architecture
@@ -508,6 +508,10 @@ def recog(args):
     model = Loss(e2e, train_args.mtlalpha)
     chainer.serializers.load_npz(args.model, model)
 
+    if train_args.converter == 'fbank':
+        converter_kaldi = converter_fbank
+    elif train_args.converter == 'spec':
+        converter_kaldi = converter_spectro
     # read rnnlm
     if args.rnnlm:
         rnnlm = lm_chainer.ClassifierWithState(lm_chainer.RNNLM(len(train_args.char_list), 650))

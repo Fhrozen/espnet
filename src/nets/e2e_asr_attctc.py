@@ -21,8 +21,8 @@ from chainer_ctc.warpctc import ctc as warp_ctc
 from ctc_prefix_score import CTCPrefixScore
 from e2e_asr_common import end_detect
 from e2e_asr_common import label_smoothing_dist
-from net_utils import GridLSTM
 import kaldi_io_py
+from net_utils import GridLSTM
 
 import deterministic_embed_id as DL
 
@@ -968,7 +968,8 @@ class Encoder(chainer.Chain):
 
     '''
 
-    def __init__(self, etype, idim, elayers, eunits, eprojs, subsample, dropout, in_channel=1, mode=None, normfile=None):
+    def __init__(self, etype, idim, elayers, eunits,
+                 eprojs, subsample, dropout, in_channel=1, mode=None, normfile=None):
         super(Encoder, self).__init__()
         encoders = etype.split('_')
         with self.init_scope():
@@ -981,15 +982,15 @@ class Encoder(chainer.Chain):
                     logging.info('BLSTM added for encoder')
                 elif _etype == 'blstmp':
                     _encoder = BLSTMP(idim, elayers, eunits,
-                                       eprojs, subsample, dropout)
+                                      eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
                 elif _etype == 'lstm':
                     _encoder = LSTM(idim, elayers, eunits,
-                                       eprojs, subsample, dropout)
+                                    eprojs, subsample, dropout)
                     logging.info('LSTM added for encoder')
                 elif _etype == 'mcblstmp':
                     _encoder = MultiChannelBLSTMP(in_channel, idim, elayers, eunits,
-                                       eprojs, subsample, dropout)
+                                                  eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
                 elif _etype == 'grid':
                     _encoder = GrdLSTM(idim, elayers, eunits,
@@ -1022,11 +1023,11 @@ class Encoder(chainer.Chain):
                     logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
-                    idim = _get_vgg2l_odim(idim)  
+                    idim = _get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannel=in_channel)
-                    in_channel = 1    
+                    in_channel = 1
                     logging.info('FilterNet added for encoder')
                 else:
                     logging.error(
@@ -1045,13 +1046,13 @@ class Encoder(chainer.Chain):
         '''
         for name in self._forward:
             enc = getattr(self, name)
-            xs, ilens =  enc(xs, ilens)
+            xs, ilens = enc(xs, ilens)
         return xs, ilens
 
     @property
     def forward(self):
         return [getattr(self, name) for name in self._forward]
-        
+
 
 # TODO(watanabe) explanation of BLSTMP
 class MultiChannelBLSTMP(chainer.Chain):
@@ -1063,7 +1064,7 @@ class MultiChannelBLSTMP(chainer.Chain):
         with self.init_scope():
             for i, j in comb:
                 if j == 0:
-                    inputdim = idim * in_channels[i] 
+                    inputdim = idim * in_channels[i]
                 else:
                     inputdim = hdim
                 setattr(self, 'bilstm{}_l{}'.format(i, j), L.NStepBiLSTM(
@@ -1084,9 +1085,11 @@ class MultiChannelBLSTMP(chainer.Chain):
         :param ilens:
         :return:
         '''
-        ch = xs[0].shape[2]
+        # xs: tuple[frames x channels x dims]
+        bs = len(xs)
+        ch = xs[0].shape[1]
         idx = self.in_channels.index(ch)
-        xs = [xs[i].reshape[ilens(i), ch * self.idim]]
+        xs = [F.reshape(xs[i], (int(ilens[i]), ch * self.idim)) for i in six.moves.range(bs)]
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
         for layer in six.moves.range(self.elayers):
@@ -1162,7 +1165,7 @@ class GrdLSTM(chainer.Chain):
         shared_dims = [[1], [x for x in range(2, elayers + 1)]]
 
         with self.init_scope():
-            self.grid = GridLSTM([idim, cdim], shared_dims, elayers) 
+            self.grid = GridLSTM([idim, cdim], shared_dims, elayers)
             self.l_last = L.Linear(cdim * 2, hdim)
 
     def __call__(self, ys, ilens):
@@ -1177,6 +1180,37 @@ class GrdLSTM(chainer.Chain):
         cy = None
         for x in range(ys.shape[1]):
             cy, ys = self.grid(cy, ys[x])
+        ys = self.l_last(F.vstack(ys))  # (sum _utt frame_utt) x dim
+        xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+        del cy
+
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
+
+
+class LSTM(chainer.Chain):
+    def __init__(self, idim, elayers, cdim, hdim, dropout):
+        super(LSTM, self).__init__()
+        with self.init_scope():
+            self.nblstm = L.NStepBiLSTM(elayers, idim, cdim, dropout)
+            self.l_last = L.Linear(cdim * 2, hdim)
+
+    def __call__(self, xs, ilens):
+        '''BLSTM forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        ilens = np.asarray([x for x in ilens], dtype=np.int32)
+        hy, cy, ys = self.nblstm(None, None, xs)
         ys = self.l_last(F.vstack(ys))  # (sum _utt frame_utt) x dim
         xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
         del cy
@@ -1264,13 +1298,13 @@ class VGG2L(chainer.Chain):
         # x: utt x frame x input channel x dim
         xs = F.pad_sequence(xs)
 
-        # x: utt x input channel x frame x dim     
+        # x: utt x input channel x frame x dim
         xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
 
         xs = F.relu(self['conv{}_0'.format(idx)](xs))
-        if self.mode == 'entry': 
+        if self.mode == 'entry':
             idx = 0
 
         xs = F.relu(self['conv{}_1'.format(idx)](xs))
@@ -1305,13 +1339,13 @@ class BottleneckA(chainer.Chain):
                 in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv2 = L.Convolution2D(
                 mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
-            if bn != None:
+            if bn is not None:
                 self.bnsc = bn(out_channels)
                 self.bn1 = bn(mid_channels)
                 self.bn2 = bn(out_channels)
                 self.bn = True
             else:
-                self.bn = False 
+                self.bn = False
         self.act = act
 
     def __call__(self, x):
@@ -1335,13 +1369,11 @@ class PreBottleneckA(chainer.Chain):
         with self.init_scope():
             self.shortcut = L.Convolution2D(
                 in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
-            
             self.bn1 = L.BatchRenormalization(in_channels)
             self.conv1 = L.Convolution2D(
                 in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv2 = L.Convolution2D(
                 mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
-            
             self.bn2 = L.BatchRenormalization(mid_channels)
         self.act = act
 
@@ -1435,13 +1467,13 @@ class RESNET(chainer.Chain):
         # x: utt x frame x input channel x dim
         xs = F.pad_sequence(xs)
 
-        # x: utt x input channel x frame x dim     
+        # x: utt x input channel x frame x dim
         xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        if chn == 2:  
+        if chn == 2:
             if self.dropout == 'fixed':
                 xs = F.dropout(xs, self.dratio)
             elif self.dropout == 'incremental':
@@ -1450,7 +1482,7 @@ class RESNET(chainer.Chain):
                 self.iter += 1
 
         xs = self['conv{}_0'.format(idx)](xs)
-        if self.mode == 'entry': 
+        if self.mode == 'entry':
             idx = 0
 
         xs = self['conv{}_1'.format(idx)](xs)
@@ -1475,31 +1507,31 @@ class RESNET(chainer.Chain):
 
 
 def hz2mel(hz):
-    return 2595 * np.log10(1+hz/700.)
+    return 2595 * np.log10(1 + hz / 700.)
 
 
 def mel2hz(mel):
-    return 700*(10**(mel/2595.0)-1)
+    return 700 * (10 ** (mel / 2595.0) - 1)
 
 
 def get_filterbanks(nfilt=20, nfft=512, samplerate=16000, lowfreq=0, highfreq=None):
-    highfreq= highfreq or samplerate/2
-    assert highfreq <= samplerate/2, "highfreq is greater than samplerate/2"
+    highfreq = highfreq or samplerate / 2
+    assert highfreq <= samplerate / 2, "highfreq is greater than samplerate/2"
 
     # compute points evenly spaced in mels
     lowmel = hz2mel(lowfreq)
     highmel = hz2mel(highfreq)
-    melpoints = np.linspace(lowmel,highmel,nfilt+2)
+    melpoints = np.linspace(lowmel, highmel, nfilt + 2)
     # our points are in Hz, but we use fft bins, so we have to convert
     #  from Hz to fft bin number
-    bin = np.floor((nfft+1)*mel2hz(melpoints)/samplerate)
+    bin = np.floor((nfft + 1) * mel2hz(melpoints) / samplerate)
 
-    fbank = np.zeros([nfilt,nfft//2+1], astype=np.float32)
-    for j in range(0,nfilt):
-        for i in range(int(bin[j]), int(bin[j+1])):
-            fbank[j,i] = (i - bin[j]) / (bin[j+1]-bin[j])
-        for i in range(int(bin[j+1]), int(bin[j+2])):
-            fbank[j,i] = (bin[j+2]-i) / (bin[j+2]-bin[j+1])
+    fbank = np.zeros([nfilt, nfft // 2 + 1], astype=np.float32)
+    for j in range(0, nfilt):
+        for i in range(int(bin[j]), int(bin[j + 1])):
+            fbank[j, i] = (i - bin[j]) / (bin[j + 1] - bin[j])
+        for i in range(int(bin[j + 1]), int(bin[j + 2])):
+            fbank[j, i] = (bin[j + 2] - i) / (bin[j + 2] - bin[j + 1])
     return fbank
 
 
@@ -1513,7 +1545,7 @@ def get_norm(filename):
     floor = 1e-20
     var[var < floor] = floor
     scale = 1. / np.sqrt(var)
-    offset = -1. * (mean * scale) 
+    offset = -1. * (mean * scale)
     return offset, scale
 
 
@@ -1551,7 +1583,7 @@ class filternet(chainer.Chain):
         self.fbanks = chainer.Variable(fbanks[None, None, :, :])
         self.nfilt = nfilt
         self.nfft = nfft
-    
+
     def __call__(self, xs, ilens):
         # x: utt x frame x channel x dim
 
@@ -1560,7 +1592,7 @@ class filternet(chainer.Chain):
         idx = self.channels.index(channels // 2)
         xs1 = [xs[i].reshape(1, ilens[i], -1) for i in range(bs)]
         for layer in six.moves.range(self.layers):
-            hy, cy, ys = self['bilstm{}_l{}'.format() ](None, None, xs1)
+            hy, cy, ys = self['bilstm{}_l{}'.format()](None, None, xs1)
             ys = self['bt' + str(layer)](F.vstack(ys))
             xs1 = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
             del hy, cy
@@ -1571,7 +1603,7 @@ class filternet(chainer.Chain):
         ifilt = F.split_axis(F.tanh(self['filti_{}'.format(idx)](vxs)), np.cumsum(ilens[:-1]), axis=0)
 
         out_xs = [None] * bs
-        min_range = chainer.Variable(xp.asarray([1e-20], dtype=np.float32))
+        min_range = chainer.Variable(self.xp.asarray([1e-20], dtype=np.float32))
         for i in range(bs):
             rxs, ixs = F.split_axis(xs[i], 2, axis=1)
             real_filt = rfilt[i].reshape(1, ilens[i], channels, -1)
