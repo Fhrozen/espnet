@@ -1011,6 +1011,15 @@ class Encoder(chainer.Chain):
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization)
                     idim = _get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization added for encoder')
+                elif _etype == 'resbrndf':
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='fixed', dratio=dropout)
+                    idim = _get_vgg2l_odim(idim)
+                    dropout = 0
+                    logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
+                elif _etype == 'resbrndi':
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    idim = _get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = _get_vgg2l_odim(idim)  
@@ -1235,7 +1244,7 @@ class VGG2L(chainer.Chain):
                 if j == 0:
                     layer = L.Convolution2D(in_channel[i], 64, 3, stride=1, pad=1)
                 elif j == 1:
-                    layer = L.Convolution2D(64, 128, 3, stride=1, pad=1)
+                    layer = L.Convolution2D(64, 64, 3, stride=1, pad=1)
                 elif j == 2:
                     layer = L.Convolution2D(64, 128, 3, stride=1, pad=1)
                 else:
@@ -1384,7 +1393,7 @@ class BuildingBlock(chainer.Chain):
 
 
 class RESNET(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
@@ -1408,8 +1417,11 @@ class RESNET(chainer.Chain):
                     layer = BottleneckA(64, 128, outs, act=act, bn=bn)
                 setattr(self, l_name, layer)
 
+        self.dropout = dropout
         self.in_channel = in_channel
         self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
 
     def __call__(self, xs, ilens):
         '''RESNET forward
@@ -1427,6 +1439,15 @@ class RESNET(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
+
+        # Apply dropout only to the binaural input
+        if chn == 2:  
+            if self.dropout == 'fixed':
+                xs = F.dropout(xs, self.dratio)
+            elif self.dropout == 'incremental':
+                ratio = min(self.iter // 100000, 0.6)
+                xs = F.dropout(xs, ratio)
+                self.iter += 1
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry': 
