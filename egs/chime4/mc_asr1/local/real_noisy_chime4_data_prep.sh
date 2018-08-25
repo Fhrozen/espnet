@@ -34,6 +34,7 @@ tag=$3
 
 echo "extract ${tag} channels (CH*.wav) for noisy data"
 
+main_dir=`pwd`
 dir=`pwd`/data/local/data
 local=`pwd`/local
 utils=`pwd`/utils
@@ -47,7 +48,6 @@ fi
 cd ${dir}
 
 find ${audio_dir} -name '*CH[1-6].wav' | grep 'tr05_bus_real\|tr05_caf_real\|tr05_ped_real\|tr05_str_real' | sort -u > tr05_real_noisy_${tag}.flist
-exit 0
 find ${audio_dir} -name '*CH[1-6].wav' | grep 'dt05_bus_real\|dt05_caf_real\|dt05_ped_real\|dt05_str_real' | sort -u > dt05_real_noisy_${tag}.flist
 if ${eval_flag}; then
 find ${audio_dir} -name '*CH[1-6].wav' | grep 'et05_bus_real\|et05_caf_real\|et05_ped_real\|et05_str_real' | sort -u > et05_real_noisy_${tag}.flist
@@ -113,8 +113,12 @@ for x in ${list_set}; do
   cp ${x}.txt     ../../${x}/text    || exit 1;
   cp ${x}.spk2utt ../../${x}/spk2utt || exit 1;
   cp ${x}.utt2spk ../../${x}/utt2spk || exit 1;
-  # Check that data dirs are okay!
-  ${utils}/validate_data_dir.sh --no-feats ../../${x} || exit 1
 done
 
+# Check that data dirs are okay!
+cd ${main_dir}
+for x in ${list_set}; do
+  utils/fix_data_dir.sh data/${x} 
+  utils/validate_data_dir.sh --no-feats data/${x} || exit 1
+done
 echo "Data preparation succeeded"

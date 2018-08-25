@@ -82,15 +82,15 @@ set -e
 set -u
 set -o pipefail
 
-train_set=tr05_mix_noisy
-train_dev=dt05_real_noisy_6mics
+train_set=tr05_mix_multi_noisy
+train_dev=dt05_simu_noisy_6mics
 recog_set="\
 dt05_real_noisy_2mics dt05_simu_noisy_2mics et05_real_noisy_2mics et05_simu_noisy_2mics \
 dt05_real_noisy_6mics dt05_simu_noisy_6mics et05_real_noisy_6mics et05_simu_noisy_6mics \
 "
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Prepare 2CH training data"
-    local/prepare_2ch_tr.py ${chime4_data}
+    local/prepare_2ch_tr.sh ${chime4_data}
 fi
 
 if [ ${stage} -le 0 ]; then
@@ -106,11 +106,8 @@ if [ ${stage} -le 0 ]; then
     echo "prepartion for chime4 data 6CH"
     local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
     local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
-
-    #local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track
-    #local/simu_enhan_chime4_data_prep.sh noisy_2mics ${chime4_data}/isolated_2ch_track
 fi
-exit 0
+
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ]; then
@@ -119,7 +116,8 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
     fbankdir=fbank
-    tasks="tr05_real_noisy tr05_simu_noisy ${recog_set}"
+    tr_set="tr05_real_noisy_2mics tr05_simu_noisy_2mics tr05_real_noisy_6mics tr05_simu_noisy_6mics"
+    tasks="${tr_set} ${recog_set}"
     for x in ${tasks}; do
         utils/copy_data_dir.sh data/${x} data-fbank/${x}
         utils/copy_data_dir.sh data/${x} data-stft/${x}
@@ -127,14 +125,20 @@ if [ ${stage} -le 1 ]; then
     done
 
     echo "combine real and simulation data"
-    utils/combine_data.sh data-fbank/${train_set} data-fbank/tr05_simu_noisy data-fbank/tr05_real_noisy
+    utils/combine_data.sh data-fbank/tr05_multi_noisy_2mics data-fbank/tr05_simu_noisy_2mics data-fbank/tr05_real_noisy_2mics
+    utils/combine_data.sh data-fbank/tr05_multi_noisy_6mics data-fbank/tr05_simu_noisy_6mics data-fbank/tr05_real_noisy_6mics
 
     # compute global CMVN
-    compute-cmvn-stats scp:data-fbank/${train_set}/feats.scp data-fbank/${train_set}/cmvn.ark
+    mkdir -p data-fbank/${train_set}
+    compute-cmvn-stats scp:data-fbank/tr05_multi_noisy_6mics/feats.scp data-fbank/${train_set}/cmvn.ark
 
     # dump features for training
-    dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
-        data-fbank/${train_set}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+    for ttask in 2mics 6mics; do
+        feat_tr=${dumpdir}/tr05_multi_noisy_${ttask}/delta${do_delta}; mkdir -p ${feat_tr}
+        dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
+            data-fbank/tr05_multi_noisy_${ttask}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/train/${ttask} \
+            ${feat_tr}
+    done
     dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
         data-fbank/${train_dev}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
     for rtask in ${recog_set}; do
@@ -154,23 +158,26 @@ if [ ${stage} -le 2 ]; then
     mkdir -p data/lang_1char/
 
     echo "make a non-linguistic symbol list"
-    cut -f 2- data-fbank/${train_set}/text | tr " " "\n" | sort | uniq | grep "<" > ${nlsyms}
+    cut -f 2- data-fbank/tr05_multi_noisy_2mics/text | tr " " "\n" | sort | uniq | grep "<" > ${nlsyms}
     cat ${nlsyms}
 
     echo "make a dictionary"
     echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/${train_set}/text | cut -f 2- -d" " | tr " " "\n" \
+    text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/tr05_multi_noisy_2mics/text | cut -f 2- -d" " | tr " " "\n" \
     | sort | uniq | grep -v -e '^\s*$' | awk '{print $0 " " NR+1}' >> ${dict}
     wc -l ${dict}
 
     echo "make json files"
-    data2json.sh --feat ${feat_tr_dir}/feats.scp --nlsyms ${nlsyms} \
-         data-fbank/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
+    for ttask in 2mics 6mics; do
+        feat_tr=${dumpdir}/tr05_multi_noisy_${ttask}/delta${do_delta}
+        data2json.sh --multi 1 --feat ${feat_tr}/feats.scp --nlsyms ${nlsyms} \
+            data-fbank/tr05_multi_noisy_${ttask} ${dict} > ${feat_tr}/data.json
+    done
+    data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
          data-fbank/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-        data2json.sh --feat ${feat_recog_dir}/feats.scp \
+        data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
             --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
@@ -184,7 +191,7 @@ else
     expdir=exp/${train_set}_${tag}
 fi
 mkdir -p ${expdir}
-
+exit 0
 if [ ${stage} -le 3 ]; then
     echo "stage 3: Network Training"
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \

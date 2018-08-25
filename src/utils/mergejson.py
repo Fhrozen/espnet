@@ -84,14 +84,18 @@ if __name__ == '__main__':
             in_dics = list()
 
             for _input in list_inputs:
-                id = '{}.{}-{}'.format(uttr, _input, lapse)
-                dic = old_dic[id]
-                in_dic = {}
-                if dic.has_key(unicode('idim', 'utf-8')):
-                    in_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('ilen', 'utf-8')]), int(dic[unicode('idim', 'utf-8')]))
-                in_dic[unicode('name', 'utf-8')] = _input
-                in_dic[unicode('feat', 'utf-8')] = dic[unicode('feat', 'utf-8')]
-                in_dics.append(in_dic)
+                if lapse == '':
+                    id = '{}.{}'.format(uttr, _input)
+                else:
+                    id = '{}.{}-{}'.format(uttr, _input, lapse)
+                if id in old_dic:
+                    dic = old_dic[id]
+                    in_dic = dict()
+                    if dic.has_key(unicode('idim', 'utf-8')):
+                        in_dic[unicode('shape', 'utf-8')] = (int(dic[unicode('ilen', 'utf-8')]), int(dic[unicode('idim', 'utf-8')]))
+                    in_dic[unicode('name', 'utf-8')] = _input
+                    in_dic[unicode('feat', 'utf-8')] = dic[unicode('feat', 'utf-8')]
+                    in_dics.append(in_dic)
 
             # using last dic
             out_dic = {}
@@ -101,7 +105,10 @@ if __name__ == '__main__':
             out_dic[unicode('token', 'utf-8')] = dic[unicode('token', 'utf-8')]
             out_dic[unicode('tokenid', 'utf-8')] = dic[unicode('tokenid', 'utf-8')]
 
-            id = '{}.{}CHs-{}'.format(uttr, len(list_inputs), lapse)
+            if lapse == '':
+                id = '{}.{}CHs'.format(uttr, len(in_dics))
+            else:
+                id = '{}.{}CHs-{}'.format(uttr, len(in_dics), lapse)
             new_dic[id] = {unicode('input', 'utf-8'):in_dics, unicode('output', 'utf-8'):[out_dic],
                 unicode('utt2spk', 'utf-8'):dic[unicode('utt2spk', 'utf-8')]}    
     elif args.multi == 2:

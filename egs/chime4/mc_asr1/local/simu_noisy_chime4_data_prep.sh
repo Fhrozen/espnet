@@ -34,6 +34,7 @@ tag=$3
 
 echo "extract all channels (CH1-6.wav) for noisy data"
 
+main_dir=`pwd`
 dir=`pwd`/data/local/data
 local=`pwd`/local
 utils=`pwd`/utils
@@ -120,8 +121,12 @@ for x in ${list_set}; do
   cp ${x}.txt     ../../${x}/text    || exit 1;
   cp ${x}.spk2utt ../../${x}/spk2utt || exit 1;
   cp ${x}.utt2spk ../../${x}/utt2spk || exit 1;
-  # Check that data dirs are okay!
-  ${utils}/validate_data_dir.sh --no-feats ../../${x} || exit 1
 done
 
+# Check that data dirs are okay!
+cd ${main_dir}
+for x in ${list_set}; do
+  utils/fix_data_dir.sh data/${x} 
+  utils/validate_data_dir.sh --no-feats data/${x} || exit 1
+done
 echo "Data preparation succeeded"
