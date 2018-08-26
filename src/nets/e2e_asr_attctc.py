@@ -1004,6 +1004,15 @@ class Encoder(chainer.Chain):
                     _encoder = RESNET(in_channel, mode=mode)
                     idim = _get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET added for encoder')
+                elif _etype == 'resdf':
+                    _encoder = RESNET(in_channel, mode=mode, dropout='fixed', dratio=dropout)
+                    idim = _get_vgg2l_odim(idim)
+                    dropout = 0.0
+                    logging.info('CNN-RESNET with fixed dropout added for encoder')
+                elif _etype == 'resdi':
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    idim = _get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with incremental dropout added for encoder')
                 elif _etype == 'reselu':
                     _encoder = RESNET(in_channel, mode=mode, act=F.elu)
                     idim = _get_vgg2l_odim(idim)
@@ -1016,11 +1025,11 @@ class Encoder(chainer.Chain):
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='fixed', dratio=dropout)
                     idim = _get_vgg2l_odim(idim)
                     dropout = 0.0
-                    logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
+                    logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
                 elif _etype == 'resbrndi':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
                     idim = _get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
+                    logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = _get_vgg2l_odim(idim)
