@@ -66,7 +66,7 @@ fi
 
 # make a scp file from file list
 for x in ${list_set}; do
-    cat ${x}.flist | awk -F'[/]' '{print $NF}'| sed -e 's/\.wav/_SIMU/' > ${x}_wav.ids
+    cat ${x}.flist | awk -F'[/]' '{print $NF}'| sed -e 's/\.wav/-SIMU/' > ${x}_wav.ids
     paste -d" " ${x}_wav.ids ${x}.flist | sort -k 1 > ${x}_wav.scp
 done
 
@@ -83,13 +83,13 @@ cat tr05_simu_noisy_${tag}_wav.scp | cut -f 1 -d" " > tr05_simu_noisy.ids
 paste -d" " tr05_simu_noisy.ids tr05_simu_noisy.txt | sort -k 1 > tr05_simu_noisy_${tag}.trans1
 # dt05 and et05 simulation data are generated from the CHiME4 booth recording
 # and we use CHiME4 dot files
-cat dt05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1_SIMU"}'> dt05_simu_noisy.ids
+cat dt05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1-SIMU"}'> dt05_simu_noisy.ids
 cat dt05_simu.dot | sed -e 's/(.*)//' > dt05_simu_noisy.txt
 paste -d" " dt05_simu_noisy.ids dt05_simu_noisy.txt | \
 awk '{print}{sub(/CH1/, "CH2",$0);print}{sub(/CH2/, "CH3",$0);print}{sub(/CH3/, "CH4",$0);print}{sub(/CH4/, "CH5",$0);print}{sub(/CH5/, "CH6",$0);print}' | \
 sort -k 1 > dt05_simu_noisy_${tag}.trans1
 if ${eval_flag}; then
-cat et05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1_SIMU"}'> et05_simu_noisy.ids
+cat et05_simu.dot | sed -e 's/(\(.*\))/\1/' | awk '{print $NF ".CH1-SIMU"}'> et05_simu_noisy.ids
 cat et05_simu.dot | sed -e 's/(.*)//' > et05_simu_noisy.txt
 paste -d" " et05_simu_noisy.ids et05_simu_noisy.txt | \
 awk '{print}{sub(/CH1/, "CH2",$0);print}{sub(/CH2/, "CH3",$0);print}{sub(/CH3/, "CH4",$0);print}{sub(/CH4/, "CH5",$0);print}{sub(/CH5/, "CH6",$0);print}' | \
