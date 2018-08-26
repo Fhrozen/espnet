@@ -135,7 +135,7 @@ class E2E(chainer.Chain):
         with self.init_scope():
             # encoder
             self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                               self.subsample, args.dropout_rate, args.einputs, args.minput, args.norm_file)
+                               self.subsample, args.edropout_rate, args.einputs, args.minput, args.norm_file)
             # ctc
             ctc_type = vars(args).get("ctc_type", "chainer")
             if ctc_type == 'chainer':
@@ -1015,7 +1015,7 @@ class Encoder(chainer.Chain):
                 elif _etype == 'resbrndf':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='fixed', dratio=dropout)
                     idim = _get_vgg2l_odim(idim)
-                    dropout = 0
+                    dropout = 0.0
                     logging.info('CNN-RESNET with BatchRenormalization and dropout added for encoder')
                 elif _etype == 'resbrndi':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
@@ -1477,7 +1477,7 @@ class RESNET(chainer.Chain):
             if self.dropout == 'fixed':
                 xs = F.dropout(xs, self.dratio)
             elif self.dropout == 'incremental':
-                ratio = min(self.iter // 100000, 0.6)
+                ratio = min(max(self.iter - 10000, 0) // 100000, 0.6)
                 xs = F.dropout(xs, ratio)
                 self.iter += 1
 

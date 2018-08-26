@@ -115,6 +115,8 @@ def main():
     # model (parameter) related
     parser.add_argument('--dropout-rate', default=0.0, type=float,
                         help='Dropout rate')
+    parser.add_argument('--edropout-rate', default=0.0, type=float,
+                        help='Encoder Dropout rate')
     # minibatch related
     parser.add_argument('--batch-size', '-b', default=50, type=int,
                         help='Batch size')

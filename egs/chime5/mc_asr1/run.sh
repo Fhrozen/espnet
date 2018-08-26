@@ -26,6 +26,7 @@ einputs=4
 emode=regular
 etype=vgg_blstmp     # encoder architecture type
 elayers=6
+edropout=0.0
 eunits=320
 eprojs=320
 subsample=1_2_2_1_1 # skip every n frame from input to nth layers
@@ -338,6 +339,7 @@ if [ ${stage} -le 4 ]; then
         --batch-size ${batchsize} \
         --maxlen-in ${maxlen_in} \
         --maxlen-out ${maxlen_out} \
+        --edropout-rate ${edropout} \
         --opt ${opt} \
         --epochs ${epochs}
 fi
