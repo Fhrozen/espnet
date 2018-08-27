@@ -22,6 +22,8 @@ do_delta=false # true when using CNN
 
 # network archtecture
 # encoder related
+einputs=6
+emode=regular
 etype=vggblstmp     # encoder architecture type
 elayers=6
 eunits=320
@@ -133,14 +135,13 @@ if [ ${stage} -le 1 ]; then
     compute-cmvn-stats scp:data-fbank/tr05_multi_noisy_6mics/feats.scp data-fbank/${train_set}/cmvn.ark
 
     # dump features for training
+    echo "dump features"
     for ttask in 2mics 6mics; do
         feat_tr=${dumpdir}/tr05_multi_noisy_${ttask}/delta${do_delta}; mkdir -p ${feat_tr}
         dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
             data-fbank/tr05_multi_noisy_${ttask}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/train/${ttask} \
             ${feat_tr}
     done
-    dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
-        data-fbank/${train_dev}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
@@ -173,8 +174,6 @@ if [ ${stage} -le 2 ]; then
         data2json.sh --multi 1 --feat ${feat_tr}/feats.scp --nlsyms ${nlsyms} \
             data-fbank/tr05_multi_noisy_${ttask} ${dict} > ${feat_tr}/data.json
     done
-    data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
-         data-fbank/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
         data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
@@ -183,7 +182,7 @@ if [ ${stage} -le 2 ]; then
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${etype}_e${elayers}_subsample${subsample}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_m${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if ${do_delta}; then
         expdir=${expdir}_delta
     fi
@@ -191,8 +190,18 @@ else
     expdir=exp/${train_set}_${tag}
 fi
 mkdir -p ${expdir}
-exit 0
+
 if [ ${stage} -le 3 ]; then
+    if [ "${emode}" == "regular" ]; then
+        tr_set="tr05_multi_noisy_6mics"
+    else
+        tr_set="tr05_multi_noisy_2mics tr05_multi_noisy_6mics"
+    fi
+    tfiles=""
+    for tset in ${tr_set}; do
+        tfiles="${dumpdir}/${tset}/delta${do_delta}/data.json ${tfiles}"
+    done
+    joinjson.py ${tfiles} > ${feat_tr_dir}/data.json    
     echo "stage 3: Network Training"
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
         asr_train.py \
@@ -209,6 +218,8 @@ if [ ${stage} -le 3 ]; then
         --valid-json ${feat_dt_dir}/data.json \
         --etype ${etype} \
         --elayers ${elayers} \
+        --einputs ${einputs} \
+        --minput ${emode} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
         --subsample ${subsample} \
