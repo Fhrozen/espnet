@@ -9,7 +9,6 @@
 # general configuration
 backend=chainer
 stage=0        # start from 0 if you need to start from data preparation
-gpu=            # will be deprecated, please use ngpu
 ngpu=0          # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
 dumpdir=dump   # directory to dump full features
@@ -25,21 +24,22 @@ do_delta=false # true when using CNN
 einputs=4
 emode=regular
 etype=vgg_blstmp     # encoder architecture type
-elayers=6
+elayers=3
 edropout=0.0
-eunits=320
-eprojs=320
-subsample=1_2_2_1_1 # skip every n frame from input to nth layers
+eunits=512
+eprojs=512
+subsample=1 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=300
 # attention related
 atype=location
+adim=512
 aconv_chans=10
 aconv_filts=100
 
 # hybrid CTC/attention
-mtlalpha=0.1
+mtlalpha=0.5
 
 # label smoothing
 lsm_type=unigram
@@ -56,6 +56,8 @@ epochs=15
 
 # rnnlm related
 lm_weight=0.1
+use_wordlm=false
+vocabsize=65000
 
 # decoding parameter
 beam_size=20
@@ -63,7 +65,7 @@ penalty=0.0
 maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.1
-recog_model=acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
+recog_model=model.acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
 # data
 chime5_corpus=${CHIME5_CORPUS}
@@ -76,17 +78,6 @@ tag="" # tag for managing experiments.
 
 . ./path.sh
 . ./cmd.sh
-
-# check gpu option usage
-if [ ! -z $gpu ]; then
-    echo "WARNING: --gpu option will be deprecated."
-    echo "WARNING: please use --ngpu option."
-    if [ $gpu -eq -1 ]; then
-        ngpu=0
-    else
-        ngpu=1
-    fi
-fi
 
 # Set bash to 'debug' mode, it will exit on :
 # -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
@@ -249,20 +240,39 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
-lmexpdir=exp/train_${backend}_rnnlm_2layer_bs256
+if [ $use_wordlm = true ]; then
+    lmdatadir=data/local/wordlm_train
+    lm_batchsize=256
+    lmexpdir=exp/train_rnnlm_${backend}_word_2layer_bs${lm_batchsize}
+    lmdict=${lmexpdir}/wordlist_${vocabsize}.txt
+else
+    lmdatadir=data/local/lm_train
+    lm_batchsize=2048
+    lmexpdir=exp/train_rnnlm_${backend}_2layer_bs${lm_batchsize}
+    lmdict=$dict
+fi
+
 mkdir -p ${lmexpdir}
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
-    lmdatadir=data/local/lm_train
     mkdir -p ${lmdatadir}
-    text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-        > ${lmdatadir}/train_trans.txt
+    if [ $use_wordlm = true ]; then
+	cat data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+							    > ${lmdatadir}/train_trans.txt
     cat ${lmdatadir}/train_trans.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
-    text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-        > ${lmdatadir}/valid.txt
+	cat data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+							    > ${lmdatadir}/valid.txt
+	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
+    else
+	text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+											     > ${lmdatadir}/train_trans.txt
+	cat ${lmdatadir}/train_trans.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
+	text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+											     > ${lmdatadir}/valid.txt
+    fi
     # use only 1 gpu
     if [ ${ngpu} -gt 1 ]; then
-        echo "LM training does not support multi-gpu. signle gpu will be used."
+        echo "LM training does not support multi-gpu. single gpu will be used."
     fi
     ${cuda_cmd} ${lmexpdir}/train.log \
         lm_train.py \
@@ -272,12 +282,12 @@ if [ ${stage} -le 3 ]; then
         --outdir ${lmexpdir} \
         --train-label ${lmdatadir}/train.txt \
         --valid-label ${lmdatadir}/valid.txt \
-        --batchsize 256 \
-        --dict ${dict}
+		--batchsize ${lm_batchsize} \
+		--dict ${lmdict}
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_n${datanoise}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_n${datanoise}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}${adim}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -285,7 +295,7 @@ if [ -z ${tag} ]; then
         expdir=${expdir}_delta
     fi
 else
-    expdir=exp/${train_set}_${tag}
+    expdir=exp/${train_set}_${backend}_${tag}
 fi
 mkdir -p ${expdir}
 
@@ -322,15 +332,16 @@ if [ ${stage} -le 4 ]; then
         --train-json ${feat_tr_dir}/data.json \
         --valid-json ${feat_dt_dir}/data.json \
         --etype ${etype} \
+        --elayers ${elayers} \
         --einputs ${einputs} \
         --minput ${emode} \
-        --elayers ${elayers} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
         --subsample ${subsample} \
         --dlayers ${dlayers} \
         --dunits ${dunits} \
         --atype ${atype} \
+        --adim ${adim} \
         --aconv-chans ${aconv_chans} \
         --aconv-filts ${aconv_filts} \
         --mtlalpha ${mtlalpha} \
@@ -350,7 +361,14 @@ if [ ${stage} -le 5 ]; then
 
     for rtask in ${recog_set}; do
     (
-        decode_dir=decode_${rtask}_beam${beam_size}_e${recog_model}_p${penalty}_len${minlenratio}-${maxlenratio}_ctcw${ctc_weight}_rnnlm${lm_weight}
+        decode_dir=decode_${rtask}_beam${beam_size}_e${recog_model}_p${penalty}_len${minlenratio}-${maxlenratio}_ctcw${ctc_weight}
+        if [ $use_wordlm = true ]; then
+            decode_dir=${decode_dir}_wordrnnlm${lm_weight}
+            recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best --word-dict ${lmdict}"
+        else
+            decode_dir=${decode_dir}_rnnlm${lm_weight}
+            recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
+        fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
         # split data
@@ -365,15 +383,14 @@ if [ ${stage} -le 5 ]; then
             --backend ${backend} \
             --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
             --result-label ${expdir}/${decode_dir}/data.JOB.json \
-            --model ${expdir}/results/model.${recog_model}  \
-            --model-conf ${expdir}/results/model.conf  \
+            --model ${expdir}/results/${recog_model}  \
             --beam-size ${beam_size} \
             --penalty ${penalty} \
             --maxlenratio ${maxlenratio} \
             --minlenratio ${minlenratio} \
             --ctc-weight ${ctc_weight} \
-            --rnnlm ${lmexpdir}/rnnlm.model.best \
-            --lm-weight ${lm_weight} &
+            --lm-weight ${lm_weight} \
+            $recog_opts &
         wait
 
         score_sclite.sh --wer true --nlsyms ${nlsyms} ${expdir}/${decode_dir} ${dict}
