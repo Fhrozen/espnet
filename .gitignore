@@ -4,7 +4,7 @@
 .\#*
 *DS_Store
 slurm-*.out
-
+*.tar.gz
 doc/_build
 docker/in_run*
 
@@ -23,6 +23,7 @@ egs/*/*/wav*
 egs/*/*/tmp*
 egs/*/*/CHiME*
 egs/*/*/spectrogram*
+egs/*/*/test*
 
 # tools related
 src/utils/kaldi_io_py.py
