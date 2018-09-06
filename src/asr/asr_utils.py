@@ -82,9 +82,9 @@ def converter_fbank(batch, device=None):
     return batch
 
 
-def converter_spectro(batch, device=None):
-    # batch only has one minibatch utterance, which is specified by batch[0]
-    batch = batch[0]
+def load_multich_spectro(batch, sort_in_outputs=False, use_speaker_embedding=False):
+    xs = list()
+    ys = list()
     for data in batch:
         n_inputs = len(data[1]['input'])
         for i in range(n_inputs):
@@ -99,15 +99,16 @@ def converter_spectro(batch, device=None):
                 feat_r = np.concatenate((feat_r, _feat_r[:, None, :]), axis=1)
                 feat_i = np.concatenate((feat_i, _feat_i[:, None, :]), axis=1)
         feat = np.concatenate((feat_r, feat_i), axis=1)
-        data[1]['feat'] = feat
+        xs.append(feat)
+        ys.append(data[1]['output'][0]['tokenid'].split())
         del(feat_r)
         del(feat_i)
-    return batch
+    return xs, ys
 
 
-def converter_raw(batch, device=None):
-    # batch only has one minibatch utterance, which is specified by batch[0]
-    batch = batch[0]
+def load_multich_bank(batch, sort_in_outputs=False, use_speaker_embedding=False):
+    xs = list()
+    ys = list()
     for data in batch:
         n_inputs = len(data[1]['input'])
         for i in range(n_inputs):
@@ -116,9 +117,10 @@ def converter_raw(batch, device=None):
                 feat = _feat[:, None, :]
             else:
                 feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
-        data[1]['feat'] = feat
+        xs.append(feat)
+        ys.append(data[1]['output'][0]['tokenid'].split())
         del(feat)
-    return batch
+    return xs, ys
 
 
 def delete_feat(batch):

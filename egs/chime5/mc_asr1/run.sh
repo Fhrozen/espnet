@@ -28,7 +28,7 @@ elayers=3
 edropout=0.0
 eunits=512
 eprojs=512
-subsample=1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=300
@@ -257,12 +257,13 @@ if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
     mkdir -p ${lmdatadir}
     if [ $use_wordlm = true ]; then
-	cat data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+	cat data/train_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
 							    > ${lmdatadir}/train_trans.txt
     cat ${lmdatadir}/train_trans.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
 	cat data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
 							    > ${lmdatadir}/valid.txt
-	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
+    cat ${lmdatadir}/train_trans.txt ${lmdatadir}/valid.txt | tr '\n' ' ' > ${lmdatadir}/train_valid.txt                            
+	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
     else
 	text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
 											     > ${lmdatadir}/train_trans.txt
@@ -322,6 +323,7 @@ if [ ${stage} -le 4 ]; then
         asr_train.py \
         --ngpu ${ngpu} \
         --backend ${backend} \
+        --converter mcbank \
         --outdir ${expdir}/results \
         --debugmode ${debugmode} \
         --dict ${dict} \

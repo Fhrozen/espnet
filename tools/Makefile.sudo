@@ -24,7 +24,8 @@ endif
 # matplotlib should be separately pip installed
 pip-utils: requirements.txt
 	sudo pip install pip --upgrade; sudo -E pip install -r requirements.txt; sudo pip install matplotlib
-chainer_patch: virtualenv
+
+chainer_patch: pip-utils
 	$(eval FILENAME := $(shell find /usr/local/lib/python2.7/dist-packages -name "multiprocess_iterator.py"))
 	sudo patch $(FILENAME) < prefetch.patch
 

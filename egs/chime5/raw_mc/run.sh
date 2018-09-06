@@ -28,7 +28,7 @@ etype=vgg_blstmp     # encoder architecture type
 elayers=3
 eunits=512
 eprojs=512
-subsample=1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=300
@@ -351,7 +351,8 @@ if [ ${stage} -le 4 ]; then
         --maxlen-in ${maxlen_in} \
         --maxlen-out ${maxlen_out} \
         --opt ${opt} \
-        --epochs ${epochs}
+        --epochs ${epochs} \
+        --converter mcspec
 fi
 
 if [ ${stage} -le 5 ]; then

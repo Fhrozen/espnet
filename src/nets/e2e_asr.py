@@ -962,41 +962,41 @@ class Encoder(chainer.Chain):
                     logging.info('GridLSTM added for encoder')
                 elif _etype == 'vgg':
                     _encoder = VGG2L(in_channel, mode=mode)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-VGG added for encoder')
                 elif _etype == 'res':
                     _encoder = RESNET(in_channel, mode=mode)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET added for encoder')
                 elif _etype == 'resdf':
                     _encoder = RESNET(in_channel, mode=mode, dropout='fixed', dratio=dropout)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     dropout = 0.0
                     logging.info('CNN-RESNET with fixed dropout added for encoder')
                 elif _etype == 'resdi':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with incremental dropout added for encoder')
                 elif _etype == 'reselu':
                     _encoder = RESNET(in_channel, mode=mode, act=F.elu)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with ELU activation added for encoder')
                 elif _etype == 'resbrn':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization added for encoder')
                 elif _etype == 'resbrndf':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='fixed', dratio=dropout)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     dropout = 0.0
                     logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
                 elif _etype == 'resbrndi':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
-                    idim = _get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannel=in_channel)
@@ -1271,7 +1271,7 @@ class VGG2L(chainer.Chain):
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
         # x: utt x frame x input channel x dim
         xs = F.pad_sequence(xs)
-
+        logging.info('input shape {}'.format(xs.shape))
         # x: utt x input channel x frame x dim
         xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]

@@ -27,7 +27,7 @@ etype=vgg_blstmp     # encoder architecture type
 elayers=3
 eunits=1024
 eprojs=1024
-subsample=1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=1024
@@ -63,7 +63,9 @@ ctc_weight=0.3
 recog_model=model.acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
 # data
-chime4_data=${CHIME4_CORPUS} # JHU setup
+chime4_data=${CHIME4_CORPUS}
+wsj0=${WSJ0_CORPUS}
+wsj1=${WSJ1_CORPUS}
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -103,6 +105,10 @@ if [ ${stage} -le 0 ]; then
     echo "prepartion for chime4 data 6CH"
     local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
     local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
+    
+    # Additionally use WSJ clean data. Otherwise the encoder decoder is not well trained
+    local/wsj_data_prep.sh ${wsj0}/??-{?,??}.? ${wsj1}/??-{?,??}.?
+    local/wsj_format_data.sh
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -225,6 +231,7 @@ if [ ${stage} -le 3 ]; then
 		--train-label ${lmdatadir}/train.txt \
 		--valid-label ${lmdatadir}/valid.txt \
 		--batchsize ${lm_batchsize} \
+        --epoch 30 \
 		--dict ${lmdict}
 fi
 
@@ -281,7 +288,8 @@ if [ ${stage} -le 4 ]; then
         --maxlen-in ${maxlen_in} \
         --maxlen-out ${maxlen_out} \
         --opt ${opt} \
-        --epochs ${epochs}
+        --epochs ${epochs} \
+        --converter mcbank
 fi
 
 if [ ${stage} -le 5 ]; then

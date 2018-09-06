@@ -32,11 +32,11 @@ from asr_utils import adadelta_eps_decay
 from asr_utils import add_results_to_json
 from asr_utils import chainer_load
 from asr_utils import CompareValueTrigger
-from asr_utils import converter_fbank
-from asr_utils import converter_spectro
 from asr_utils import delete_feat
 from asr_utils import get_model_conf
 from asr_utils import load_inputs_and_targets
+from asr_utils import load_multich_bank
+from asr_utils import load_multich_spectro
 from asr_utils import load_labeldict
 from asr_utils import make_batchset
 from asr_utils import PlotAttentionReport
@@ -164,9 +164,10 @@ class CustomConverter(object):
 
     def __init__(self, device, subsamping_factor=1):
         self.subsamping_factor = subsamping_factor
+        self.transformer = None
 
     def transform(self, item):
-        return load_inputs_and_targets(item)
+        return self.transformer(item)
 
     def __call__(self, batch, device):
         # set device
@@ -244,11 +245,6 @@ def train(args):
         mtl_mode = 'mtl'
         logging.info('Multitask learning mode')
 
-    if args.converter == 'fbank':
-        converter_kaldi = converter_fbank
-    elif args.converter == 'spec':
-        converter_kaldi = converter_spectro
-
     # specify model architecture
     e2e = E2E(idim, odim, args)
     model = Loss(e2e, args.mtlalpha)
@@ -299,6 +295,12 @@ def train(args):
 
     # set up training iterator and updater
     converter = CustomConverter(e2e.subsample[0])
+    if args.converter == 'mcbank':
+        converter.transformer = load_multich_bank
+    elif args.converter == 'mcspec':
+        converter.transformer = load_multich_spectro
+    else:
+        converter.transformer = load_inputs_and_targets
     if ngpu <= 1:
         # make minibatch list (variable length)
         train = make_batchset(train_json, args.batch_size,
