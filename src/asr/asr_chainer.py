@@ -492,17 +492,17 @@ def recog(args):
     new_js = {}
     with chainer.no_backprop_mode():
         for idx, name in enumerate(js.keys(), 1):
-            n_inputs = len(recog_json[name]['input'])
+            logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
+            n_inputs = len(js[name]['input'])
             for i in range(n_inputs):
-                _feat = kaldi_io_py.read_mat(recog_json[name]['input'][i]['feat'])
+                _feat = kaldi_io_py.read_mat(js[name]['input'][i]['feat'])
                 if 'feat' not in locals():
                     feat = _feat[:, None, :]
                 else:
                     feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
-            logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
-            feat = kaldi_io_py.read_mat(js[name]['input'][0]['feat'])
             nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
             new_js[name] = add_results_to_json(js[name], nbest_hyps, train_args.char_list)
+            del feat
 
     # TODO(watanabe) fix character coding problems when saving it
     with open(args.result_label, 'wb') as f:

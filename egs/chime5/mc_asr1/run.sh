@@ -39,7 +39,7 @@ aconv_chans=10
 aconv_filts=100
 
 # hybrid CTC/attention
-mtlalpha=0.5
+mtlalpha=0.1
 
 # label smoothing
 lsm_type=unigram
@@ -359,7 +359,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=16
+    nj=8
 
     for rtask in ${recog_set}; do
     (
