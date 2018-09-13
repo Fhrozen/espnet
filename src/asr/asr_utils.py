@@ -64,24 +64,6 @@ def make_batchset(data, batch_size, max_length_in, max_length_out, num_batches=0
     return minibatch
 
 
-# TODO(watanabe) perform mean and variance normalization during the python program
-# and remove the data dump process in run.sh
-def converter_fbank(batch, device=None):
-    # batch only has one minibatch utterance, which is specified by batch[0]
-    batch = batch[0]
-    for data in batch:
-        n_inputs = len(data[1]['input'])
-        for i in range(n_inputs):
-            _feat = kaldi_io_py.read_mat(data[1]['input'][i]['feat'])
-            if 'feat' not in locals():
-                feat = _feat[:, None, :]
-            else:
-                feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
-        data[1]['feat'] = feat
-        del(feat)
-    return batch
-
-
 def load_multich_spectro(batch, sort_in_outputs=False, use_speaker_embedding=False):
     xs = list()
     ys = list()

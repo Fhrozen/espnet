@@ -936,6 +936,7 @@ class Encoder(chainer.Chain):
                  eprojs, subsample, dropout, in_channel=1, mode=None, normfile=None):
         super(Encoder, self).__init__()
         encoders = etype.split('_')
+        nopad = False
         with self.init_scope():
             self._forward = list()
             for i in range(len(encoders)):
@@ -961,7 +962,7 @@ class Encoder(chainer.Chain):
                                        eprojs, subsample, dropout)
                     logging.info('GridLSTM added for encoder')
                 elif _etype == 'vgg':
-                    _encoder = VGG2L(in_channel, mode=mode)
+                    _encoder = VGG2L(in_channel, mode=mode, nopad=nopad)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-VGG added for encoder')
                 elif _etype == 'res':
@@ -999,9 +1000,11 @@ class Encoder(chainer.Chain):
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
                 elif _etype == 'fn':
-                    _encoder = filternet(3, nchannel=in_channel)
+                    _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
                     logging.info('FilterNet added for encoder')
+                    idim = 40
+                    nopad = True
                 else:
                     logging.error(
                         "Error: {} not found. Need to specify an appropriate encoder archtecture".format(_etype))
@@ -1232,7 +1235,7 @@ class BLSTM(chainer.Chain):
 
 # TODO(watanabe) explanation of VGG2L, VGG2B (Block) might be better
 class VGG2L(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None):
+    def __init__(self, in_channel=1, mode=None, nopad=False):
         super(VGG2L, self).__init__()
         if isinstance(in_channel, int):
             in_channel = [in_channel]
@@ -1260,6 +1263,7 @@ class VGG2L(chainer.Chain):
                 setattr(self, l_name, layer)
         self.in_channel = in_channel
         self.mode = mode
+        self.nopad = nopad
 
     def __call__(self, xs, ilens):
         '''VGG2L forward
@@ -1270,10 +1274,11 @@ class VGG2L(chainer.Chain):
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
         # x: utt x frame x input channel x dim
-        xs = F.pad_sequence(xs)
-        logging.info('input shape {}'.format(xs.shape))
-        # x: utt x input channel x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
+        if not self.nopad:
+            xs = F.pad_sequence(xs)
+
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
 
@@ -1500,7 +1505,7 @@ def get_filterbanks(nfilt=20, nfft=512, samplerate=16000, lowfreq=0, highfreq=No
     #  from Hz to fft bin number
     bin = np.floor((nfft + 1) * mel2hz(melpoints) / samplerate)
 
-    fbank = np.zeros([nfilt, nfft // 2 + 1], astype=np.float32)
+    fbank = np.zeros([nfilt, nfft // 2 + 1], dtype=np.float32)
     for j in range(0, nfilt):
         for i in range(int(bin[j]), int(bin[j + 1])):
             fbank[j, i] = (i - bin[j]) / (bin[j + 1] - bin[j])
@@ -1538,57 +1543,66 @@ class filternet(chainer.Chain):
                     inputdim = hdim
                 setattr(self, "bilstm{}_l{}".format(i, j), L.NStepBiLSTM(
                     1, inputdim, cdim, 0.0))
-                setattr(self, "bt{}_l{}".format(i, j), L.Linear(2 * cdim, hdim))
+                if j == layers -1:
+                    _hdim = hdim * 2
+                else:
+                    _hdim = hdim
+                setattr(self, "bt{}_l{}".format(i, j), L.Linear(2 * cdim, _hdim))
 
             _type = ['r', 'i']
             for i, j in combs2:
-                name = 'filt{}_{}'.format(_type(j), i)
+                name = 'filt{}_{}'.format(_type[j], i)
                 _filt = L.Linear(2 * cdim, nchannels[i] * (nfft // 2 + 1))
                 setattr(self, name, _filt)
 
             for i in range(len(nchannels)):
                 name = 'brn_{}'.format(i)
-                brn = L.BatchRenormalization(nchannels[i])
+                brn = L.BatchRenormalization(1)
                 setattr(self, name, brn)
 
         self.channels = nchannels
         self.layers = layers
         fbanks = get_filterbanks(nfilt=nfilt).T
-        self.fbanks = chainer.Variable(fbanks[None, None, :, :])
+        self.fbanks = fbanks[None, :, :]
         self.nfilt = nfilt
         self.nfft = nfft
 
     def __call__(self, xs, ilens):
-        # x: utt x frame x channel x dim
-
+        # xs: [frame x channel(8) x dim(257)] x bs
         bs = len(xs)
-        channels = xs[0].shape[2]
+        channels = xs[0].shape[1]
+        ilens = np.array([int(ilens[i]) for i in range(bs)])
         idx = self.channels.index(channels // 2)
-        xs1 = [xs[i].reshape(1, ilens[i], -1) for i in range(bs)]
+        xs1 = [xs[i].reshape(ilens[i], -1) for i in range(bs)]
+
         for layer in six.moves.range(self.layers):
-            hy, cy, ys = self['bilstm{}_l{}'.format()](None, None, xs1)
-            ys = self['bt' + str(layer)](F.vstack(ys))
+            hy, cy, ys = self['bilstm{}_l{}'.format(idx, layer)](None, None, xs1)
+            ys = self['bt{}_l{}'.format(idx, layer)](F.vstack(ys))
             xs1 = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
             del hy, cy
-
         # final tanh operation
-        vxs = F.vstack(xs1)
-        rfilt = F.split_axis(F.tanh(self['filtr_{}'.format(idx)](vxs)), np.cumsum(ilens[:-1]), axis=0)
-        ifilt = F.split_axis(F.tanh(self['filti_{}'.format(idx)](vxs)), np.cumsum(ilens[:-1]), axis=0)
-
-        out_xs = [None] * bs
+        xs1 = F.vstack(xs1)
+        rfilt = F.tanh(self['filtr_{}'.format(idx)](xs1))  # F.split_axis(, np.cumsum(ilens[:-1]), axis=0)
+        ifilt = F.tanh(self['filti_{}'.format(idx)](xs1))  # F.split_axis(, np.cumsum(ilens[:-1]), axis=0)
+ 
         min_range = chainer.Variable(self.xp.asarray([1e-20], dtype=np.float32))
-        for i in range(bs):
-            rxs, ixs = F.split_axis(xs[i], 2, axis=1)
-            real_filt = rfilt[i].reshape(1, ilens[i], channels, -1)
-            imag_filt = ifilt[i].reshape(1, ilens[i], channels, -1)
-            real_val = F.matmul(rxs, real_filt) - F.matmul(ixs, imag_filt)
-            imag_val = F.matmul(rxs, imag_filt) + F.matmul(ixs, real_filt)
-            feat = F.sum(real_val, axis=2, keepdims=True) ** 2 + F.sum(imag_val, axis=2, keepdims=True) ** 2
-            min_range = F.broadcast_to(min_range, feat.shape)
-            fbanks = F.broadcast_to(self.fbanks, [1, ilens[i], self.nfft // 2, self.nfilt])
-            feat = F.log10(F.matmul(F.maximum(feat, min_range), fbanks))
-            feat = self['brn_{}'.format(idx)](F.swapaxes(feat, 2, 3))
-            out_xs[i] = F.swapaxes(feat, 2, 3)
+        
+        rxs, ixs = F.split_axis(F.vstack(xs), 2, axis=1)
+        length, channels, dims = rxs.shape
+        # real_filt = rfilt[i].reshape(1, ilens[i], channels, -1)
+        # imag_filt = ifilt[i].reshape(1, ilens[i], channels, -1)
+        real_val = rxs.reshape(-1, channels * dims) * rfilt # F.matmul() - F.matmul(ixs, ifilt)
+        imag_val = ixs.reshape(-1, channels * dims) * ifilt # F.matmul(rxs, ifilt) + F.matmul(ixs, rfilt)
+        xs = F.sum(real_val.reshape(-1, channels, dims), axis=1, keepdims=True) ** 2 + F.sum(
+            imag_val.reshape(-1, channels, dims), axis=1, keepdims=True) ** 2
+        
+        min_range = F.broadcast_to(min_range, xs.shape)
+        fbanks = chainer.Variable(self.xp.asarray(self.fbanks, dtype=np.float32))
+        fbanks = F.broadcast_to(fbanks, [length, self.nfft // 2 + 1, self.nfilt])
+        xs = F.log10(F.matmul(F.maximum(xs, min_range), fbanks))
+        xs = F.split_axis(xs, np.cumsum(ilens[:-1]), axis=0)
+        xs = F.swapaxes(F.pad_sequence(xs), 1, 2)
 
+        # The normalization is executed by a batch renorm  (Need to test with CMVN)
+        xs = self['brn_{}'.format(idx)](xs)
         return xs, ilens
