@@ -1136,7 +1136,7 @@ class BLSTMP(chainer.Chain):
 
 
 class GrdLSTM(chainer.Chain):
-    def __init__(self, idim, elayers, cdim, hdim, dropout):
+    def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
         super(GrdLSTM, self).__init__()
         shared_dims = [[1], [x for x in range(2, elayers + 1)]]
 

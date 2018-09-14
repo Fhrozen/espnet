@@ -10,22 +10,19 @@ from chainer.functions.array import split_axis
 from chainer import initializers
 from chainer import link
 from chainer.links.connection import linear
+import logging
 
 
-class GridLSTMBase(link.Chain):
+class GridLSTMBase(chainer.Chain):
 
-    def __init__(self, in_size, out_size,
-                 lateral_init=None):
+    def __init__(self, in_size, out_size, initialW=None):
         super(GridLSTMBase, self).__init__()
         self.state_size = out_size
         with self.init_scope():
-            self.lateral = linear.Linear(in_size, 4 * out_size, initialW=0)
-        for i in six.moves.range(0, 4 * out_size, out_size):
-            initializers.init_weight(
-                self.lateral.W.data[i:i + out_size, :], lateral_init)
+            self.lateral = linear.Linear(in_size, 4 * out_size, initialW=initialW)
 
 
-class GridGRUBase(link.Chain):
+class GridGRUBase(chainer.Chain):
 
     def __init__(self, n_inputs, n_units, init=None,
                  inner_init=None, bias_init=0):
@@ -103,7 +100,7 @@ class StatelessGridLSTMbase(GridLSTMBase):
         return lstm.lstm(c, lstm_in)
 
 
-class GridLSTMCell(link.ChainList):
+class GridLSTMCell(chainer.Chain):
 
     """The Grid LSTM Memory Cell.
 
@@ -150,7 +147,8 @@ class GridLSTMCell(link.ChainList):
         super(GridLSTMCell, self).__init__()
         assert dimensionality >= 1
         dim = sum([sum(shares) for shares in sharing_dimensions])
-        assert dim == dimensionality
+        dims = (dimensionality * (dimensionality + 1)) // 2
+        assert dim == dims 
         comb_in = sum(cell_sizes)
         self._forward = list()
         with self.init_scope():
