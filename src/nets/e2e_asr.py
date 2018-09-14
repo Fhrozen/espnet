@@ -975,9 +975,13 @@ class Encoder(chainer.Chain):
                     dropout = 0.0
                     logging.info('CNN-RESNET with fixed dropout added for encoder')
                 elif _etype == 'resdi':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    _encoder = RESNET(in_channel, mode=mode, dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with incremental dropout added for encoder')
+                elif _etype == 'resdr':
+                    _encoder = RESNET(in_channel, mode=mode, dropout='random')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with random dropout added for encoder')
                 elif _etype == 'reselu':
                     _encoder = RESNET(in_channel, mode=mode, act=F.elu)
                     idim = get_vgg2l_odim(idim)
@@ -995,6 +999,10 @@ class Encoder(chainer.Chain):
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
+                elif _etype == 'resbrndr':
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = get_vgg2l_odim(idim)
@@ -1403,6 +1411,30 @@ class BuildingBlock(chainer.Chain):
         return [getattr(self, name) for name in self._forward]
 
 
+def no_dropout(xs, ratio, _iter):
+    return xs
+
+
+def dropout_fixed(xs, ratio, _iter):
+    return F.dropout(xs, ratio)
+
+
+def dropout_incremental(xs, ratio, _iter):
+    # delayed approx 2 epocs
+    ratio = min(max(_iter - 20000, 0) / 100000.0, 0.99)
+    if ratio > 0.0:
+        return F.dropout(xs, ratio)
+    return xs
+
+
+def dropout_random(xs, ratio, _iter):
+    # delayed approx 2 epocs
+    if max(_iter - 20000, 0.0) > 0.0:
+        ratio = np.random.rand(1)[0]
+        return F.dropout(xs, ratio)
+    return xs
+
+
 class RESNET(chainer.Chain):
     def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
         super(RESNET, self).__init__()
@@ -1428,6 +1460,21 @@ class RESNET(chainer.Chain):
                     layer = BottleneckA(64, 128, outs, act=act, bn=bn)
                 setattr(self, l_name, layer)
 
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = no_dropout
+            if in_channel[x] == 2:
+                if dropout == 'incremental':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fixed':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'random':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
         self.dropout = dropout
         self.in_channel = in_channel
         self.mode = mode
@@ -1441,6 +1488,7 @@ class RESNET(chainer.Chain):
         :param ilens:
         :return:
         '''
+        self.iter += 1
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
         # x: utt x frame x input channel x dim
@@ -1452,13 +1500,7 @@ class RESNET(chainer.Chain):
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        if chn == 2:
-            if self.dropout == 'fixed':
-                xs = F.dropout(xs, self.dratio)
-            elif self.dropout == 'incremental':
-                ratio = min(max(self.iter - 10000, 0) // 100000, 0.6)
-                xs = F.dropout(xs, ratio)
-                self.iter += 1
+        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)      
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry':

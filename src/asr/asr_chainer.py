@@ -32,7 +32,6 @@ from asr_utils import adadelta_eps_decay
 from asr_utils import add_results_to_json
 from asr_utils import chainer_load
 from asr_utils import CompareValueTrigger
-from asr_utils import delete_feat
 from asr_utils import get_model_conf
 from asr_utils import load_inputs_and_targets
 from asr_utils import load_multich_bank
