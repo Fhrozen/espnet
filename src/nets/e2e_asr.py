@@ -25,7 +25,7 @@ from e2e_asr_common import end_detect
 from e2e_asr_common import get_vgg2l_odim
 from e2e_asr_common import label_smoothing_dist
 import kaldi_io_py
-from net_utils import GridLSTM
+from net_utils import GridLSTMCell
 
 import deterministic_embed_id as DL
 
@@ -949,6 +949,10 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                       eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif _etype == 'bgrup':
+                    _encoder = BGRUP(idim, elayers, eunits,
+                                      eprojs, subsample, dropout)
+                    logging.info('BiGRU with every-layer projection added for encoder')
                 elif _etype == 'lstm':
                     _encoder = LSTM(idim, elayers, eunits,
                                     eprojs, subsample, dropout)
@@ -958,7 +962,7 @@ class Encoder(chainer.Chain):
                                                   eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
                 elif _etype == 'grid':
-                    _encoder = GrdLSTM(idim, elayers, eunits,
+                    _encoder = GridLSTM(idim, elayers, eunits,
                                        eprojs, subsample, dropout)
                     logging.info('GridLSTM added for encoder')
                 elif _etype == 'vgg':
@@ -1143,13 +1147,59 @@ class BLSTMP(chainer.Chain):
         return xs, ilens  # x: utt list of frame x dim
 
 
-class GrdLSTM(chainer.Chain):
+class BGRUP(chainer.Chain):
+    def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
+        super(BLSTMP, self).__init__()
+        with self.init_scope():
+            for i in six.moves.range(elayers):
+                if i == 0:
+                    inputdim = idim
+                else:
+                    inputdim = hdim
+                setattr(self, "bigru%d" % i, L.NStepBiGRU(
+                    1, inputdim, cdim, dropout))
+                # bottleneck layer to merge
+                setattr(self, "bt%d" % i, L.Linear(2 * cdim, hdim))
+
+        self.elayers = elayers
+        self.cdim = cdim
+        self.subsample = subsample
+
+    def __call__(self, xs, ilens):
+        '''BLSTMP forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        for layer in six.moves.range(self.elayers):
+            hy, cy, ys = self['bigru' + str(layer)](None, None, xs)
+            # ys: utt list of frame x cdim x 2 (2: means bidirectional)
+            # TODO(watanabe) replace subsample and FC layer with CNN
+            ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
+            # (sum _utt frame_utt) x dim
+            ys = self['bt' + str(layer)](F.vstack(ys))
+            xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+            del hy, cy
+
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
+
+
+class GridLSTM(chainer.Chain):
     def __init__(self, idim, elayers, cdim, hdim, dropout):
         super(GrdLSTM, self).__init__()
         shared_dims = [[1], [x for x in range(2, elayers + 1)]]
 
         with self.init_scope():
-            self.grid = GridLSTM([idim, cdim], shared_dims, elayers)
+            self.grid = GridLSTMCell([idim, cdim], shared_dims, elayers)
             self.l_last = L.Linear(cdim * 2, hdim)
 
     def __call__(self, ys, ilens):
