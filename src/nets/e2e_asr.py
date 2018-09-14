@@ -1473,7 +1473,7 @@ class RESNET(chainer.Chain):
                 elif dropout == 'random':
                     logging.info('Adding random dropout to the training')
                     douttype = dropout_random
-            setattr(self, doutname, layer)
+            setattr(self, doutname, douttype)
 
         self.dropout = dropout
         self.in_channel = in_channel
