@@ -22,45 +22,6 @@ class GridLSTMBase(chainer.Chain):
             self.lateral = linear.Linear(in_size, 4 * out_size, initialW=initialW)
 
 
-class GridGRUBase(chainer.Chain):
-
-    def __init__(self, n_inputs, n_units, init=None,
-                 inner_init=None, bias_init=0):
-        if n_inputs is None:
-            n_inputs = n_units
-        super(GridGRUBase, self).__init__(
-            U_r=linear.Linear(n_units, n_units,
-                              initialW=inner_init, initial_bias=bias_init),
-            U_z=linear.Linear(n_units, n_units,
-                              initialW=inner_init, initial_bias=bias_init),
-            U=linear.Linear(n_units, n_units,
-                            initialW=inner_init, initial_bias=bias_init),
-        )
-
-
-class StatelessGridGRUbase(GridGRUBase):
-
-    """Stateless Gated Recurrent Unit function (GRU).
-
-       This is the same as a regular GRU except that there is no input
-       except the initial hidden state which is a transform of the actual
-       input.
-
-    Args:
-        n_inputs(int): Dimension of input vector :math:`x`. If ``None``,
-            it is set to the same value as ``n_units``.
-        n_units(int): Dimension of hidden vector :math:`h`.
-
-    """
-
-    def __call__(self, h):
-        r = sigmoid.sigmoid(self.U_r(h))
-        z = sigmoid.sigmoid(self.U_z(h))
-        h_bar = tanh.tanh(self.U(r * h))
-        h_new = (1 - z) * h + z * h_bar
-        return h_new
-
-
 class StatelessGridLSTMbase(GridLSTMBase):
 
     """Stateless LSTM cell.

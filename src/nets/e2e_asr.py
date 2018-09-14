@@ -991,26 +991,30 @@ class Encoder(chainer.Chain):
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with ELU activation added for encoder')
                 elif _etype == 'resbrn':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization)
+                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization added for encoder')
                 elif _etype == 'resbrndf':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='fixed', dratio=dropout)
+                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='fixed', dratio=dropout)
                     idim = get_vgg2l_odim(idim)
                     dropout = 0.0
                     logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
                 elif _etype == 'resbrndi':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
                 elif _etype == 'resbrndr':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
                 elif _etype == 'resbrn256':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
+                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', outs=256)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
+                elif _etype == 'lmres':
+                    _encoder = LMRESNET(in_channel, mode=mode)
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-LM-RESNET added for encoder')
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
@@ -1365,38 +1369,72 @@ class VGG2L(chainer.Chain):
         return xs, ilens
 
 
+class ConvWithBReNorm(chainer.Chain):
+    def __init__(self, in_channels, out_channels,
+                 kernel=1, stride=1, pad=0, nobias=True):
+        super(ConvWithBReNorm, self).__init__()
+        with self.init_scope():
+            self.conv = L.Convolution2D(
+                in_channels, out_channels, kernel, stride=stride, pad=pad, nobias=nobias)
+            self.bn = L.BatchRenormalization(out_channels)
+
+    def __call__(self, x):
+        x = self.conv(x)
+        return self.bn(x)
+
+
 class BottleneckA(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
                  stride=1, initialW=None, bn=None, act=F.relu):
         super(BottleneckA, self).__init__()
+        if bn == 'ReNorm':
+            Conv = ConvWithBReNorm
+        else:
+            Conv = L.Convolution2D
         with self.init_scope():
-            self.shortcut = L.Convolution2D(
-                in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
-            self.conv1 = L.Convolution2D(
-                in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
-            self.conv2 = L.Convolution2D(
-                mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
-            if bn is not None:
-                self.bnsc = bn(out_channels)
-                self.bn1 = bn(mid_channels)
-                self.bn2 = bn(out_channels)
-                self.bn = True
-            else:
-                self.bn = False
+            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
+            self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
         self.act = act
+        self.bn = bn
 
     def __call__(self, x):
-        res_x = self.conv1(x)
-        if self.bn:
-            res_x = self.bn1(res_x)
-        res_x = self.act(res_x)
+        res_x = self.act(self.conv1(x))
         res_x = self.conv2(res_x)
-        if self.bn:
-            res_x = self.bn2(res_x)
         x = self.shortcut(x)
-        if self.bn:
-            x = self.bnsc(x)
         return self.act(x + res_x)
+
+
+class LMBottleneckA(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None, bn=None, act=F.relu, k=0.5):
+        super(BottleneckA, self).__init__()
+        if bn == 'ReNorm':
+            Conv = ConvWithBReNorm
+        else:
+            Conv = L.Convolution2D
+        with self.init_scope():
+            self.k = chainer.variable.Parameter(0.5)
+            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
+            self.conv1_1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv1_2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+            self.conv2_1 = Conv(out_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2_2 = Conv(mid_channels, out_channels, 3, stride=1, pad=1, nobias=True)
+        self.bn = bn
+        self.act = act
+
+    def __call__(self, x0):
+        # Output: Un+1 = (1 - kn)*Un + kn*Un-1 + f(Un)
+        # Un = act(Un-1 + f(Un-1))
+        # 
+        f_x0 = self.act(self.conv1_1(x0))
+        f_x0 = self.conv1_2(f_x0)
+        x0 = self.shortcut(x0)
+        x1 = self.act(x0 + f_x0)
+        f_x1 = self.act(self.conv2_1(x1))
+        f_x1 = self.conv2_2(f_x1)
+        x2 = (1 - self.k) * x1 + self.k * x0 + f_x1 
+        return self.act(x2)
 
 
 class PreBottleneckA(chainer.Chain):
@@ -1560,6 +1598,94 @@ class RESNET(chainer.Chain):
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         xs = self['conv{}_2'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class LMRESNET(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
+        super(RESNET, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        if mode == 'regular':
+            combs = [(0, y) for y in range(2)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(2)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 2)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            self.k = chainer.variable.Parameter(0.5)
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 16, 1, stride=1, nobias=True)
+                else:
+                    layer = LMBottleneckA(16, 64, outs, act=act, bn=bn)
+                setattr(self, l_name, layer)
+
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = no_dropout
+            if in_channel[x] == 2:
+                if dropout == 'incremental':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fixed':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'random':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
+        self.dropout = dropout
+        self.in_channel = in_channel
+        self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        self.iter += 1
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x input channel x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x input channel x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        # Apply dropout only to the binaural input
+        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)      
+
+        xs = self['conv{}_0'.format(idx)](xs)
+        if self.mode == 'entry':
+            idx = 0
+
+        xs = self['conv{}_1'.format(idx)](xs)
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         # change ilens accordingly
