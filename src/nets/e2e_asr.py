@@ -975,9 +975,13 @@ class Encoder(chainer.Chain):
                     dropout = 0.0
                     logging.info('CNN-RESNET with fixed dropout added for encoder')
                 elif _etype == 'resdi':
-                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    _encoder = RESNET(in_channel, mode=mode, dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with incremental dropout added for encoder')
+                elif _etype == 'resdr':
+                    _encoder = RESNET(in_channel, mode=mode, dropout='random')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with random dropout added for encoder')
                 elif _etype == 'reselu':
                     _encoder = RESNET(in_channel, mode=mode, act=F.elu)
                     idim = get_vgg2l_odim(idim)
@@ -995,6 +999,10 @@ class Encoder(chainer.Chain):
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
+                elif _etype == 'resbrndr':
+                    _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, dropout='incremental')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
                 elif _etype == 'resbrn256':
                     _encoder = RESNET(in_channel, mode=mode, bn=L.BatchRenormalization, outs=256)
                     idim = get_vgg2l_odim(idim)
