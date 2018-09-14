@@ -229,8 +229,7 @@ class GridGRUCell(link.ChainList):
         return h_new
 
 
-memory_cell_dictionary = {'GRU': StatelessGridGRUbase,
-                          'LSTM': StatelessGridLSTMbase}
+memory_cell_dictionary = {'LSTM': StatelessGridLSTMbase}
 
 
 class GridCell(link.ChainList):
