@@ -1153,7 +1153,7 @@ class BLSTMP(chainer.Chain):
 
 class BGRUP(chainer.Chain):
     def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
-        super(BLSTMP, self).__init__()
+        super(BGRUP, self).__init__()
         with self.init_scope():
             for i in six.moves.range(elayers):
                 if i == 0:
@@ -1408,13 +1408,13 @@ class BottleneckA(chainer.Chain):
 class LMBottleneckA(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
                  stride=1, initialW=None, bn=None, act=F.relu, k=0.5):
-        super(BottleneckA, self).__init__()
+        super(LMBottleneckA, self).__init__()
         if bn == 'ReNorm':
             Conv = ConvWithBReNorm
         else:
             Conv = L.Convolution2D
         with self.init_scope():
-            self.k = chainer.variable.Parameter(0.5)
+            self.k = chainer.variable.Parameter(0.5, ())
             self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
             self.conv1_1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
             self.conv1_2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
@@ -1431,9 +1431,11 @@ class LMBottleneckA(chainer.Chain):
         f_x0 = self.conv1_2(f_x0)
         x0 = self.shortcut(x0)
         x1 = self.act(x0 + f_x0)
+        dims = x1.shape
         f_x1 = self.act(self.conv2_1(x1))
         f_x1 = self.conv2_2(f_x1)
-        x2 = (1 - self.k) * x1 + self.k * x0 + f_x1 
+        x1 = (1. - F.broadcast_to(self.k, dims)) * x1
+        x2 = x1 + F.broadcast_to(self.k, dims) * x0 + f_x1 
         return self.act(x2)
 
 
@@ -1617,7 +1619,7 @@ class RESNET(chainer.Chain):
 
 class LMRESNET(chainer.Chain):
     def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
-        super(RESNET, self).__init__()
+        super(LMRESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
         if mode == 'regular':
@@ -1630,13 +1632,12 @@ class LMRESNET(chainer.Chain):
             raise ValueError('Incorrect mode.')
         with self.init_scope():
             # CNN layer (RESNET motivated)
-            self.k = chainer.variable.Parameter(0.5)
             for i, j in combs:
                 l_name = 'conv{}_{}'.format(i, j)
                 if j == 0:
                     layer = L.Convolution2D(in_channel[i], 16, 1, stride=1, nobias=True)
                 else:
-                    layer = LMBottleneckA(16, 64, outs, act=act, bn=bn)
+                    layer = LMBottleneckA(16, 64, outs, stride=2, act=act, bn=bn)
                 setattr(self, l_name, layer)
 
         for x in range(len(in_channel)):
