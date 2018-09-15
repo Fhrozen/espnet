@@ -18,3 +18,8 @@ export decode_cmd="run.pl --mem 4G"
 #export train_cmd="queue.pl --mem 2G"
 #export cuda_cmd="queue.pl --mem 2G --gpu 1 --config conf/gpu.conf"
 #export decode_cmd="queue.pl --mem 4G"
+
+# MARCC setup
+#export train_cmd="slurm.pl --mem 2G --config conf/slurm.conf"
+#export cuda_cmd="slurm.pl --mem 5G --gpu 1 --num_threads 6 --config conf/slurm_gpu.conf"
+#export decode_cmd="slurm.pl --mem 4G --config conf/slurm.conf"

@@ -1015,6 +1015,36 @@ class Encoder(chainer.Chain):
                     _encoder = LMRESNET(in_channel, mode=mode)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-LM-RESNET added for encoder')
+                elif _etype == 'lmresdf':
+                    _encoder = LMRESNET(in_channel, mode=mode, dropout='fixed', dratio=dropout)
+                    idim = get_vgg2l_odim(idim)
+                    dropout = 0.0
+                    logging.info('CNN-LM-RESNET with fixed dropout added for encoder')
+                elif _etype == 'lmresdi':
+                    _encoder = LMRESNET(in_channel, mode=mode, dropout='incremental')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-LM-RESNET with incremental dropout added for encoder')
+                elif _etype == 'lmresdr':
+                    _encoder = LMRESNET(in_channel, mode=mode, dropout='random')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-LM-RESNET with random dropout added for encoder')
+                elif _etype == 'lmresbrn':
+                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization added for encoder')
+                elif _etype == 'lmresbrndf':
+                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='fixed', dratio=dropout)
+                    idim = get_vgg2l_odim(idim)
+                    dropout = 0.0
+                    logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
+                elif _etype == 'lmresbrndi':
+                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
+                elif _etype == 'lmresbrndr':
+                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
+                    idim = get_vgg2l_odim(idim)
+                    logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
