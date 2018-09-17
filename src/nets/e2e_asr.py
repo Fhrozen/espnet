@@ -1208,14 +1208,14 @@ class BGRUP(chainer.Chain):
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
         for layer in six.moves.range(self.elayers):
-            hy, cy, ys = self['bigru' + str(layer)](None, None, xs)
+            hy, ys = self['bigru' + str(layer)](None, xs)
             # ys: utt list of frame x cdim x 2 (2: means bidirectional)
             # TODO(watanabe) replace subsample and FC layer with CNN
             ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
             # (sum _utt frame_utt) x dim
             ys = self['bt' + str(layer)](F.vstack(ys))
             xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
-            del hy, cy
+            del hy
 
         # final tanh operation
         xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
