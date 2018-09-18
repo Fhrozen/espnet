@@ -109,6 +109,7 @@ if [ ${stage} -le 0 ]; then
     # Additionally use WSJ clean data. Otherwise the encoder decoder is not well trained
     local/wsj_data_prep.sh ${wsj0}/??-{?,??}.? ${wsj1}/??-{?,??}.?
     local/wsj_format_data.sh
+    utils/combine_data.sh data/tr05_multi_noisy_si284 data/tr05_real_noisy_6mics data/train_si284 data/tr05_simu_noisy_6mics
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -201,7 +202,7 @@ if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
     mkdir -p ${lmdatadir}
     if [ $use_wordlm = true ]; then
-	cat data-fbank/tr05_multi_noisy_6mics/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+	cat data/tr05_multi_noisy_si284/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
 							    > ${lmdatadir}/train_trans.txt
 	zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z | grep -v "<" | tr [a-z] [A-Z] \
 	    | perl -pe 's/\n/ <eos> /g' > ${lmdatadir}/train_others.txt
@@ -210,7 +211,7 @@ if [ ${stage} -le 3 ]; then
 							    > ${lmdatadir}/valid.txt
 	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
     else
-	text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/tr05_multi_noisy_6mics/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
+	text2token.py -s 1 -n 1 -l ${nlsyms} data/tr05_multi_noisy_si284/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
 											     > ${lmdatadir}/train_trans.txt
 	zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z | grep -v "<" | tr [a-z] [A-Z] \
 	    | text2token.py -n 1 | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' >> ${lmdatadir}/train_others.txt
