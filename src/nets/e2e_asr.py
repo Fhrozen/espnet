@@ -1832,19 +1832,20 @@ class filternet(chainer.Chain):
         # final tanh operation
         xs1 = F.vstack(xs1)
         rfilt = F.tanh(self['filtr_{}'.format(idx)](xs1))  # F.split_axis(, np.cumsum(ilens[:-1]), axis=0)
-        ifilt = F.tanh(self['filti_{}'.format(idx)](xs1))  # F.split_axis(, np.cumsum(ilens[:-1]), axis=0)
+        # Conj of Filter
+        ifilt = -1. * F.tanh(self['filti_{}'.format(idx)](xs1))  
  
         min_range = chainer.Variable(self.xp.asarray([1e-20], dtype=np.float32))
         
         rxs, ixs = F.split_axis(F.vstack(xs), 2, axis=1)
         length, channels, dims = rxs.shape
-        # real_filt = rfilt[i].reshape(1, ilens[i], channels, -1)
-        # imag_filt = ifilt[i].reshape(1, ilens[i], channels, -1)
-        real_val = rxs.reshape(-1, channels * dims) * rfilt # F.matmul() - F.matmul(ixs, ifilt)
-        imag_val = ixs.reshape(-1, channels * dims) * ifilt # F.matmul(rxs, ifilt) + F.matmul(ixs, rfilt)
+        rxs = rxs.reshape(-1, channels * dims)
+        ixs = ixs.reshape(-1, channels * dims)
+        real_val = rfilt * rxs - ifilt * ixs
+        imag_val = rfilt * ixs + ifilt * rxs
         xs = F.sum(real_val.reshape(-1, channels, dims), axis=1, keepdims=True) ** 2 + F.sum(
             imag_val.reshape(-1, channels, dims), axis=1, keepdims=True) ** 2
-        
+        xs = 1. / self.nfft * xs
         min_range = F.broadcast_to(min_range, xs.shape)
         fbanks = chainer.Variable(self.xp.asarray(self.fbanks, dtype=np.float32))
         fbanks = F.broadcast_to(fbanks, [length, self.nfft // 2 + 1, self.nfilt])
