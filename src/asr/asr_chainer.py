@@ -191,6 +191,38 @@ class CustomConverter(object):
         return xs, ilens, ys
 
 
+def LoadMultichSpec():
+    n_inputs = len(data['input'])
+    for i in range(n_inputs):
+        _feat = kaldi_io_py.read_mat(data['input'][i]['feat'])
+        _len = int(_feat.shape[0] / 2)
+        _feat_r = _feat[:_len]
+        _feat_i = _feat[:_len]
+        if 'feat_r' not in locals():
+            feat_r = _feat_r[:, None, :]
+            feat_i = _feat_i[:, None, :]
+        else:
+            feat_r = np.concatenate((feat_r, _feat_r[:, None, :]), axis=1)
+            feat_i = np.concatenate((feat_i, _feat_i[:, None, :]), axis=1)
+    feat = np.concatenate((feat_r, feat_i), axis=1)
+    return feat
+
+
+def LoadMultichFbank(data):
+    n_inputs = len(data['input'])
+    for i in range(n_inputs):
+        _feat = kaldi_io_py.read_mat(data['input'][i]['feat'])
+        if 'feat' not in locals():
+            feat = _feat[:, None, :]
+        else:
+            feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
+    return feat
+
+
+def LoadFbank(data):
+    return kaldi_io_py.read_mat(data['input'][i]['feat'])
+
+
 def train(args):
     '''Run training'''
     # display chainer version
@@ -483,6 +515,13 @@ def recog(args):
                 extlm_chainer.LookAheadWordLM(word_rnnlm.predictor,
                                               word_dict, char_dict))
 
+    if train_args.converter == 'mcbank':
+        load_data = LoadMultichFbank
+    elif train_args.converter == 'mcspec':
+        load_data = LoadMultichSpec
+    else:
+        load_data = LoadFbank
+
     # read json data
     with open(args.recog_json, 'rb') as f:
         js = json.load(f)['utts']
@@ -492,16 +531,9 @@ def recog(args):
     with chainer.no_backprop_mode():
         for idx, name in enumerate(js.keys(), 1):
             logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
-            n_inputs = len(js[name]['input'])
-            for i in range(n_inputs):
-                _feat = kaldi_io_py.read_mat(js[name]['input'][i]['feat'])
-                if 'feat' not in locals():
-                    feat = _feat[:, None, :]
-                else:
-                    feat = np.concatenate((feat, _feat[:, None, :]), axis=1)
+            feat = load_data(js[name])
             nbest_hyps = e2e.recognize(feat, args, train_args.char_list, rnnlm)
             new_js[name] = add_results_to_json(js[name], nbest_hyps, train_args.char_list)
-            del feat
 
     # TODO(watanabe) fix character coding problems when saving it
     with open(args.result_label, 'wb') as f:
