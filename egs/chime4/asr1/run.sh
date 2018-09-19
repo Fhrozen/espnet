@@ -69,9 +69,9 @@ ctc_weight=0.3
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # data
-chime4_data=/export/corpora4/CHiME4/CHiME3 # JHU setup
-wsj0=/export/corpora5/LDC/LDC93S6B            # JHU setup
-wsj1=/export/corpora5/LDC/LDC94S13B           # JHU setup
+chime4_data=${CHIME4_CORPUS}
+wsj0=${WSJ0_CORPSU}
+wsj1=${WSJ1_CORPSU}
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -250,13 +250,13 @@ if [ ${stage} -le 3 ]; then
 		--outdir ${lmexpdir} \
 		--train-label ${lmdatadir}/train.txt \
 		--valid-label ${lmdatadir}/valid.txt \
-                --resume ${lm_resume} \
-                --layer ${lm_layers} \
-                --unit ${lm_units} \
-                --opt ${lm_opt} \
-                --batchsize ${lm_batchsize} \
-                --epoch ${lm_epochs} \
-                --maxlen ${lm_maxlen} \
+        --resume ${lm_resume} \
+        --layer ${lm_layers} \
+        --unit ${lm_units} \
+        --opt ${lm_opt} \
+        --batchsize ${lm_batchsize} \
+        --epoch ${lm_epochs} \
+        --maxlen ${lm_maxlen} \
 		--dict ${lmdict}
 fi
 

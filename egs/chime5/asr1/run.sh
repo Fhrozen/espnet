@@ -25,12 +25,13 @@ etype=vggblstmp     # encoder architecture type
 elayers=6
 eunits=320
 eprojs=320
-subsample=1_2_2_1_1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=300
 # attention related
 atype=location
+adim=320
 aconv_chans=10
 aconv_filts=100
 
@@ -42,8 +43,8 @@ lsm_type=unigram
 lsm_weight=0.05
 
 # minibatch related
-batchsize=30
-maxlen_in=800  # if input length  > maxlen_in, batchsize is automatically reduced
+batchsize=25
+maxlen_in=750  # if input length  > maxlen_in, batchsize is automatically reduced
 maxlen_out=150 # if output length > maxlen_out, batchsize is automatically reduced
 
 # optimization related
@@ -51,14 +52,16 @@ opt=adadelta
 epochs=15
 
 # rnnlm related
+use_wordlm=true     # false means to train/use a character LM
+lm_vocabsize=65000  # effective only for word LMs
 lm_layers=2
 lm_units=650
-lm_opt=sgd        # or adam
-lm_batchsize=256  # batch size in LM training
-lm_epochs=20      # if the data size is large, we can reduce this
-lm_maxlen=150     # if sentence length > lm_maxlen, lm_batchsize is automatically reduced
-lm_resume=        # specify a snapshot file to resume LM training
-lmtag=            # tag for managing LMs
+lm_opt=sgd          # or adam
+lm_batchsize=25     # batch size in LM training
+lm_epochs=20        # if the data size is large, we can reduce this
+lm_maxlen=150       # if sentence length > lm_maxlen, lm_batchsize is automatically reduced
+lm_resume=          # specify a snapshot file to resume LM training
+lmtag=              # tag for managing LMs
 
 # decoding parameter
 lm_weight=0.1
@@ -67,13 +70,11 @@ penalty=0.0
 maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.1
-emode=regular
+emode=single
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # data
-chime5_corpus=/export/corpora4/CHiME5
-json_dir=${chime5_corpus}/transcriptions
-audio_dir=${chime5_corpus}/audio
+chime5_corpus=${CHIME5_CORPUS}
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -89,12 +90,16 @@ set -e
 set -u
 set -o pipefail
 
+json_dir=${chime5_corpus}/transcriptions
+audio_dir=${chime5_corpus}/audio
 enhancement=beamformit
-train_set=train_worn_u200k
+
+train_set=train_worn_u200k  #train_worn_${enhancement}
 train_dev=dev_${enhancement}_ref
+enhancement1=addition
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_${enhancement}_ref"
+recog_set="dev_worn dev_wpe_${enhancement1}_ref dev_${enhancement}_ref dev_${enhancement1}_ref"
 
 if [ ${stage} -le 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -114,8 +119,12 @@ if [ ${stage} -le 0 ]; then
     done
     enhandir=enhan
     #eval#for dset in dev eval; do
-    for dset in dev; do
-	for mictype in u01 u02 u03 u04 u05 u06; do
+    for dset in train dev; do
+    mics="u01 u02 u04 u05 u06"
+    if [ "${dset}" == "dev" ]; then
+        mics="${mics} u03"
+    fi
+	for mictype in ${mics}; do
 	    local/run_beamformit.sh --cmd "$train_cmd" \
 				    ${audio_dir}/${dset} \
 				    ${enhandir}/${dset}_${enhancement}_${mictype} \
@@ -123,10 +132,30 @@ if [ ${stage} -le 0 ]; then
 	done
     done
     wait
+    for mictype in worn u01 u02 u04 u05 u06; do
+        local/prepare_data.sh --mictype ${mictype} \
+			      "$PWD/${enhandir}/train_${enhancement}_${mictype}" \
+                  ${json_dir}/train data/train_${enhancement}_${mictype}
+    done
     #eval#for dset in dev eval; do
     for dset in dev; do
 	local/prepare_data.sh --mictype ref "$PWD/${enhandir}/${dset}_${enhancement}_u0*" \
 			      ${json_dir}/${dset} data/${dset}_${enhancement}_ref
+    done
+
+    for dset in dev dev_wpe; do
+    	for mictype in u01 u02 u03 u04 u05 u06; do
+    	    local/run_addition.sh --cmd "$train_cmd" \
+    				    ${audio_dir}/${dset} \
+    				    ${enhandir}/${dset}_${enhancement1}_${mictype} \
+    				    ${mictype} &
+    	done
+    done
+    wait
+    #eval#for dset in dev eval; do
+    for dset in dev dev_wpe; do
+    	local/prepare_data.sh --mictype ref "$PWD/${enhandir}/${dset}_${enhancement1}_u0*" \
+    			      ${json_dir}/dev data/${dset}_${enhancement1}_ref
     done
 
     # only use left channel for worn mic recognition
@@ -142,9 +171,11 @@ if [ ${stage} -le 0 ]; then
     # randomly extract first 100k utterances from all mics
     # if you want to include more training data, you can increase the number of array mic utterances
     utils/combine_data.sh data/train_uall data/train_u01 data/train_u02 data/train_u04 data/train_u05 data/train_u06
-    utils/subset_data_dir.sh data/train_uall 200000 data/train_u200k
-    utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
-    utils/combine_data.sh data/train_worn_u200k data/train_worn data/train_u200k
+    utils/combine_data.sh data/train_${enhancement}_uall data/train_${enhancement}_u01 \
+                                            data/train_${enhancement}_u02 \
+                                            data/train_${enhancement}_u04 \
+                                            data/train_${enhancement}_u05 \
+                                            data/train_${enhancement}_u06
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -155,11 +186,16 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in ${train_set} ${recog_set}; do
+    for x in train_worn train_uall train_${enhancement}_uall ${recog_set}; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done
+    # Prepare Subset 
+    utils/combine_data.sh train_worn_${enhancement} data/train_${enhancement}_uall data/train_worn
+    utils/subset_data_dir.sh data/train_uall 200000 data/train_u200k
+    utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
+    utils/combine_data.sh data/train_worn_u200k data/train_worn data/train_u200k
     # compute global CMVN
     compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 fi
@@ -224,21 +260,34 @@ fi
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
 if [ -z ${lmtag} ]; then
     lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}_bs${lm_batchsize}
+    if [ $use_wordlm = true ]; then
+        lmtag=${lmtag}_word${lm_vocabsize}
+    fi
 fi
 lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
 mkdir -p ${lmexpdir}
 
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
-    lmdatadir=data/local/lm_train
-    mkdir -p ${lmdatadir}
-    text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_set}/text | cut -f 2- -d" " \
-        > ${lmdatadir}/train.txt
-    text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text | cut -f 2- -d" " \
-        > ${lmdatadir}/valid.txt
+    if [ $use_wordlm = true ]; then
+        lmdatadir=data/local/wordlm_train
+        lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
+        mkdir -p ${lmdatadir}
+        cat data/train_worn/text | cut -f 2- -d" " > ${lmdatadir}/train.txt
+        cat data/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
+        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
+    else
+        lmdatadir=data/local/lm_train
+        lmdict=$dict
+        mkdir -p ${lmdatadir}
+        text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn/text \
+            | cut -f 2- -d" " > ${lmdatadir}/train.txt
+        text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text \
+            | cut -f 2- -d" " > ${lmdatadir}/valid.txt
+    fi
     # use only 1 gpu
     if [ ${ngpu} -gt 1 ]; then
-        echo "LM training does not support multi-gpu. signle gpu will be used."
+        echo "LM training does not support multi-gpu. single gpu will be used."
     fi
     ${cuda_cmd} --gpu ${ngpu} ${lmexpdir}/train.log \
         lm_train.py \
@@ -255,11 +304,12 @@ if [ ${stage} -le 3 ]; then
         --batchsize ${lm_batchsize} \
         --epoch ${lm_epochs} \
         --maxlen ${lm_maxlen} \
-        --dict ${dict}
+        --dict ${lmdict}
+    exit 0
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}${adim}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -273,7 +323,6 @@ mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ]; then
     echo "stage 4: Network Training"
-
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
         asr_train.py \
         --ngpu ${ngpu} \
@@ -296,6 +345,7 @@ if [ ${stage} -le 4 ]; then
         --dlayers ${dlayers} \
         --dunits ${dunits} \
         --atype ${atype} \
+        --adim ${adim} \
         --aconv-chans ${aconv_chans} \
         --aconv-filts ${aconv_filts} \
         --mtlalpha ${mtlalpha} \
@@ -306,6 +356,7 @@ if [ ${stage} -le 4 ]; then
         --maxlen-out ${maxlen_out} \
         --opt ${opt} \
         --epochs ${epochs}
+    exit 0
 fi
 
 if [ ${stage} -le 5 ]; then
@@ -315,6 +366,11 @@ if [ ${stage} -le 5 ]; then
     for rtask in ${recog_set}; do
     (
         decode_dir=decode_${rtask}_beam${beam_size}_e${recog_model}_p${penalty}_len${minlenratio}-${maxlenratio}_ctcw${ctc_weight}_rnnlm${lm_weight}_${lmtag}
+        if [ $use_wordlm = true ]; then
+            recog_opts="--word-rnnlm ${lmexpdir}/rnnlm.model.best"
+        else
+            recog_opts="--rnnlm ${lmexpdir}/rnnlm.model.best"
+        fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
 
         # split data
@@ -327,6 +383,7 @@ if [ ${stage} -le 5 ]; then
             asr_recog.py \
             --ngpu ${ngpu} \
             --backend ${backend} \
+            --debugmode ${debugmode} \
             --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
             --result-label ${expdir}/${decode_dir}/data.JOB.json \
             --model ${expdir}/results/${recog_model}  \
@@ -335,8 +392,8 @@ if [ ${stage} -le 5 ]; then
             --maxlenratio ${maxlenratio} \
             --minlenratio ${minlenratio} \
             --ctc-weight ${ctc_weight} \
-            --rnnlm ${lmexpdir}/rnnlm.model.best \
-            --lm-weight ${lm_weight} &
+            --lm-weight ${lm_weight} \
+            $recog_opts &
         wait
 
         score_sclite.sh --wer true --nlsyms ${nlsyms} ${expdir}/${decode_dir} ${dict}

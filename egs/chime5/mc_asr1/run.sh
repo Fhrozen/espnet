@@ -87,12 +87,12 @@ set -o pipefail
 
 json_dir=${chime5_corpus}/transcriptions
 audio_dir=${chime5_corpus}/audio
-train_set=train_mix_worn_uall
+train_set=train_mix_worn_uall  # train_uall
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
 recog_set="dev_worn dev_ref dev_wpe_ref" # eval_ref eval_wpe_ref"  
-noises="None white"
+noises="white"
 
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Data Augmentation"
@@ -104,6 +104,7 @@ if [ ${stage} -le -1 ]; then
 fi
 
 if [ ${stage} -le 0 ]; then
+    ### The Code employs the data prepared in single channel 
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data files preparation"
@@ -120,37 +121,9 @@ if [ ${stage} -le 0 ]; then
         rm -rf data/${trainset}_u0*
     done
 
-    utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
-
-    for dset in dev; do
-    for mictype in worn; do
-        local/prepare_data.sh --mictype ${mictype} \
-                ${audio_dir}/${dset} ${json_dir}/${dset} \
-                data/${dset}_${mictype}
-    done
-    done
-
-    for dset in dev dev_wpe; do
-        local/prepare_data.sh --mictype ref \
-        ${audio_dir}/${dset} ${json_dir}/dev \
-        data/${dset}_ref
-    done
-
-    for eset in eval eval_wpe; do
-        local/prepare_data.sh --mictype ref \
-        ${audio_dir}/${eset} ${json_dir}/eval \
-        data/${eset}_ref
-    done
-
+    utils/copy_data_dir.sh ../asr1/data/${dset}_worn_stere  data/${dset}_worn 
 fi
-trainsets=""
-for noise in ${noises}; do
-    trainset=train
-    if [ "${noise}" != "None" ]; then
-        trainset="${trainset}_${noise}"
-    fi
-    trainsets="${trainset} ${trainsets}"
-done
+
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
