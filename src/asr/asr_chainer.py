@@ -191,7 +191,7 @@ class CustomConverter(object):
         return xs, ilens, ys
 
 
-def LoadMultichSpec():
+def LoadMultichSpec(data):
     n_inputs = len(data['input'])
     for i in range(n_inputs):
         _feat = kaldi_io_py.read_mat(data['input'][i]['feat'])
