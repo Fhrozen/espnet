@@ -218,7 +218,7 @@ def LoadMultichFbank(data):
 
 
 def LoadFbank(data):
-    return kaldi_io_py.read_mat(data['input'][i]['feat'])
+    return kaldi_io_py.read_mat(data['input'][i]['feat'])[:, None, :]
 
 
 def train(args):

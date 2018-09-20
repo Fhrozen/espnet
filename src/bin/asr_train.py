@@ -54,7 +54,7 @@ def main():
                         help='Number of encoder layers')
     parser.add_argument('--einputs', default=1, type=int, nargs='+',
                         help='Number of inputs for the encoder')
-    parser.add_argument('--minput', default='regular', type=str,
+    parser.add_argument('--minput', default='single', type=str,
                         help='Mode of input processing')
     parser.add_argument('--eintype', default=None, type=str,
                         help='Input of encoder configuration')

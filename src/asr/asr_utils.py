@@ -115,7 +115,7 @@ def load_inputs_and_targets(batch):
     :rtype: list of int ndarray
     """
     # load acoustic features and target sequence of token ids
-    xs = [kaldi_io_py.read_mat(b[1]['input'][0]['feat']) for b in batch]
+    xs = [kaldi_io_py.read_mat(b[1]['input'][0]['feat'])[:, None, :] for b in batch]
     ys = [b[1]['output'][0]['tokenid'].split() for b in batch]
 
     # get index of non-zero length samples
