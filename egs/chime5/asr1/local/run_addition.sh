@@ -68,7 +68,7 @@ echo -e "Summing Channels\n"
 for n in `seq $nj`; do
 cat << EOF > $expdir/log/addition.$n.sh
 while read line; do
-  local/wav_sum.py -s \$line -c $input_arrays \
+  ./local/wav_sum.py -s \$line -c $input_arrays \
     --source_dir $sdir \
     --result_dir $odir
 done < $output_wavfiles.$n

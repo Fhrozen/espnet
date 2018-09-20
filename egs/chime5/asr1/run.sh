@@ -120,20 +120,20 @@ if [ ${stage} -le 0 ]; then
     enhandir=enhan
     #eval#for dset in dev eval; do
     for dset in train dev; do
-    mics="u01 u02 u04 u05 u06"
-    if [ "${dset}" == "dev" ]; then
-        mics="${mics} u03"
-    fi
-	for mictype in ${mics}; do
-	    local/run_beamformit.sh --cmd "$train_cmd" \
-				    ${audio_dir}/${dset} \
-				    ${enhandir}/${dset}_${enhancement}_${mictype} \
-				    ${mictype} &
-	done
+        mics="u01 u02 u04 u05 u06"
+        if [ "${dset}" == "dev" ]; then
+            mics="${mics} u03"
+        fi
+        for mictype in ${mics}; do
+            local/run_beamformit.sh --cmd "$train_cmd" \
+                        ${audio_dir}/${dset} \
+                        ${enhandir}/${dset}_${enhancement}_${mictype} \
+                        ${mictype} &
+        done
     done
     wait
-    for mictype in worn u01 u02 u04 u05 u06; do
-        local/prepare_data.sh --mictype ${mictype} \
+    for mictype in u01 u02 u04 u05 u06; do
+        local/prepare_data.sh --mictype enhan --subdir ${mictype} \
 			      "$PWD/${enhandir}/train_${enhancement}_${mictype}" \
                   ${json_dir}/train data/train_${enhancement}_${mictype}
     done

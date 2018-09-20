@@ -6,6 +6,7 @@
 # Begin configuration section.
 mictype=worn # worn, ref or others
 cleanup=true
+subdir=
 # End configuration section
 . ./utils/parse_options.sh  # accept options.. you can run this run.sh with the
 
@@ -44,7 +45,11 @@ echo "$0: Converting transcription to text"
 
 mkdir -p $dir
 for file in $jdir/*json; do
-  ./local/json2text.py --mictype $mictype $file
+  if [ -z ${subdir} ]; then
+    ./local/json2text.py --mictype $mictype $file
+  else
+    ./local/json2text.py --mictype ${subdir} $file
+  fi
 done | \
   sed -e "s/\[inaudible[- 0-9]*\]/[inaudible]/g" |\
   sed -e 's/ - / /g' |\
@@ -87,6 +92,17 @@ elif [ $mictype == "ref" ]; then
   paste -d" " \
 	<(awk -F "/" '{print $NF}' $dir/wav.flist2 | sed -e "s/\.wav/.ENH/") \
 	$dir/wav.flist2 | sort > $dir/wav.scp
+elif [ $mictype == "enhan" ]; then
+  # enhanced array mic case
+  # first get a text, which will be used to extract reference arrays
+  perl -ne 's/-/.ENH-/;print;' $dir/text.orig | sort > $dir/text
+
+  find $adir | grep "\.wav" | sort > $dir/wav.flist
+  # following command provide the argument for grep to extract only reference arrays
+  grep `cut -f 1 -d"-" $dir/text | awk -F"_" '{print $2 "_" $3}' | sed -e "s/\.ENH//" | sort | uniq | sed -e "s/^/ -e /" | tr "\n" " "` $dir/wav.flist > $dir/wav.flist2
+  paste -d" " \
+	<(awk -F "/" '{print $NF}' $dir/wav.flist2 | sed -e "s/\.wav/.ENH/") \
+	$dir/wav.flist2 | sort > $dir/wav.scp
 else
   # array mic case
   # convert the filenames to wav.scp format, use the basename of the file
@@ -117,6 +133,11 @@ if [ $mictype == "worn" ]; then
     sed -e "s/_[A-Z]*\././2" \
     > $dir/segments
 elif [ $mictype == "ref" ]; then
+  cut -d" " -f 1 $dir/text | \
+    awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
+    sed -e "s/_[A-Z]*\././2" |\
+    sed -e "s/ P.._/ /" > $dir/segments
+elif [ $mictype == "enhan" ]; then
   cut -d" " -f 1 $dir/text | \
     awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
     sed -e "s/_[A-Z]*\././2" |\

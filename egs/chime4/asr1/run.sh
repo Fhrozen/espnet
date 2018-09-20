@@ -70,8 +70,8 @@ recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.bes
 
 # data
 chime4_data=${CHIME4_CORPUS}
-wsj0=${WSJ0_CORPSU}
-wsj1=${WSJ1_CORPSU}
+wsj0=${WSJ0_CORPUS}
+wsj1=${WSJ1_CORPUS}
 
 # exp tag
 tag="" # tag for managing experiments.
