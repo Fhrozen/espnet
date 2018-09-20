@@ -62,6 +62,8 @@ def main():
                         help='Number of hidden units')
     parser.add_argument('--maxlen', type=int, default=40,
                         help='Batch size is reduced if the input sequence > ML')
+    parser.add_argument('--meta', type=int, default=0,
+                        help='Meta-learning')
     args = parser.parse_args()
 
     # logging info
@@ -114,11 +116,19 @@ def main():
     # train
     logging.info('backend = ' + args.backend)
     if args.backend == "chainer":
-        from lm_chainer import train
-        train(args)
+        if args.meta:
+            from lm_chainer_meta import train
+            train(args)
+        else:
+            from lm_chainer import train
+            train(args)
     elif args.backend == "pytorch":
-        from lm_pytorch import train
-        train(args)
+        if args.meta:
+            from lm_pytorch_meta import train
+            train(args)
+        else:
+            from lm_pytorch import train
+            train(args)
     else:
         raise ValueError("chainer and pytorch are only supported.")
 

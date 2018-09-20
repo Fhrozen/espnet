@@ -54,12 +54,12 @@ epochs=15
 # rnnlm related
 use_wordlm=true     # false means to train/use a character LM
 lm_vocabsize=65000  # effective only for word LMs
-lm_layers=2
-lm_units=650
-lm_opt=sgd          # or adam
-lm_batchsize=25     # batch size in LM training
-lm_epochs=20        # if the data size is large, we can reduce this
-lm_maxlen=150       # if sentence length > lm_maxlen, lm_batchsize is automatically reduced
+lm_layers=1         # 2 for character LMs
+lm_units=1000       # 650 for character LMs
+lm_opt=sgd          # adam for character LMs
+lm_batchsize=100    # 1024 for character LMs
+lm_epochs=20        # number of epochs
+lm_maxlen=20        # 150 for character LMs
 lm_resume=          # specify a snapshot file to resume LM training
 lmtag=              # tag for managing LMs
 
@@ -192,7 +192,7 @@ if [ ${stage} -le 1 ]; then
         utils/fix_data_dir.sh data/${x}
     done
     # Prepare Subset 
-    utils/combine_data.sh train_worn_${enhancement} data/train_${enhancement}_uall data/train_worn
+    utils/combine_data.sh data/train_worn_${enhancement} data/train_${enhancement}_uall data/train_worn
     utils/subset_data_dir.sh data/train_uall 200000 data/train_u200k
     utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
     utils/combine_data.sh data/train_worn_u200k data/train_worn data/train_u200k

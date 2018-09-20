@@ -219,22 +219,22 @@ if [ ${stage} -le 3 ]; then
         lmdatadir=data/local/wordlm_train
         lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
         mkdir -p ${lmdatadir}
-        cat data/${train_set}/text | cut -f 2- -d" " > ${lmdatadir}/train_trans.txt
+        cat data-fbank/${train_set}/text | cut -f 2- -d" " > ${lmdatadir}/train_trans.txt
         zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z \
                 | grep -v "<" | tr [a-z] [A-Z] > ${lmdatadir}/train_others.txt
-        cat data/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
+        cat data-fbank/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
         cat ${lmdatadir}/train_trans.txt ${lmdatadir}/train_others.txt > ${lmdatadir}/train.txt
         text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
     else
         lmdatadir=data/local/lm_train
         lmdict=$dict
         mkdir -p ${lmdatadir}
-        text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_set}/text \
+        text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/${train_set}/text \
             | cut -f 2- -d" " > ${lmdatadir}/train_trans.txt
         zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z \
             | grep -v "<" | tr [a-z] [A-Z] \
             | text2token.py -n 1 | cut -f 2- -d" " > ${lmdatadir}/train_others.txt
-        text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text \
+        text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/${train_dev}/text \
             | cut -f 2- -d" " > ${lmdatadir}/valid.txt
         cat ${lmdatadir}/train_trans.txt ${lmdatadir}/train_others.txt > ${lmdatadir}/train.txt
     fi

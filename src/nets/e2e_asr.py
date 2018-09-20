@@ -1334,7 +1334,7 @@ class VGG2L(chainer.Chain):
         super(VGG2L, self).__init__()
         if isinstance(in_channel, int):
             in_channel = [in_channel]
-        if mode == 'regular':
+        if mode == 'single':
             combs = [(0, y) for y in range(4)]
         elif mode == 'parallel':
             combs = [(x, y) for x in range(len(in_channel)) for y in range(4)]
@@ -1563,7 +1563,7 @@ class RESNET(chainer.Chain):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
-        if mode == 'regular':
+        if mode == 'single':
             combs = [(0, y) for y in range(3)]
         elif mode == 'parallel':
             combs = [(x, y) for x in range(len(in_channel)) for y in range(3)]
@@ -1655,7 +1655,7 @@ class LMRESNET(chainer.Chain):
         super(LMRESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
-        if mode == 'regular':
+        if mode == 'single':
             combs = [(0, y) for y in range(2)]
         elif mode == 'parallel':
             combs = [(x, y) for x in range(len(in_channel)) for y in range(2)]
