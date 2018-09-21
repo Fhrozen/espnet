@@ -64,6 +64,10 @@ def main():
                         help='Batch size is reduced if the input sequence > ML')
     parser.add_argument('--meta', type=int, default=0,
                         help='Meta-learning')
+    parser.add_argument('--lr', type=float, default=1,
+                        help='Learning Rate for SGD')
+    parser.add_argument('--alpha', type=float, default=1e-4,
+                        help='Learning Rate for Adam')
     args = parser.parse_args()
 
     # logging info

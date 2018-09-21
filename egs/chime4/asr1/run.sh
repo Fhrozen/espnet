@@ -224,7 +224,8 @@ if [ ${stage} -le 3 ]; then
                 | grep -v "<" | tr [a-z] [A-Z] > ${lmdatadir}/train_others.txt
         cat data-fbank/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
         cat ${lmdatadir}/train_trans.txt ${lmdatadir}/train_others.txt > ${lmdatadir}/train.txt
-        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
+        cat ${lmdatadir}/train.txt ${lmdatadir}/valid.txt > ${lmdatadir}/train_valid.txt
+        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
     else
         lmdatadir=data/local/lm_train
         lmdict=$dict

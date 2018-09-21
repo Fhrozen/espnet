@@ -53,13 +53,15 @@ epochs=15
 
 # rnnlm related
 use_wordlm=true     # false means to train/use a character LM
-lm_vocabsize=65000  # effective only for word LMs
+lm_vocabsize=35000  # effective only for word LMs
+lm_lr=1             # training lr for LMs (sgd)
+lm_alpha=0.0001     # training alpha for LMs (adam)
 lm_layers=1         # 2 for character LMs
 lm_units=1000       # 650 for character LMs
 lm_opt=sgd          # adam for character LMs
 lm_batchsize=100    # 1024 for character LMs
 lm_epochs=20        # number of epochs
-lm_maxlen=20        # 150 for character LMs
+lm_maxlen=100       # 150 for character LMs
 lm_resume=          # specify a snapshot file to resume LM training
 lmtag=              # tag for managing LMs
 
@@ -258,8 +260,15 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
+if [ "${lm_opt}" == "sgd" ]; then
+    lm_optval=${lm_lr}
+    lm_options="--lr ${lm_lr}"
+else
+    lm_optval=${lm_lr}
+    lm_options="--alpha ${lm_alpha}"
+fi
 if [ -z ${lmtag} ]; then
-    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}_bs${lm_batchsize}
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}
     if [ $use_wordlm = true ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
@@ -275,7 +284,8 @@ if [ ${stage} -le 3 ]; then
         mkdir -p ${lmdatadir}
         cat data/train_worn/text | cut -f 2- -d" " > ${lmdatadir}/train.txt
         cat data/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
-        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
+        cat ${lmdatadir}/train.txt ${lmdatadir}/valid.txt > ${lmdatadir}/train_valid.txt
+        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
     else
         lmdatadir=data/local/lm_train
         lmdict=$dict
@@ -304,7 +314,8 @@ if [ ${stage} -le 3 ]; then
         --batchsize ${lm_batchsize} \
         --epoch ${lm_epochs} \
         --maxlen ${lm_maxlen} \
-        --dict ${lmdict}
+        --dict ${lmdict} \
+        ${lm_options}
     exit 0
 fi
 

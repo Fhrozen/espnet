@@ -297,9 +297,9 @@ def train(args):
 
     # Set up an optimizer
     if args.opt == 'sgd':
-        optimizer = chainer.optimizers.SGD(lr=1.0)
+        optimizer = chainer.optimizers.SGD(lr=args.lr)
     elif args.opt == 'adam':
-        optimizer = chainer.optimizers.Adam()
+        optimizer = chainer.optimizers.Adam(args.alpha)
 
     optimizer.setup(model)
     optimizer.add_hook(chainer.optimizer.GradientClipping(args.gradclip))
@@ -310,7 +310,7 @@ def train(args):
     trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
                                         trigger=(REPORT_INTERVAL, 'iteration')))
     trainer.extend(extensions.PrintReport(
-        ['epoch', 'iteration', 'perplexity', 'val_perplexity', 'elapsed_time']
+        ['epoch', 'iteration', 'perplexity', 'val_perplexity', 'elapsed_time', 'lr']
     ), trigger=(REPORT_INTERVAL, 'iteration'))
     trainer.extend(extensions.ProgressBar(update_interval=REPORT_INTERVAL))
     trainer.extend(extensions.snapshot(filename='snapshot.ep.{.updater.epoch}'))
