@@ -130,7 +130,7 @@ class E2E(chainer.Chain):
         with self.init_scope():
             # encoder
             self.enc = Encoder(args.etype, idim, args.elayers, args.eunits, args.eprojs,
-                               self.subsample, args.edropout_rate, args.einputs, args.minput, args.norm_file)
+                               self.subsample, args.dropout_rate, args.einputs, args.norm_file)
             # ctc
             ctc_type = vars(args).get("ctc_type", "chainer")
             if ctc_type == 'chainer':
@@ -936,7 +936,7 @@ class Encoder(chainer.Chain):
     '''
 
     def __init__(self, etype, idim, elayers, eunits,
-                 eprojs, subsample, dropout, in_channel=1, mode=None, normfile=None):
+                 eprojs, subsample, dropout, in_channel=1, normfile=None):
         super(Encoder, self).__init__()
         encoders = etype.split('_')
         nopad = False
@@ -944,7 +944,28 @@ class Encoder(chainer.Chain):
             self._forward = list()
             for i in range(len(encoders)):
                 name = 'enc{}'.format(i + 1)
-                _etype = encoders[i]
+                _e = encoders[i].split('.')
+                e_type = _e[0]
+                e_spec = {'m': 'single',
+                          'b': None,
+                          'o': 128,
+                          'd': None,
+                          'r': 0.0,
+                          's': '2222',
+                          'a': F.relu}
+
+                for j in range(len(_e)-1):
+                    prefix = _e[j+1][0]
+                    if prefix == 'o':
+                        val = int(_e[j+1][1:])
+                    elif prefix == 'r':
+                        val = float(_e[j+1][1:]) / 10.    
+                    elif prefix == 'a':
+                        val = getattr(F, str(_e[j+1][1:]))
+                    else:
+                        val = str(_e[j+1][1:])
+                    e_spec[prefix] = val
+
                 if _etype == 'blstm':
                     _encoder = BLSTM(idim, elayers, eunits, eprojs, dropout)
                     logging.info('BLSTM added for encoder')
@@ -969,85 +990,22 @@ class Encoder(chainer.Chain):
                                        eprojs, subsample, dropout)
                     logging.info('GridLSTM added for encoder')
                 elif _etype == 'vgg':
-                    _encoder = VGG2L(in_channel, mode=mode, nopad=nopad)
+                    _encoder = VGG2L(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                     nopad=nopad)
                     idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-VGG added for encoder')
+                    logging.info('CNN-VGG with specs {} added for encoder'.format(_e[1:]))
                 elif _etype == 'res':
-                    _encoder = RESNET(in_channel, mode=mode)
+                    _encoder = RESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                      dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
                     idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET added for encoder')
-                elif _etype == 'resdf':
-                    _encoder = RESNET(in_channel, mode=mode, dropout='fixed', dratio=dropout)
+                    logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
+                 elif _etype == 'lmres':
+                    _encoder = LMRESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                      dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
                     idim = get_vgg2l_odim(idim)
-                    dropout = 0.0
-                    logging.info('CNN-RESNET with fixed dropout added for encoder')
-                elif _etype == 'resdi':
-                    _encoder = RESNET(in_channel, mode=mode, dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with incremental dropout added for encoder')
-                elif _etype == 'resdr':
-                    _encoder = RESNET(in_channel, mode=mode, dropout='random')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with random dropout added for encoder')
-                elif _etype == 'reselu':
-                    _encoder = RESNET(in_channel, mode=mode, act=F.elu)
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with ELU activation added for encoder')
-                elif _etype == 'resbrn':
-                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization added for encoder')
-                elif _etype == 'resbrndf':
-                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='fixed', dratio=dropout)
-                    idim = get_vgg2l_odim(idim)
-                    dropout = 0.0
-                    logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
-                elif _etype == 'resbrndi':
-                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
-                elif _etype == 'resbrndr':
-                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
-                elif _etype == 'resbrn256':
-                    _encoder = RESNET(in_channel, mode=mode, bn='ReNorm', outs=256)
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and 256 outs added for encoder')
-                elif _etype == 'lmres':
-                    _encoder = LMRESNET(in_channel, mode=mode)
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-LM-RESNET added for encoder')
-                elif _etype == 'lmresdf':
-                    _encoder = LMRESNET(in_channel, mode=mode, dropout='fixed', dratio=dropout)
-                    idim = get_vgg2l_odim(idim)
-                    dropout = 0.0
-                    logging.info('CNN-LM-RESNET with fixed dropout added for encoder')
-                elif _etype == 'lmresdi':
-                    _encoder = LMRESNET(in_channel, mode=mode, dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-LM-RESNET with incremental dropout added for encoder')
-                elif _etype == 'lmresdr':
-                    _encoder = LMRESNET(in_channel, mode=mode, dropout='random')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-LM-RESNET with random dropout added for encoder')
-                elif _etype == 'lmresbrn':
-                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization added for encoder')
-                elif _etype == 'lmresbrndf':
-                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='fixed', dratio=dropout)
-                    idim = get_vgg2l_odim(idim)
-                    dropout = 0.0
-                    logging.info('CNN-RESNET with BatchRenormalization and fixed dropout added for encoder')
-                elif _etype == 'lmresbrndi':
-                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and incremental dropout added for encoder')
-                elif _etype == 'lmresbrndr':
-                    _encoder = LMRESNET(in_channel, mode=mode, bn='ReNorm', dropout='incremental')
-                    idim = get_vgg2l_odim(idim)
-                    logging.info('CNN-RESNET with BatchRenormalization and random dropout added for encoder')
+                    logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif _etype == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
@@ -1330,7 +1288,7 @@ class BLSTM(chainer.Chain):
 
 # TODO(watanabe) explanation of VGG2L, VGG2B (Block) might be better
 class VGG2L(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, nopad=False):
+    def __init__(self, in_channel=1, mode='single', subsample='2222', nopad=False):
         super(VGG2L, self).__init__()
         if isinstance(in_channel, int):
             in_channel = [in_channel]
@@ -1359,6 +1317,12 @@ class VGG2L(chainer.Chain):
         self.in_channel = in_channel
         self.mode = mode
         self.nopad = nopad
+        if subsample == '2222':
+            self.subsample = self.subsample2222
+        elif subsample = '3111'
+            self.subsample = self.subsample3111
+        else:
+            raise ValueError('Incorrect type of subsample')
 
     def __call__(self, xs, ilens):
         '''VGG2L forward
@@ -1380,8 +1344,17 @@ class VGG2L(chainer.Chain):
         xs = F.relu(self['conv{}_0'.format(idx)](xs))
         if self.mode == 'entry':
             idx = 0
-
         xs = F.relu(self['conv{}_1'.format(idx)](xs))
+        xs, ilens = self.subsample(idx, xs, ilens)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        return xs, ilens
+
+    def subsample2222(self, idx, xs, ilens):
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         xs = F.relu(self['conv{}_2'.format(idx)](xs))
@@ -1393,14 +1366,18 @@ class VGG2L(chainer.Chain):
             ilens, dtype=np.float32) / 2), dtype=np.int32)
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
-
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
         return xs, ilens
 
+    def subsample3111(self, idx, xs, ilens):
+        xs = F.max_pooling_2d(xs, (3,1), stride=(3,1))
+
+        xs = F.relu(self['conv{}_2'.format(idx)](xs))
+        xs = F.relu(self['conv{}_3'.format(idx)](xs))
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 3), dtype=np.int32)
+        return xs, ilens
 
 class ConvWithBReNorm(chainer.Chain):
     def __init__(self, in_channels, out_channels,
@@ -1559,7 +1536,8 @@ def dropout_random(xs, ratio, _iter):
 
 
 class RESNET(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
@@ -1587,13 +1565,13 @@ class RESNET(chainer.Chain):
             doutname = 'drop_{}'.format(x)
             douttype = no_dropout
             if in_channel[x] == 2:
-                if dropout == 'incremental':
+                if dropout == 'inc':
                     logging.info('Adding Incremental dropout to the training')
                     douttype = dropout_incremental
-                elif dropout == 'fixed':
+                elif dropout == 'fix':
                     logging.info('Adding fixed dropout to the training')
                     douttype = dropout_fixed
-                elif dropout == 'random':
+                elif dropout == 'rand':
                     logging.info('Adding random dropout to the training')
                     douttype = dropout_random
             setattr(self, doutname, douttype)
@@ -1603,6 +1581,13 @@ class RESNET(chainer.Chain):
         self.mode = mode
         self.iter = 0
         self.dratio = dratio
+        self.nopad = nopad
+        if subsample == '2222':
+            self.subsample = self.subsample2222
+        elif subsample = '3111'
+            self.subsample = self.subsample3111
+        else:
+            raise ValueError('Incorrect type of subsample')
 
     def __call__(self, xs, ilens):
         '''RESNET forward
@@ -1614,11 +1599,13 @@ class RESNET(chainer.Chain):
         self.iter += 1
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
-        # x: utt x frame x input channel x dim
-        xs = F.pad_sequence(xs)
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs)
 
-        # x: utt x input channel x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
+
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
 
@@ -1630,6 +1617,17 @@ class RESNET(chainer.Chain):
             idx = 0
 
         xs = self['conv{}_1'.format(idx)](xs)
+        xs, ilens = self.subsample(idx, xs, ilens)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+    def subsample2222(self, idx, xs, ilens):
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         xs = self['conv{}_2'.format(idx)](xs)
@@ -1640,13 +1638,16 @@ class RESNET(chainer.Chain):
             ilens, dtype=np.float32) / 2), dtype=np.int32)
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 2), dtype=np.int32)
+        return xs, ilens
 
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+    def subsample3111(self, idx, xs, ilens):
+        xs = F.max_pooling_2d(xs, (3,1), stride=(3,1))
 
+        xs = self['conv{}_2'.format(idx)](xs)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 3), dtype=np.int32)
         return xs, ilens
 
 
@@ -1677,13 +1678,13 @@ class LMRESNET(chainer.Chain):
             doutname = 'drop_{}'.format(x)
             douttype = no_dropout
             if in_channel[x] == 2:
-                if dropout == 'incremental':
+                if dropout == 'inc':
                     logging.info('Adding Incremental dropout to the training')
                     douttype = dropout_incremental
-                elif dropout == 'fixed':
+                elif dropout == 'fix':
                     logging.info('Adding fixed dropout to the training')
                     douttype = dropout_fixed
-                elif dropout == 'random':
+                elif dropout == 'rand':
                     logging.info('Adding random dropout to the training')
                     douttype = dropout_random
             setattr(self, doutname, douttype)

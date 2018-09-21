@@ -23,7 +23,6 @@ do_delta=false # true when using CNN
 # network archtecture
 # encoder related
 einputs=4
-emode=regular
 etype=vgg_blstmp     # encoder architecture type
 elayers=3
 eunits=512
@@ -334,7 +333,6 @@ if [ ${stage} -le 4 ]; then
         --etype ${etype} \
         --elayers ${elayers} \
         --einputs ${einputs} \
-        --minput ${emode} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
         --subsample ${subsample} \

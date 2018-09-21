@@ -22,10 +22,8 @@ do_delta=false # true when using CNN
 # network archtecture
 # encoder related
 einputs=4
-emode=regular
 etype=vgg_blstmp     # encoder architecture type
 elayers=3
-edropout=0.0
 eunits=512
 eprojs=512
 subsample=0 # skip every n frame from input to nth layers
@@ -309,7 +307,6 @@ if [ ${stage} -le 4 ]; then
         --etype ${etype} \
         --elayers ${elayers} \
         --einputs ${einputs} \
-        --minput ${emode} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
         --subsample ${subsample} \
@@ -325,7 +322,6 @@ if [ ${stage} -le 4 ]; then
         --batch-size ${batchsize} \
         --maxlen-in ${maxlen_in} \
         --maxlen-out ${maxlen_out} \
-        --edropout-rate ${edropout} \
         --opt ${opt} \
         --epochs ${epochs}
 fi
