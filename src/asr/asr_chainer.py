@@ -218,7 +218,7 @@ def LoadMultichFbank(data):
 
 
 def LoadFbank(data):
-    return kaldi_io_py.read_mat(data['input'][i]['feat'])[:, None, :]
+    return kaldi_io_py.read_mat(data['input'][0]['feat'])[:, None, :]
 
 
 def train(args):
@@ -481,10 +481,6 @@ def recog(args):
     model = Loss(e2e, train_args.mtlalpha)
     chainer_load(args.model, model)
 
-    if train_args.converter == 'fbank':
-        converter_kaldi = converter_fbank
-    elif train_args.converter == 'spec':
-        converter_kaldi = converter_spectro
     # read rnnlm
     if args.rnnlm:
         rnnlm_args = get_model_conf(args.rnnlm, args.rnnlm_conf)

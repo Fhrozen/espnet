@@ -21,11 +21,11 @@ do_delta=false
 
 # network architecture
 # encoder related
-etype=vggblstmp     # encoder architecture type
+etype=vgg_blstmp     # encoder architecture type
 elayers=3
 eunits=1024
 eprojs=1024
-subsample=1_1_1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=1024

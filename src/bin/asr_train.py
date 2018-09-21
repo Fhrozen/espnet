@@ -54,8 +54,6 @@ def main():
                         help='Number of encoder layers')
     parser.add_argument('--einputs', default=1, type=int, nargs='+',
                         help='Number of inputs for the encoder')
-    parser.add_argument('--minput', default='single', type=str,
-                        help='Mode of input processing')
     parser.add_argument('--eintype', default=None, type=str,
                         help='Input of encoder configuration')
     parser.add_argument('--eunits', '-u', default=300, type=int,
@@ -105,8 +103,6 @@ def main():
     # model (parameter) related
     parser.add_argument('--dropout-rate', default=0.0, type=float,
                         help='Dropout rate')
-    parser.add_argument('--edropout-rate', default=0.0, type=float,
-                        help='Encoder Dropout rate')
     # minibatch related
     parser.add_argument('--batch-size', '-b', default=50, type=int,
                         help='Batch size')
