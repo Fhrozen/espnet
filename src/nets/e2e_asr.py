@@ -992,19 +992,19 @@ class Encoder(chainer.Chain):
                 elif e_type == 'vgg':
                     _encoder = VGG2L(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                      nopad=nopad)
-                    idim = get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim, subsample=e_spec['s'])
                     logging.info('CNN-VGG with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'res':
                     _encoder = RESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                       dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
                                       bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
-                    idim = get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'lmres':
                     _encoder = LMRESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                         dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
                                         bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
-                    idim = get_vgg2l_odim(idim)
+                    idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
@@ -1652,8 +1652,8 @@ class RESNET(chainer.Chain):
 
 
 class LMRESNET(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128,
-                 dropout=None, dratio=0.0, nopad=False):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222'):
         super(LMRESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]

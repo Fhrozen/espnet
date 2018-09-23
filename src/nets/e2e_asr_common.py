@@ -75,8 +75,13 @@ def label_smoothing_dist(odim, lsm_type, transcript=None, blank=0):
     return labeldist
 
 
-def get_vgg2l_odim(idim, in_channel=3, out_channel=128):
+def get_vgg2l_odim(idim, in_channel=3, out_channel=128, subsample='2222'):
     # idim = idim / in_channel
-    idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 1st max pooling
-    idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 2nd max pooling
+    if subsample == '2222':
+        idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 1st max pooling
+        idim = np.ceil(np.array(idim, dtype=np.float32) / 2)  # 2nd max pooling
+    elif subsample == '3111':
+        idim = np.ceil(np.array(idim, dtype=np.float32) / 3)  # 1st max pooling
+    else:
+        raise ValueError('Incorrect type of subsample')
     return int(idim) * out_channel  # numer of channels
