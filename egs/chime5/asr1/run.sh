@@ -72,7 +72,6 @@ penalty=0.0
 maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.1
-emode=single
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # data
@@ -264,7 +263,7 @@ if [ "${lm_opt}" == "sgd" ]; then
     lm_optval=${lm_lr}
     lm_options="--lr ${lm_lr}"
 else
-    lm_optval=${lm_lr}
+    lm_optval=${lm_alpha}
     lm_options="--alpha ${lm_alpha}"
 fi
 if [ -z ${lmtag} ]; then
@@ -351,7 +350,6 @@ if [ ${stage} -le 4 ]; then
         --elayers ${elayers} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
-        --minput ${emode} \
         --subsample ${subsample} \
         --dlayers ${dlayers} \
         --dunits ${dunits} \
