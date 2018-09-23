@@ -954,59 +954,59 @@ class Encoder(chainer.Chain):
                           's': '2222',
                           'a': F.relu}
 
-                for j in range(len(_e)-1):
-                    prefix = _e[j+1][0]
+                for j in range(len(_e) - 1):
+                    prefix = _e[j + 1][0]
                     if prefix == 'o':
-                        val = int(_e[j+1][1:])
+                        val = int(_e[j + 1][1:])
                     elif prefix == 'r':
-                        val = float(_e[j+1][1:]) / 10.    
+                        val = float(_e[j + 1][1:]) / 10.
                     elif prefix == 'a':
-                        val = getattr(F, str(_e[j+1][1:]))
+                        val = getattr(F, str(_e[j + 1][1:]))
                     else:
-                        val = str(_e[j+1][1:])
+                        val = str(_e[j + 1][1:])
                     e_spec[prefix] = val
 
-                if _etype == 'blstm':
+                if e_type == 'blstm':
                     _encoder = BLSTM(idim, elayers, eunits, eprojs, dropout)
                     logging.info('BLSTM added for encoder')
-                elif _etype == 'blstmp':
+                elif e_type == 'blstmp':
                     _encoder = BLSTMP(idim, elayers, eunits,
                                       eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
-                elif _etype == 'bgrup':
+                elif e_type == 'bgrup':
                     _encoder = BGRUP(idim, elayers, eunits,
-                                      eprojs, subsample, dropout)
+                                     eprojs, subsample, dropout)
                     logging.info('BiGRU with every-layer projection added for encoder')
-                elif _etype == 'lstm':
+                elif e_type == 'lstm':
                     _encoder = LSTM(idim, elayers, eunits,
                                     eprojs, subsample, dropout)
                     logging.info('LSTM added for encoder')
-                elif _etype == 'mcblstmp':
+                elif e_type == 'mcblstmp':
                     _encoder = MultiChannelBLSTMP(in_channel, idim, elayers, eunits,
                                                   eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
-                elif _etype == 'grid':
+                elif e_type == 'grid':
                     _encoder = GridLSTM(idim, elayers, eunits,
-                                       eprojs, subsample, dropout)
+                                        eprojs, subsample, dropout)
                     logging.info('GridLSTM added for encoder')
-                elif _etype == 'vgg':
+                elif e_type == 'vgg':
                     _encoder = VGG2L(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                      nopad=nopad)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-VGG with specs {} added for encoder'.format(_e[1:]))
-                elif _etype == 'res':
+                elif e_type == 'res':
                     _encoder = RESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                       dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
                                       bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
-                 elif _etype == 'lmres':
+                elif e_type == 'lmres':
                     _encoder = LMRESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
-                                      dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
-                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
+                                        dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                        bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
                     idim = get_vgg2l_odim(idim)
                     logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
-                elif _etype == 'fn':
+                elif e_type == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
                     logging.info('FilterNet added for encoder')
@@ -1014,7 +1014,7 @@ class Encoder(chainer.Chain):
                     nopad = True
                 else:
                     logging.error(
-                        "Error: {} not found. Need to specify an appropriate encoder archtecture".format(_etype))
+                        "Error: {} not found. Need to specify an appropriate encoder archtecture".format(e_type))
                     sys.exit(1)
                 setattr(self, name, _encoder)
                 self._forward.append(name)
@@ -1190,7 +1190,7 @@ class BGRUP(chainer.Chain):
 
 class GridLSTM(chainer.Chain):
     def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
-        super(GrdLSTM, self).__init__()
+        super(GridLSTM, self).__init__()
         shared_dims = [[1], [x for x in range(2, elayers + 1)]]
 
         with self.init_scope():
@@ -1319,7 +1319,7 @@ class VGG2L(chainer.Chain):
         self.nopad = nopad
         if subsample == '2222':
             self.subsample = self.subsample2222
-        elif subsample = '3111'
+        elif subsample == '3111':
             self.subsample = self.subsample3111
         else:
             raise ValueError('Incorrect type of subsample')
@@ -1369,7 +1369,7 @@ class VGG2L(chainer.Chain):
         return xs, ilens
 
     def subsample3111(self, idx, xs, ilens):
-        xs = F.max_pooling_2d(xs, (3,1), stride=(3,1))
+        xs = F.max_pooling_2d(xs, (3, 1), stride=(3, 1))
 
         xs = F.relu(self['conv{}_2'.format(idx)](xs))
         xs = F.relu(self['conv{}_3'.format(idx)](xs))
@@ -1378,6 +1378,7 @@ class VGG2L(chainer.Chain):
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 3), dtype=np.int32)
         return xs, ilens
+
 
 class ConvWithBReNorm(chainer.Chain):
     def __init__(self, in_channels, out_channels,
@@ -1436,7 +1437,6 @@ class LMBottleneckA(chainer.Chain):
     def __call__(self, x0):
         # Output: Un+1 = (1 - kn)*Un + kn*Un-1 + f(Un)
         # Un = act(Un-1 + f(Un-1))
-        # 
         f_x0 = self.act(self.conv1_1(x0))
         f_x0 = self.conv1_2(f_x0)
         x0 = self.shortcut(x0)
@@ -1445,7 +1445,7 @@ class LMBottleneckA(chainer.Chain):
         f_x1 = self.act(self.conv2_1(x1))
         f_x1 = self.conv2_2(f_x1)
         x1 = (1. - F.broadcast_to(self.k, dims)) * x1
-        x2 = x1 + F.broadcast_to(self.k, dims) * x0 + f_x1 
+        x2 = x1 + F.broadcast_to(self.k, dims) * x0 + f_x1
         return self.act(x2)
 
 
@@ -1537,7 +1537,7 @@ def dropout_random(xs, ratio, _iter):
 
 class RESNET(chainer.Chain):
     def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
-                 outs=128, dropout=None, dratio=0.0):
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222'):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
@@ -1584,7 +1584,7 @@ class RESNET(chainer.Chain):
         self.nopad = nopad
         if subsample == '2222':
             self.subsample = self.subsample2222
-        elif subsample = '3111'
+        elif subsample == '3111':
             self.subsample = self.subsample3111
         else:
             raise ValueError('Incorrect type of subsample')
@@ -1610,7 +1610,7 @@ class RESNET(chainer.Chain):
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)      
+        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry':
@@ -1641,7 +1641,7 @@ class RESNET(chainer.Chain):
         return xs, ilens
 
     def subsample3111(self, idx, xs, ilens):
-        xs = F.max_pooling_2d(xs, (3,1), stride=(3,1))
+        xs = F.max_pooling_2d(xs, (3, 1), stride=(3, 1))
 
         xs = self['conv{}_2'.format(idx)](xs)
 
@@ -1652,7 +1652,8 @@ class RESNET(chainer.Chain):
 
 
 class LMRESNET(chainer.Chain):
-    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128, dropout=None, dratio=0.0):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None, outs=128,
+                 dropout=None, dratio=0.0, nopad=False):
         super(LMRESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
@@ -1693,6 +1694,7 @@ class LMRESNET(chainer.Chain):
         self.in_channel = in_channel
         self.mode = mode
         self.iter = 0
+        self.nopad = nopad
         self.dratio = dratio
 
     def __call__(self, xs, ilens):
@@ -1705,16 +1707,17 @@ class LMRESNET(chainer.Chain):
         self.iter += 1
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
-        # x: utt x frame x input channel x dim
-        xs = F.pad_sequence(xs)
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs)
 
-        # x: utt x input channel x frame x dim
-        xs = F.swapaxes(xs, 1, 2)
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
         chn = xs.shape[1]
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)      
+        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry':
@@ -1796,7 +1799,7 @@ class filternet(chainer.Chain):
                     inputdim = hdim
                 setattr(self, "bilstm{}_l{}".format(i, j), L.NStepBiLSTM(
                     1, inputdim, cdim, 0.0))
-                if j == layers -1:
+                if j == layers - 1:
                     _hdim = hdim * 2
                 else:
                     _hdim = hdim
@@ -1837,10 +1840,9 @@ class filternet(chainer.Chain):
         xs1 = F.vstack(xs1)
         rfilt = F.tanh(self['filtr_{}'.format(idx)](xs1))  # F.split_axis(, np.cumsum(ilens[:-1]), axis=0)
         # Conj of Filter
-        ifilt = -1. * F.tanh(self['filti_{}'.format(idx)](xs1))  
- 
+        ifilt = -1. * F.tanh(self['filti_{}'.format(idx)](xs1))
         min_range = chainer.Variable(self.xp.asarray([1e-20], dtype=np.float32))
-        
+
         rxs, ixs = F.split_axis(F.vstack(xs), 2, axis=1)
         length, channels, dims = rxs.shape
         rxs = rxs.reshape(-1, channels * dims)
