@@ -9,7 +9,7 @@
 # general configuration
 backend=chainer
 stage=0        # start from 0 if you need to start from data preparation
-ngpu=0          # number of gpus ("0" uses cpu, otherwise use gpu)
+ngpu=0         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
 dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -17,9 +17,9 @@ verbose=0      # verbose option
 resume=        # Resume the training from snapshot
 
 # feature configuration
-do_delta=false # true when using CNN
+do_delta=false
 
-# network archtecture
+# network architecture
 # encoder related
 einputs=6
 etype=vgg_blstmp     # encoder architecture type
@@ -49,17 +49,25 @@ opt=adadelta
 epochs=10
 
 # rnnlm related
-lm_weight=1.0
-use_wordlm=true
-vocabsize=65000
+use_wordlm=true     # false means to train/use a character LM
+lm_vocabsize=65000  # effective only for word LMs
+lm_layers=1         # 2 for character LMs
+lm_units=1000       # 650 for character LMs
+lm_opt=sgd          # adam for character LMs
+lm_batchsize=300    # 1024 for character LMs
+lm_epochs=20        # number of epochs
+lm_maxlen=40        # 150 for character LMs
+lm_resume=          # specify a snapshot file to resume LM training
+lmtag=              # tag for managing LMs
 
 # decoding parameter
+lm_weight=1.0
 beam_size=20
 penalty=0
 maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.3
-recog_model=model.acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
+recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
 
 # data
 chime4_data=${CHIME4_CORPUS}
@@ -80,7 +88,7 @@ set -e
 set -u
 set -o pipefail
 
-train_set=tr05_mix_multi_noisy
+train_set=tr05_mix_multi_noisy # tr05_mix_multi_noisy_si284
 train_dev=dt05_simu_noisy_6mics
 recog_set="\
 dt05_real_noisy_2mics dt05_simu_noisy_2mics et05_real_noisy_2mics et05_simu_noisy_2mics \
@@ -94,10 +102,7 @@ fi
 if [ ${stage} -le 0 ]; then
     ### Task dependent. You have to make the following data preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
-    echo "stage 0: Data preparation"
-    wsj0_data=${chime4_data}/data/WSJ0
-    local/clean_wsj0_data_prep.sh ${wsj0_data}
-    local/clean_chime4_format_data.sh
+    
     echo "prepartion for chime4 data 2CH"
     local/real_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track 2mics
     local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated_2ch_track 2mics
@@ -106,9 +111,9 @@ if [ ${stage} -le 0 ]; then
     local/simu_noisy_chime4_data_prep.sh ${chime4_data} isolated 6mics
     
     # Additionally use WSJ clean data. Otherwise the encoder decoder is not well trained
-    local/wsj_data_prep.sh ${wsj0}/??-{?,??}.? ${wsj1}/??-{?,??}.?
-    local/wsj_format_data.sh
-    utils/combine_data.sh data/tr05_multi_noisy_si284 data/tr05_real_noisy_6mics data/train_si284 data/tr05_simu_noisy_6mics
+    # Copy WSJ0-1 from CHiME4/ASR1
+    utils/copy_data_dir.sh ../asr1/data/tr05_multi_noisy_si284 data/tr05_multi_noisy_si284 
+    # utils/combine_data.sh data/tr05_multi_noisy_si284 data/tr05_real_noisy_6mics data/train_si284 data/tr05_simu_noisy_6mics
 fi
 
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
@@ -119,7 +124,7 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
     fbankdir=fbank
-    tr_set="tr05_real_noisy_2mics tr05_simu_noisy_2mics tr05_real_noisy_6mics tr05_simu_noisy_6mics"
+    tr_set="train_si284 tr05_real_noisy_2mics tr05_simu_noisy_2mics tr05_real_noisy_6mics tr05_simu_noisy_6mics"
     tasks="${tr_set} ${recog_set}"
     for x in ${tasks}; do
         utils/copy_data_dir.sh data/${x} data-fbank/${x}
@@ -143,6 +148,12 @@ if [ ${stage} -le 1 ]; then
             data-fbank/tr05_multi_noisy_${ttask}/feats.scp data-fbank/${train_set}/cmvn.ark exp/dump_feats/train/${ttask} \
             ${feat_tr}
     done
+
+    feat_tr=${dumpdir}/train_si284/delta${do_delta}; mkdir -p ${feat_tr}
+    dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
+        data-fbank/train_si284/feats.scp data-fbank/train_si284/cmvn.ark exp/dump_feats/train/train_si284 \
+        ${feat_tr}
+    
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
@@ -184,55 +195,17 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
-if [ $use_wordlm = true ]; then
-    lmdatadir=data/local/wordlm_train
-    lm_batchsize=256
-    lmexpdir=exp/train_rnnlm_${backend}_word_2layer_bs${lm_batchsize}
-    lmdict=${lmexpdir}/wordlist_${vocabsize}.txt
-else
-    lmdatadir=data/local/lm_train
-    lm_batchsize=2048
-    lmexpdir=exp/train_rnnlm_${backend}_2layer_bs${lm_batchsize}
-    lmdict=$dict
+if [ -z ${lmtag} ]; then
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}_bs${lm_batchsize}
+    if [ $use_wordlm = true ]; then
+        lmtag=${lmtag}_word${lm_vocabsize}
+    fi
 fi
+lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
 
-mkdir -p ${lmexpdir}
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
-    mkdir -p ${lmdatadir}
-    if [ $use_wordlm = true ]; then
-	cat data/tr05_multi_noisy_si284/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-							    > ${lmdatadir}/train_trans.txt
-	zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z | grep -v "<" | tr [a-z] [A-Z] \
-	    | perl -pe 's/\n/ <eos> /g' > ${lmdatadir}/train_others.txt
-	cat ${lmdatadir}/train_trans.txt ${lmdatadir}/train_others.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
-	cat data-fbank/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-							    > ${lmdatadir}/valid.txt
-	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
-    else
-	text2token.py -s 1 -n 1 -l ${nlsyms} data/tr05_multi_noisy_si284/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-											     > ${lmdatadir}/train_trans.txt
-	zcat ${wsj1}/13-32.1/wsj1/doc/lng_modl/lm_train/np_data/{87,88,89}/*.z | grep -v "<" | tr [a-z] [A-Z] \
-	    | text2token.py -n 1 | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' >> ${lmdatadir}/train_others.txt
-	cat ${lmdatadir}/train_trans.txt ${lmdatadir}/train_others.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
-	text2token.py -s 1 -n 1 -l ${nlsyms} data-fbank/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-											     > ${lmdatadir}/valid.txt
-    fi
-    # use only 1 gpu
-    if [ ${ngpu} -gt 1 ]; then
-	echo "LM training does not support multi-gpu. single gpu will be used."
-    fi
-    ${cuda_cmd} ${lmexpdir}/train.log \
-		lm_train.py \
-		--ngpu ${ngpu} \
-		--backend ${backend} \
-		--verbose 1 \
-		--outdir ${lmexpdir} \
-		--train-label ${lmdatadir}/train.txt \
-		--valid-label ${lmdatadir}/valid.txt \
-		--batchsize ${lm_batchsize} \
-        --epoch 30 \
-		--dict ${lmdict}
+    [[ -d ${lmexpdir} ] || ls -l ${lmexpdir}] && ln -s ../asr1/${lmexpdir} ./exp || exit 1
 fi
 
 if [ -z ${tag} ]; then
