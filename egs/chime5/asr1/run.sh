@@ -281,8 +281,8 @@ if [ ${stage} -le 3 ]; then
         lmdatadir=data/local/wordlm_train
         lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
         mkdir -p ${lmdatadir}
-        cat data/train_worn/text | cut -f 2- -d" " > ${lmdatadir}/train.txt
-        cat data/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
+        cat data/train_worn/text | cut -f 2- -d" " | sort  | sed 'n; d' > ${lmdatadir}/train.txt
+        cat data/${train_dev}/text | cut -f 2- -d" "  > ${lmdatadir}/valid.txt
         cat ${lmdatadir}/train.txt ${lmdatadir}/valid.txt > ${lmdatadir}/train_valid.txt
         text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
     else
