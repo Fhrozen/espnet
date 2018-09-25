@@ -81,17 +81,21 @@ def main():
 
     # check CUDA_VISIBLE_DEVICES
     if args.ngpu > 0:
-        # python 2 case
-        if platform.python_version_tuple()[0] == '2':
-            if "clsp.jhu.edu" in subprocess.check_output(["hostname", "-f"]):
-                cvd = subprocess.check_output(["/usr/local/bin/free-gpu", "-n", str(args.ngpu)]).strip()
-                logging.info('CLSP: use gpu' + cvd)
-                os.environ['CUDA_VISIBLE_DEVICES'] = cvd
-        else:
-            if "clsp.jhu.edu" in subprocess.check_output(["hostname", "-f"]).decode():
-                cvd = subprocess.check_output(["/usr/local/bin/free-gpu", "-n", str(args.ngpu)]).decode().strip()
-                logging.info('CLSP: use gpu' + cvd)
-                os.environ['CUDA_VISIBLE_DEVICES'] = cvd
+        
+        try:
+            # python 2 case
+            if platform.python_version_tuple()[0] == '2':
+                if "clsp.jhu.edu" in subprocess.check_output(["hostname", "-f"]):
+                    cvd = subprocess.check_output(["/usr/local/bin/free-gpu", "-n", str(args.ngpu)]).strip()
+                    logging.info('CLSP: use gpu' + cvd)
+                    os.environ['CUDA_VISIBLE_DEVICES'] = cvd
+            else:
+                if "clsp.jhu.edu" in subprocess.check_output(["hostname", "-f"]).decode():
+                    cvd = subprocess.check_output(["/usr/local/bin/free-gpu", "-n", str(args.ngpu)]).decode().strip()
+                    logging.info('CLSP: use gpu' + cvd)
+                    os.environ['CUDA_VISIBLE_DEVICES'] = cvd
+        except Exception as e:
+            pass
 
         cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
         if cvd is None:

@@ -37,6 +37,8 @@ from asr_utils import torch_resume
 from asr_utils import torch_save
 from asr_utils import torch_snapshot
 
+from sys import stdout
+
 REPORT_INTERVAL = 100
 
 
@@ -76,7 +78,7 @@ class MetaLearner(nn.Module):
     """
     def __init__(self, model):
         super(MetaLearner, self).__init__()
-        self.weights = Parameter(torch.Tensor(1, 2))
+        self.weights = torch.nn.Parameter(torch.Tensor(1, 2))
 
     def forward(self, forward_model, backward_model):
         """ Forward optimizer with a simple linear neural net
@@ -91,15 +93,15 @@ class MetaLearner(nn.Module):
             # Prepare the inputs, we detach the inputs to avoid computing 2nd derivatives (re-pack in new Variable)
             (module_f, name_f, param_f) = f_param_tuple
             (module_b, name_b, param_b) = b_param_tuple
-            inputs = Variable(torch.stack([param_f.grad.data, param_f.data], dim=-1))
+            inputs = torch.autograd.Variable(torch.stack([param_f.grad.data, param_f.data], dim=-1))
             # Optimization step: compute new model parameters, here we apply a simple linear function
             dW = F.linear(inputs, self.weights).squeeze()
             param_b = param_b + dW
             # Update backward_model (meta-gradients can flow) and forward_model (no need for meta-gradients).
             module_b._parameters[name_b] = param_b
             param_f.data = param_b.data
-
-
+            
+            
 class ClassifierWithState(nn.Module):
 
     def __init__(self, predictor,
@@ -225,10 +227,10 @@ class RNNLM(nn.Module):
         return state, y
 
 
-def concat_examples(batch, device=None, padding=None):
-    x, t = convert.concat_examples(batch, padding=padding)
-    x = torch.from_numpy(x)
-    t = torch.from_numpy(t)
+def convert_examples(batch, device=None):
+    x, t = batch
+    x = torch.from_numpy(x.astype(np.int64)[None, :])
+    t = torch.from_numpy(t.astype(np.int64)[None, :])
     if device is not None and device >= 0:
         x = x.cuda(device)
         t = t.cuda(device)
@@ -237,9 +239,11 @@ def concat_examples(batch, device=None, padding=None):
 
 class BPTTUpdater(training.StandardUpdater):
 
-    def __init__(self, train_iter, model, optimizer, device, gradclip=None):
-        super(BPTTUpdater, self).__init__(train_iter, optimizer)
-        self.model = model
+    def __init__(self, train_iter, model_foward, model_backward, optimizer, meta_optimizer, device, gradclip=None):
+        super(BPTTUpdater, self).__init__(train_iter, meta_optimizer)
+        self.model_foward = model_foward
+        self.model_backward = model_backward
+        self._optimizer = optimizer
         self.device = device
         self.gradclip = gradclip
 
@@ -248,33 +252,51 @@ class BPTTUpdater(training.StandardUpdater):
         # When we pass one iterator and optimizer to StandardUpdater.__init__,
         # they are automatically named 'main'.
         train_iter = self.get_iterator('main')
-        optimizer = self.get_optimizer('main')
+        meta_optimizer = self.get_optimizer('main')
+        meta_optimizer.zero_grad()
+        self.model_backward.zero_grad()
         # Progress the dataset iterator for sentences at each iteration.
         batch = train_iter.__next__()
-        x, t = concat_examples(batch, device=self.device, padding=(0, -100))
-        # Concatenate the token IDs to matrices and send them to the device
-        # self.converter does this job
-        # (it is chainer.dataset.concat_examples by default)
-        loss = 0
-        count = 0
-        state = None
-        batch_size, sequence_length = x.shape
-        for i in six.moves.range(sequence_length):
-            # Compute the loss at this time step and accumulate it
-            state, loss_batch = self.model(state, x[:, i], t[:, i])
-            non_zeros = torch.sum(x[:, i] != 0, dtype=torch.float)
-            loss += loss_batch * non_zeros
-            count += int(non_zeros)
+        losses = []
+        for j in six.moves.range(len(batch)):
+            # print('{} / {} \r'.format(j, len(batch)))
+            x, t = convert_examples(batch[j], self.device)
+            self.model_foward.zero_grad()
+            loss = 0
+            count = 0
+            state = None
+            batch_size, sequence_length = x.shape
+            # Sequence Forward
 
-        reporter.report({'loss': float(loss.detach())}, optimizer.target)
-        reporter.report({'count': count}, optimizer.target)
-        # update
-        loss = loss / batch_size  # normalized by batch size
-        self.model.zero_grad()  # Clear the parameter gradients
-        loss.backward()  # Backprop
+            for i in six.moves.range(sequence_length):
+                #    # Compute the loss at this time step and accumulate it
+                state, loss_batch = self.model_foward(state, x[:, i], t[:, i])
+                non_zeros = torch.sum(x[:, i] != 0, dtype=torch.float)
+                loss += loss_batch * non_zeros
+                count += int(non_zeros)
+            losses.append(loss)
+            loss.backward(retain_graph=True)  # retain_graph=True
+            self._optimizer(self.model_foward, self.model_backward)
+
+        meta_loss = sum(losses)
+        # logging.info('meta loss: {}'.format(float(meta_loss.detach())))
+        reporter.report({'loss': float(meta_loss.detach())}, meta_optimizer.target)
+        reporter.report({'count': count}, meta_optimizer.target)
+        self._optimizer.zero_grad()
+        meta_loss.backward()   
         if self.gradclip is not None:
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.gradclip)
-        optimizer.step()  # Update the parameters
+            nn.utils.clip_grad_norm_(self.model_foward.parameters(), self.gradclip)
+            nn.utils.clip_grad_norm_(self.model_backward.parameters(), self.gradclip) 
+        meta_optimizer.step()
+
+
+            #reporter.report({'count': count}, optimizer.target)
+        # loss = loss / batch_size  # normalized by batch size
+        # update
+        #loss = loss / batch_size  # normalized by batch size
+        #loss.backward()  # Backprop
+        
+        #optimizer.step()  # Update the parameters
 
 
 class LMEvaluator(extensions.Evaluator):
@@ -306,8 +328,19 @@ class LMEvaluator(extensions.Evaluator):
         return observation
 
 
-def train_1(args):
+def train(args):
+    """ Train a meta-learner
+      Inputs:
+        forward_model, backward_model: Two identical PyTorch modules (can have shared Tensors)
+        optimizer: a neural net to be used as optimizer (an instance of the MetaLearner class)
+        meta_optimizer: an optimizer for the optimizer neural net, e.g. ADAM
+        train_data: an iterator over an epoch of training data
+        meta_epochs: meta-training steps
+      To be added: intialization, early stopping, checkpointing, more control over everything
+    """
+    #forward_model, backward_model, optimizer, meta_optimizer, train_data, meta_epochs
     # display torch version
+
     logging.info('torch version = ' + torch.__version__)
 
     # seed setting
@@ -354,14 +387,18 @@ def train_1(args):
     logging.info('#iterations per epoch = ' + str(len(train_iter.batch_indices)))
     logging.info('#total iterations = ' + str(args.epoch * len(train_iter.batch_indices)))
     # Prepare an RNNLM model
-    rnn = RNNLM(args.n_vocab, args.layer, args.unit)
-    model = ClassifierWithState(rnn)
+    model_foward = ClassifierWithState(RNNLM(args.n_vocab, args.layer, args.unit))
+    model_backward = ClassifierWithState(RNNLM(args.n_vocab, args.layer, args.unit))
+    optimizer = MetaLearner(None)
+    gpu_id = -1
     if args.ngpu > 1:
         logging.warn("currently, multi-gpu is not supported. use single gpu.")
     if args.ngpu > 0:
         # Make the specified GPU current
         gpu_id = 0
-        model.cuda(gpu_id)
+        model_foward.cuda(gpu_id)
+        model_backward.cuda(gpu_id)
+        optimizer.cuda(gpu_id)
 
     # Save model conf to json
     model_conf = args.outdir + '/model.json'
@@ -369,20 +406,21 @@ def train_1(args):
         logging.info('writing a model config file to ' + model_conf)
         f.write(json.dumps(vars(args), indent=4, sort_keys=True).encode('utf_8'))
 
-    # Set up an optimizer
+    # Set up an meta_optimizer
     if args.opt == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
+        meta_optimizer = torch.optim.SGD(optimizer.parameters(), lr=1.0)
     elif args.opt == 'adam':
-        optimizer = torch.optim.Adam(model.parameters())
+        meta_optimizer = torch.optim.Adam(optimizer.parameters())
 
     # FIXME: TOO DIRTY HACK
-    reporter = model.reporter
-    setattr(optimizer, "target", reporter)
-    setattr(optimizer, "serialize", lambda s: reporter.serialize(s))
+    reporter = model_foward.reporter
+    setattr(meta_optimizer, "target", reporter)
+    setattr(meta_optimizer, "serialize", lambda s: reporter.serialize(s))
 
-    updater = BPTTUpdater(train_iter, model, optimizer, gpu_id, gradclip=args.gradclip)
+    updater = BPTTUpdater(train_iter, model_foward, model_backward, optimizer, meta_optimizer,
+        gpu_id, gradclip=args.gradclip)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.outdir)
-    trainer.extend(LMEvaluator(val_iter, model, reporter, device=gpu_id))
+    trainer.extend(LMEvaluator(val_iter, model_foward, reporter, device=gpu_id))
     trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
                                         trigger=(REPORT_INTERVAL, 'iteration')))
     trainer.extend(extensions.PrintReport(
@@ -392,7 +430,7 @@ def train_1(args):
     # Save best models
     trainer.extend(torch_snapshot(filename='snapshot.ep.{.updater.epoch}'))
     trainer.extend(extensions.snapshot_object(
-        model, 'rnnlm.model.{.updater.epoch}', savefun=torch_save))
+        model_foward, 'rnnlm.model.{.updater.epoch}', savefun=torch_save))
     # T.Hori: MinValueTrigger should be used, but it fails when resuming
     trainer.extend(MakeSymlinkToBestModel('validation/main/loss', 'rnnlm.model'))
 
@@ -413,35 +451,7 @@ def train_1(args):
         logging.info('oov rate in the test data = %.2f %%' % (n_test_oovs / n_test_tokens * 100))
         test_iter = ParallelSentenceIterator(test, args.batchsize,
                                              max_length=args.maxlen, sos=eos, eos=eos, repeat=False)
-        evaluator = LMEvaluator(test_iter, model, reporter, device=gpu_id)
+        evaluator = LMEvaluator(test_iter, model_foward, reporter, device=gpu_id)
         result = evaluator()
         logging.info('test perplexity: ' + str(np.exp(float(result['main/loss']))))
 
-
-def train(args):
-  """ Train a meta-learner
-  Inputs:
-    forward_model, backward_model: Two identical PyTorch modules (can have shared Tensors)
-    optimizer: a neural net to be used as optimizer (an instance of the MetaLearner class)
-    meta_optimizer: an optimizer for the optimizer neural net, e.g. ADAM
-    train_data: an iterator over an epoch of training data
-    meta_epochs: meta-training steps
-  To be added: intialization, early stopping, checkpointing, more control over everything
-  """
-  #forward_model, backward_model, optimizer, meta_optimizer, train_data, meta_epochs
-  for meta_epoch in range(meta_epochs): # Meta-training loop (train the optimizer)
-    optimizer.zero_grad()
-    losses = []
-    for inputs, labels in train_data:   # Meta-forward pass (train the model)
-      forward_model.zero_grad()         # Forward pass
-      inputs = Variable(inputs)
-      labels = Variable(labels)
-      output = forward_model(inputs)
-      loss = loss_func(output, labels)  # Compute loss
-      losses.append(loss)
-      loss.backward()                   # Backward pass to add gradients to the forward_model
-      optimizer(forward_model,          # Optimizer step (update the models)
-                backward_model)
-    meta_loss = sum(losses)             # Compute a simple meta-loss
-    meta_loss.backward()                # Meta-backward pass
-    meta_optimizer.step()               # Meta-optimizer step
