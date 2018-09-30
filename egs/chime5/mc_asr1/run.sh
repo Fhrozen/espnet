@@ -44,8 +44,8 @@ lsm_type=unigram
 lsm_weight=0.05
 
 # minibatch related
-batchsize=30
-maxlen_in=800  # if input length  > maxlen_in, batchsize is automatically reduced
+batchsize=25
+maxlen_in=750  # if input length  > maxlen_in, batchsize is automatically reduced
 maxlen_out=150 # if output length > maxlen_out, batchsize is automatically reduced
 
 # optimization related
@@ -53,11 +53,21 @@ opt=adadelta
 epochs=15
 
 # rnnlm related
-lm_weight=0.1
-use_wordlm=false
-vocabsize=65000
+use_wordlm=false     # false means to train/use a character LM
+lm_vocabsize=35000  # effective only for word LMs
+lm_lr=1             # training lr for LMs (sgd)
+lm_alpha=0.0001     # training alpha for LMs (adam)
+lm_layers=2         # 2 for character LMs
+lm_units=650        # 650 for character LMs
+lm_opt=adam          # adam for character LMs
+lm_batchsize=1024   # 1024 for character LMs
+lm_epochs=20        # number of epochs
+lm_maxlen=100       # 150 for character LMs
+lm_resume=          # specify a snapshot file to resume LM training
+lmtag=              # tag for managing LMs
 
 # decoding parameter
+lm_weight=0.1
 beam_size=20
 penalty=0.0
 maxlenratio=0.0
@@ -65,9 +75,12 @@ minlenratio=0.0
 ctc_weight=0.1
 recog_model=model.acc.best # set a model to be used for decoding: 'acc.best' or 'loss.best'
 
+# scheduled sampling option
+samp_prob=0.0
+
 # data
 chime5_corpus=${CHIME5_CORPUS}
-datanoise=None
+train_set=train_mix_worn_uall  # train_uall
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -85,7 +98,6 @@ set -o pipefail
 
 json_dir=${chime5_corpus}/transcriptions
 audio_dir=${chime5_corpus}/audio
-train_set=train_mix_worn_uall  # train_uall
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
@@ -122,8 +134,7 @@ if [ ${stage} -le 0 ]; then
     utils/copy_data_dir.sh ../asr1/data/${dset}_worn_stere  data/${dset}_worn 
 fi
 
-
-feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
+trainsets="train train_white"
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
@@ -186,9 +197,6 @@ if [ ${stage} -le 2 ]; then
             data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_tr}
     done
 
-    dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
-        data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
-
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
@@ -207,59 +215,87 @@ if [ ${stage} -le 2 ]; then
         data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
             --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
+    
+    feat_tr=${dumpdir}/train_mix_worn_uall/delta${do_delta}; mkdir -p ${feat_tr}
+    joinjson.py ${dumpdir}/train_worn/delta${do_delta}/data.json \
+                ${dumpdir}/train_uall/delta${do_delta}/data.json  > ${feat_tr}/data.json  
+
+    feat_tr=${dumpdir}/train_mix_white_worn_uall/delta${do_delta}; mkdir -p ${feat_tr}
+    joinjson.py ${dumpdir}/train_mix_worn_uall/delta${do_delta}/data.json \
+                ${dumpdir}/train_white_worn/delta${do_delta}/data.json > ${feat_tr}/data.json  
+    exit 0
 fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
-if [ $use_wordlm = true ]; then
-    lmdatadir=data/local/wordlm_train
-    lm_batchsize=256
-    lmexpdir=exp/train_rnnlm_${backend}_word_2layer_bs${lm_batchsize}
-    lmdict=${lmexpdir}/wordlist_${vocabsize}.txt
+if [ "${lm_opt}" == "sgd" ]; then
+    lm_optval=${lm_lr}
+    lm_options="--lr ${lm_lr}"
 else
-    lmdatadir=data/local/lm_train
-    lm_batchsize=2048
-    lmexpdir=exp/train_rnnlm_${backend}_2layer_bs${lm_batchsize}
-    lmdict=$dict
+    lm_optval=${lm_alpha}
+    lm_options="--alpha ${lm_alpha}"
 fi
+if [ -z ${lmtag} ]; then
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}
+    if [ $use_wordlm = true ]; then
+        lmtag=${lmtag}_word${lm_vocabsize}
+    fi
+fi
+lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
 
-mkdir -p ${lmexpdir}
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
-    mkdir -p ${lmdatadir}
     if [ $use_wordlm = true ]; then
-	cat data/train_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-							    > ${lmdatadir}/train_trans.txt
-    cat ${lmdatadir}/train_trans.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
-	cat data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-							    > ${lmdatadir}/valid.txt
-    cat ${lmdatadir}/train_trans.txt ${lmdatadir}/valid.txt | tr '\n' ' ' > ${lmdatadir}/train_valid.txt                            
-	text2vocabulary.py -s ${vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
+        lmdatadir=data/local/wordlm_train
+        lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
+        mkdir -p ${lmdatadir}
+        cat data/train_worn/text | cut -f 2- -d" " | sort  | sed 'n; d' > ${lmdatadir}/train.txt
+        cat data/${train_dev}/text | cut -f 2- -d" "  > ${lmdatadir}/valid.txt
+        cat ${lmdatadir}/train.txt ${lmdatadir}/valid.txt > ${lmdatadir}/train_valid.txt
+        text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train_valid.txt
     else
-	text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn_uall/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-											     > ${lmdatadir}/train_trans.txt
-	cat ${lmdatadir}/train_trans.txt | tr '\n' ' ' > ${lmdatadir}/train.txt
-	text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text | cut -f 2- -d" " | perl -pe 's/\n/ <eos> /g' \
-											     > ${lmdatadir}/valid.txt
+        lmdatadir=data/local/lm_train
+        lmdict=$dict
+        mkdir -p ${lmdatadir}
+        text2token.py -s 1 -n 1 -l ${nlsyms} data/train_worn/text \
+            | cut -f 2- -d" " > ${lmdatadir}/train.txt
+        text2token.py -s 1 -n 1 -l ${nlsyms} data/${train_dev}/text \
+            | cut -f 2- -d" " > ${lmdatadir}/valid.txt
     fi
-    # use only 1 gpu
-    if [ ${ngpu} -gt 1 ]; then
-        echo "LM training does not support multi-gpu. single gpu will be used."
+    # This will copy the LM from the Single Channel
+    # The languange model is trained only once
+    if ! [ -d ${lmexpdir} ]; then
+        if [ -d ../asr1/${lmexpdir} ]; then
+            cp -r ../asr1/${lmexpdir} ./${lmexpdir}
+        else
+            mkdir -p ${lmexpdir}
+            # use only 1 gpu
+            if [ ${ngpu} -gt 1 ]; then
+                echo "LM training does not support multi-gpu. single gpu will be used."
+            fi
+            ${cuda_cmd} --gpu ${ngpu} ${lmexpdir}/train.log \
+            lm_train.py \
+            --ngpu ${ngpu} \
+            --backend ${backend} \
+            --verbose 1 \
+            --outdir ${lmexpdir} \
+            --train-label ${lmdatadir}/train.txt \
+            --valid-label ${lmdatadir}/valid.txt \
+            --resume ${lm_resume} \
+            --layer ${lm_layers} \
+            --unit ${lm_units} \
+            --opt ${lm_opt} \
+            --batchsize ${lm_batchsize} \
+            --epoch ${lm_epochs} \
+            --maxlen ${lm_maxlen} \
+            --dict ${lmdict} \
+            ${lm_options}
+        fi
     fi
-    ${cuda_cmd} ${lmexpdir}/train.log \
-        lm_train.py \
-        --ngpu ${ngpu} \
-        --backend ${backend} \
-        --verbose 1 \
-        --outdir ${lmexpdir} \
-        --train-label ${lmdatadir}/train.txt \
-        --valid-label ${lmdatadir}/valid.txt \
-		--batchsize ${lm_batchsize} \
-		--dict ${lmdict}
 fi
 
 if [ -z ${tag} ]; then
-    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_n${datanoise}_subsample${subsample}_mode${emode}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}${adim}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
+    expdir=exp/${train_set}_${backend}_${etype}_e${elayers}_subsample${subsample}_unit${eunits}_proj${eprojs}_d${dlayers}_unit${dunits}_${atype}${adim}_aconvc${aconv_chans}_aconvf${aconv_filts}_mtlalpha${mtlalpha}_${opt}_sampprob${samp_prob}_bs${batchsize}_mli${maxlen_in}_mlo${maxlen_out}
     if [ "${lsm_type}" != "" ]; then
         expdir=${expdir}_lsm${lsm_type}${lsm_weight}
     fi
@@ -272,22 +308,6 @@ fi
 mkdir -p ${expdir}
 
 if [ ${stage} -le 4 ]; then
-    if [ "${emode}" == "regular" ]; then
-        cp ${dumpdir}/train_uall/delta${do_delta}/data.json ${feat_tr_dir}/data.json
-    else
-        #TODO: needs to add subset if necessary
-        if [ "${datanoise}" == "None" ]; then
-            trainsets=train
-        fi
-        dfiles=""
-        for dset in ${trainsets}; do
-            dfiles="${dumpdir}/${dset}_worn/delta${do_delta}/data.json ${dfiles}"
-        done
-        for dset in train; do
-            dfiles="${dumpdir}/${dset}_uall/delta${do_delta}/data.json ${dfiles}"
-        done
-        joinjson.py ${dfiles} > ${feat_tr_dir}/data.json    
-    fi
     echo "stage 4: Network Training"
 
     ${cuda_cmd} --gpu ${ngpu} ${expdir}/train.log \
@@ -324,6 +344,7 @@ if [ ${stage} -le 4 ]; then
         --maxlen-out ${maxlen_out} \
         --opt ${opt} \
         --epochs ${epochs}
+    exit 0
 fi
 
 if [ ${stage} -le 5 ]; then
