@@ -100,6 +100,9 @@ def main():
                         help='Apply label smoothing with a specified distribution type')
     parser.add_argument('--lsm-weight', default=0.0, type=float,
                         help='Label smoothing weight')
+    parser.add_argument('--sampling-probability', default=0.0, type=float,
+                        help='Ratio of predicted labels fed back to decoder')
+
     # model (parameter) related
     parser.add_argument('--dropout-rate', default=0.0, type=float,
                         help='Dropout rate')
@@ -112,6 +115,8 @@ def main():
                         help='Batch size is reduced if the output sequence length > ML')
     parser.add_argument('--norm-file', type=str,
                         help='Batch size is reduced if the output sequence length > ML')
+    parser.add_argument('--n_iter_processes', default=0, type=int,
+                        help='Number of processes of iterator')
     # optimization related
     parser.add_argument('--opt', default='adadelta', type=str,
                         choices=['adadelta', 'adam'],
@@ -156,7 +161,6 @@ def main():
                 cvd = subprocess.check_output(["/usr/local/bin/free-gpu", "-n", str(args.ngpu)]).decode().strip()
                 logging.info('CLSP: use gpu' + cvd)
                 os.environ['CUDA_VISIBLE_DEVICES'] = cvd
-
         cvd = os.environ.get("CUDA_VISIBLE_DEVICES")
         if cvd is None:
             logging.warn("CUDA_VISIBLE_DEVICES is not set.")
