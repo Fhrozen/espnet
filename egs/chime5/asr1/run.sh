@@ -64,6 +64,7 @@ lm_epochs=20        # number of epochs
 lm_maxlen=100       # 150 for character LMs
 lm_resume=          # specify a snapshot file to resume LM training
 lmtag=              # tag for managing LMs
+lm_meta=0
 
 # decoding parameter
 lm_weight=0.1
@@ -259,6 +260,11 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
+if [ ${lm_meta} -gt 0 ]; then 
+    lm_meta_tag="meta"
+else
+    lm_meta_tag=""
+fi
 if [ "${lm_opt}" == "sgd" ]; then
     lm_optval=${lm_lr}
     lm_options="--lr ${lm_lr}"
@@ -267,7 +273,7 @@ else
     lm_options="--alpha ${lm_alpha}"
 fi
 if [ -z ${lmtag} ]; then
-    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_meta_tag}${lm_optval}_bs${lm_batchsize}
     if [ $use_wordlm = true ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
@@ -314,6 +320,7 @@ if [ ${stage} -le 3 ]; then
         --epoch ${lm_epochs} \
         --maxlen ${lm_maxlen} \
         --dict ${lmdict} \
+        --meta ${lm_meta} \
         ${lm_options}
     exit 0
 fi
