@@ -135,7 +135,7 @@ if [ ${stage} -le 0 ]; then
 fi
 
 trainsets="train train_white"
-feat_dt_dir=${dumpdir}/${train_set}/delta${do_delta};
+feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta};
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
