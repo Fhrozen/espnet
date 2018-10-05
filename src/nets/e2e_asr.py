@@ -1015,6 +1015,12 @@ class Encoder(chainer.Chain):
                                         bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
                     idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'resloc':
+                    _encoder = RESLOC(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                        dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                        bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
+                    idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
+                    logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'fn':
                     _encoder = filternet(3, nchannels=in_channel)
                     in_channel = 1
@@ -1391,11 +1397,11 @@ class VGG2L(chainer.Chain):
 
 class ConvWithBReNorm(chainer.Chain):
     def __init__(self, in_channels, out_channels,
-                 kernel=1, stride=1, pad=0, nobias=True):
+                 kernel=1, stride=1, pad=0, nobias=True, groups=1):
         super(ConvWithBReNorm, self).__init__()
         with self.init_scope():
             self.conv = L.Convolution2D(
-                in_channels, out_channels, kernel, stride=stride, pad=pad, nobias=nobias)
+                in_channels, out_channels, kernel, stride=stride, pad=pad, nobias=nobias, groups=groups)
             self.bn = L.BatchRenormalization(out_channels)
 
     def __call__(self, x):
@@ -1405,16 +1411,16 @@ class ConvWithBReNorm(chainer.Chain):
 
 class BottleneckA(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
-                 stride=1, initialW=None, bn=None, act=F.relu):
+                 stride=1, initialW=None, bn=None, act=F.relu, groups=1):
         super(BottleneckA, self).__init__()
         if bn == 'ReNorm':
             Conv = ConvWithBReNorm
         else:
             Conv = L.Convolution2D
         with self.init_scope():
-            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True)
-            self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
-            self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True)
+            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True, groups=groups)
+            self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True, groups=groups)
+            self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True, groups=groups)
         self.act = act
         self.bn = bn
 
@@ -1870,4 +1876,127 @@ class filternet(chainer.Chain):
 
         # The normalization is executed by a batch renorm  (Need to test with CMVN)
         xs = self['brn_{}'.format(idx)](xs)
+        return xs, ilens
+
+
+class RESLOC(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222'):
+        super(RESLOC, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        if mode == 'single':
+            combs = [(0, y) for y in range(4)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(4)]
+        elif mode == 'entry':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(2)] + [(0, y) for y in range(2, 4)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 16, 1, stride=1, nobias=True)
+                elif j == 1:
+                    layer = BottleneckA(in_channel[i], 64, 64, act=act, bn=bn, groups=in_channel[i])
+                elif j == 2:
+                    layer = BottleneckA(16, 64, 64, act=act, bn=bn)
+                else:
+                    layer = BottleneckA(64, 128, outs, act=act, bn=bn)
+                setattr(self, l_name, layer)
+
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = no_dropout
+            if in_channel[x] == 2:
+                if dropout == 'inc':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fix':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'rand':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
+        self.dropout = dropout
+        self.in_channel = in_channel
+        self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
+        self.nopad = nopad
+        if subsample == '2222':
+            self.subsample = self.subsample2222
+        elif subsample == '3111':
+            self.subsample = self.subsample3111
+        else:
+            raise ValueError('Incorrect type of subsample')
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        self.iter += 1
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs)
+
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
+
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        # Apply dropout only to the binaural input
+        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+
+        _xs = self['conv{}_1'.format(idx)](xs)
+        xs = self['conv{}_0'.format(idx)](xs)
+        
+        if self.mode == 'entry':
+            idx = 0
+
+        xs = self['conv{}_2'.format(idx)](xs)
+        xs = F.vstack(F.split_axis(xs, chn, axis=1))
+        xs = F.split_axis(F.softmax(xs, axis=1), chn, axis=0)
+        xs = _xs * F.concat(xs, axis=1)
+        xs, ilens = self.subsample(idx, xs, ilens)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+    def subsample2222(self, idx, xs, ilens):
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self['conv{}_3'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        return xs, ilens
+
+    def subsample3111(self, idx, xs, ilens):
+        xs = F.max_pooling_2d(xs, (3, 1), stride=(3, 1))
+
+        xs = self['conv{}_3'.format(idx)](xs)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 3), dtype=np.int32)
         return xs, ilens
