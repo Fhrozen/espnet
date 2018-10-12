@@ -961,11 +961,13 @@ class Encoder(chainer.Chain):
                           'd': None,
                           'r': 0.0,
                           's': '2222',
-                          'a': F.relu}
+                          'a': F.relu,
+                          'p': 0,
+                          'l': 2}
 
                 for j in range(len(_e) - 1):
                     prefix = _e[j + 1][0]
-                    if prefix == 'o':
+                    if prefix == 'o' or prefix == 'p' or prefix == 'l':
                         val = int(_e[j + 1][1:])
                     elif prefix == 'r':
                         val = float(_e[j + 1][1:]) / 10.
@@ -1000,19 +1002,25 @@ class Encoder(chainer.Chain):
                     logging.info('GridLSTM added for encoder')
                 elif e_type == 'vgg':
                     _encoder = VGG2L(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
-                                     nopad=nopad)
+                                     nopad=nopad, reshape=e_spec['p'])
                     idim = get_vgg2l_odim(idim, subsample=e_spec['s'])
                     logging.info('CNN-VGG with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'res':
                     _encoder = RESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                       dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
-                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
+                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad, reshape=e_spec['p'])
                     idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'tres':
+                    _encoder = TRESNET(e_spec['o'], frames=e_spec['l'], bn=e_spec['b'], projs=eunits)
+                    logging.info('CNN-TRESNET with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'tlmres':
+                    _encoder = TLMRESNET(e_spec['o'], frames=e_spec['l'], bn=e_spec['b'])
+                    logging.info('CNN-TRESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'lmres':
                     _encoder = LMRESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                         dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
-                                        bn=e_spec['b'], outs=e_spec['o'], nopad=nopad)
+                                        bn=e_spec['b'], outs=e_spec['o'], nopad=nopad, reshape=e_spec['p'])
                     idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-LM-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'resloc':
@@ -1303,7 +1311,7 @@ class BLSTM(chainer.Chain):
 
 # TODO(watanabe) explanation of VGG2L, VGG2B (Block) might be better
 class VGG2L(chainer.Chain):
-    def __init__(self, in_channel=1, mode='single', subsample='2222', nopad=False):
+    def __init__(self, in_channel=1, mode='single', subsample='2222', nopad=False, reshape=0):
         super(VGG2L, self).__init__()
         if isinstance(in_channel, int):
             in_channel = [in_channel]
@@ -1332,6 +1340,7 @@ class VGG2L(chainer.Chain):
         self.in_channel = in_channel
         self.mode = mode
         self.nopad = nopad
+        self.reshape = reshape
         if subsample == '2222':
             self.subsample = self.subsample2222
         elif subsample == '3111':
@@ -1363,10 +1372,11 @@ class VGG2L(chainer.Chain):
         xs, ilens = self.subsample(idx, xs, ilens)
 
         # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        if self.reshape:
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.reshape(
+                xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+            xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
         return xs, ilens
 
     def subsample2222(self, idx, xs, ilens):
@@ -1552,7 +1562,7 @@ def dropout_random(xs, ratio, _iter):
 
 class RESNET(chainer.Chain):
     def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
-                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222'):
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222', reshape=0):
         super(RESNET, self).__init__()
         if type(in_channel) is int:
             in_channel = [in_channel]
@@ -1597,6 +1607,7 @@ class RESNET(chainer.Chain):
         self.iter = 0
         self.dratio = dratio
         self.nopad = nopad
+        self.reshape = reshape
         if subsample == '2222':
             self.subsample = self.subsample2222
         elif subsample == '3111':
@@ -1634,11 +1645,12 @@ class RESNET(chainer.Chain):
         xs = self['conv{}_1'.format(idx)](xs)
         xs, ilens = self.subsample(idx, xs, ilens)
 
-        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
-        xs = F.swapaxes(xs, 1, 2)
-        xs = F.reshape(
-            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
-        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)+
+        if self.reshape:
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.reshape(
+                xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+            xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
 
         return xs, ilens
 
@@ -1663,6 +1675,50 @@ class RESNET(chainer.Chain):
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 3), dtype=np.int32)
+        return xs, ilens
+
+
+class TRESNET(chainer.Chain):
+    def __init__(self, in_channel=128, frames=2, bn=None, projs=512):
+        super(TRESNET, self).__init__()
+        if bn == 'ReNorm':
+            Conv = ConvWithBReNorm
+        else:
+            Conv = L.Convolution2D
+        with self.init_scope():
+            self.conv0 = Conv(in_channel, in_channel, (frames, 1), stride=1, nobias=True)
+            self.out = L.Linear(projs)
+        self.frames = frames
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        # x: utt x input channel x frame x dim
+        # logging.info(xs.shape)
+        # xs = F.sum(xs, axis=1, keepdims=True)
+        # logging.info(xs.shape)
+        ilens = ilens - self.frames + 1
+        length = xs.shape[2] - self.frames + 1
+        xs_out = xs[:, :, 0:length, :]
+        xs = self.conv0(xs)
+        # logging.info(xs_out.shape)
+        # logging.info(xs.shape)
+        xs = F.relu(xs_out + xs)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        # Final Step Projection from ndims to odims
+        xs = F.relu(self.out(F.vstack(xs)))
+        xs = F.split_axis(xs, np.cumsum(self.xp.asnumpy(ilens[:-1])), axis=0)
         return xs, ilens
 
 
