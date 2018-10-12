@@ -263,16 +263,14 @@ class CTC(chainer.Chain):
         logging.info(self.__class__.__name__ + ' output lengths: ' + str(label_length.data))
 
         # get ctc loss
-        #self.loss = F.connectionist_temporal_classification(
-        #    y_hat, y_true, 0, input_length, label_length)
         self.loss_nomean = F.connectionist_temporal_classification(
             y_hat, y_true, 0, input_length, label_length, reduce='no')
-        mask = [ 0 if l > CTC_LOSS_THRESHOLD else 1 for l in self.loss_nomean.data ]
-        masked_loss = [a*b for a,b in zip(mask, self.loss_nomean)]
+        mask = [0 if l > CTC_LOSS_THRESHOLD else 1 for l in self.loss_nomean.data]
+        masked_loss = [a*b for a, b in zip(mask, self.loss_nomean)]
         if sum(mask) == 0:
-            self.loss = F.mean(self.loss_nomean)*0
+            self.loss = F.mean(self.loss_nomean) * 0
         else:
-            self.loss = sum(masked_loss)/sum(mask)
+            self.loss = sum(masked_loss) / sum(mask)
         logging.info('ctc loss:' + str(self.loss.data))
 
         return self.loss
@@ -990,6 +988,10 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                       eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif e_type == 'lstmp':
+                    _encoder = LSTMP(idim, elayers, eunits,
+                                      eprojs, subsample, dropout)
+                    logging.info('LSTM with every-layer projection added for encoder')
                 elif e_type == 'bgrup':
                     _encoder = BGRUP(idim, elayers, eunits,
                                      eprojs, subsample, dropout)
@@ -1147,6 +1149,52 @@ class BLSTMP(chainer.Chain):
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
         for layer in six.moves.range(self.elayers):
             hy, cy, ys = self['bilstm' + str(layer)](None, None, xs)
+            # ys: utt list of frame x cdim x 2 (2: means bidirectional)
+            # TODO(watanabe) replace subsample and FC layer with CNN
+            ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
+            # (sum _utt frame_utt) x dim
+            ys = self['bt' + str(layer)](F.vstack(ys))
+            xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+            del hy, cy
+
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
+
+
+class LSTMP(chainer.Chain):
+    def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
+        super(LSTMP, self).__init__()
+        with self.init_scope():
+            for i in six.moves.range(elayers):
+                if i == 0:
+                    inputdim = idim
+                else:
+                    inputdim = hdim
+                setattr(self, "lstm%d" % i, L.NStepLSTM(
+                    1, inputdim, cdim, dropout))
+                # bottleneck layer to merge
+                setattr(self, "bt%d" % i, L.Linear(2 * cdim, hdim))
+
+        self.elayers = elayers
+        self.cdim = cdim
+        self.subsample = subsample
+
+    def __call__(self, xs, ilens):
+        '''BLSTMP forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        for layer in six.moves.range(self.elayers):
+            hy, cy, ys = self['lstm' + str(layer)](None, None, xs)
             # ys: utt list of frame x cdim x 2 (2: means bidirectional)
             # TODO(watanabe) replace subsample and FC layer with CNN
             ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
