@@ -263,8 +263,16 @@ class CTC(chainer.Chain):
         logging.info(self.__class__.__name__ + ' output lengths: ' + str(label_length.data))
 
         # get ctc loss
-        self.loss = F.connectionist_temporal_classification(
-            y_hat, y_true, 0, input_length, label_length)
+        #self.loss = F.connectionist_temporal_classification(
+        #    y_hat, y_true, 0, input_length, label_length)
+        self.loss_nomean = F.connectionist_temporal_classification(
+            y_hat, y_true, 0, input_length, label_length, reduce='no')
+        mask = [ 0 if l > CTC_LOSS_THRESHOLD else 1 for l in self.loss_nomean.data ]
+        masked_loss = [a*b for a,b in zip(mask, self.loss_nomean)]
+        if sum(mask) == 0:
+            self.loss = F.mean(self.loss_nomean)*0
+        else:
+            self.loss = sum(masked_loss)/sum(mask)
         logging.info('ctc loss:' + str(self.loss.data))
 
         return self.loss
@@ -1536,10 +1544,6 @@ class BuildingBlock(chainer.Chain):
         return [getattr(self, name) for name in self._forward]
 
 
-def no_dropout(xs, ratio, _iter):
-    return xs
-
-
 def dropout_fixed(xs, ratio, _iter):
     return F.dropout(xs, ratio)
 
@@ -1588,7 +1592,7 @@ class RESNET(chainer.Chain):
 
         for x in range(len(in_channel)):
             doutname = 'drop_{}'.format(x)
-            douttype = no_dropout
+            douttype = None
             if in_channel[x] == 2:
                 if dropout == 'inc':
                     logging.info('Adding Incremental dropout to the training')
@@ -1636,7 +1640,8 @@ class RESNET(chainer.Chain):
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+        if not self['drop_{}'.format(idx)] is None:
+            xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry':
@@ -2021,8 +2026,8 @@ class RESLOC(chainer.Chain):
             idx = 0
 
         xs = self['conv{}_2'.format(idx)](xs)
-        xs = F.vstack(F.split_axis(xs, chn, axis=1))
-        xs = F.split_axis(F.softmax(xs, axis=1), chn, axis=0)
+        xs = F.vstack(F.split_axis(xs, 16, axis=1))
+        xs = F.split_axis(F.softmax(xs, axis=1), 16, axis=0)
         xs = _xs * F.concat(xs, axis=1)
         xs, ilens = self.subsample(idx, xs, ilens)
 
