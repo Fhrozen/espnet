@@ -1534,10 +1534,6 @@ class BuildingBlock(chainer.Chain):
         return [getattr(self, name) for name in self._forward]
 
 
-def no_dropout(xs, ratio, _iter):
-    return xs
-
-
 def dropout_fixed(xs, ratio, _iter):
     return F.dropout(xs, ratio)
 
@@ -1586,7 +1582,7 @@ class RESNET(chainer.Chain):
 
         for x in range(len(in_channel)):
             doutname = 'drop_{}'.format(x)
-            douttype = no_dropout
+            douttype = None
             if in_channel[x] == 2:
                 if dropout == 'inc':
                     logging.info('Adding Incremental dropout to the training')
@@ -1633,7 +1629,8 @@ class RESNET(chainer.Chain):
         idx = self.in_channel.index(chn)
 
         # Apply dropout only to the binaural input
-        xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+        if not self['drop_{}'.format(idx)] is None:
+            xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
 
         xs = self['conv{}_0'.format(idx)](xs)
         if self.mode == 'entry':
