@@ -1796,7 +1796,6 @@ class RESSPK(chainer.Chain):
         self.dropout = dropout
         self.in_channel = in_channel
         self.mode = mode
-        self.iter = 0
         self.dratio = dratio
         self.nopad = nopad
         self.reshape = reshape
@@ -1808,7 +1807,6 @@ class RESSPK(chainer.Chain):
         :param ilens:
         :return:
         '''
-        self.iter += 1
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
 
         if not self.nopad:
@@ -1830,8 +1828,6 @@ class RESSPK(chainer.Chain):
             idx = 0
 
         xs = self['conv{}_1'.format(idx)](xs)
-        xs, ilens = self.subsample(idx, xs, ilens)
-
         xs = F.max_pooling_2d(xs, 2, stride=2)
 
         xs = self['conv{}_2'.format(idx)](xs)
