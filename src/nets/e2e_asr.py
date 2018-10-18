@@ -2358,7 +2358,7 @@ class LMFILTPREV(chainer.Chain):
     def __init__(self, in_channel=1):
         super(LMFILTPREV, self).__init__()
         with self.init_scope():
-            self.up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.up = L.Convolution2D(in_channel, 16, (2, 1), stride=1, nobias=True)
             self.down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
 
     def __call__(self, xs, ilens):
@@ -2389,9 +2389,9 @@ class LMFILTLT(chainer.Chain):
     def __init__(self, in_channel=1):
         super(LMFILTLT, self).__init__()
         with self.init_scope():
-            self.left_up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.left_up = L.Convolution2D(in_channel, 16, (2, 1), stride=1, nobias=True)
             self.left_down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
-            self.right_up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.right_up = L.Convolution2D(in_channel, 16, (2, 1), stride=1, nobias=True)
             self.right_down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
 
     def __call__(self, xs, ilens):
@@ -2413,7 +2413,7 @@ class LMFILTLT(chainer.Chain):
         r_xs = self.right_down(F.relu(self.right_up(xs[:, :, 1:])))
         with chainer.no_backprop_mode():
             k = r_xs / l_xs
-        xs = F.relu((1 - k) * l_xs + xs[:, :, 1:-1] + k * r_xs)
+        xs = F.relu(k * l_xs + xs[:, :, 1:-1] + (1 - k) * r_xs)
 
         # change ilens accordingly
         ilens = ilens - 2
