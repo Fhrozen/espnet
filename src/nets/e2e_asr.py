@@ -1199,7 +1199,7 @@ class LSTMP(chainer.Chain):
                 setattr(self, "lstm%d" % i, L.NStepLSTM(
                     1, inputdim, cdim, dropout))
                 # bottleneck layer to merge
-                setattr(self, "bt%d" % i, L.Linear(2 * cdim, hdim))
+                setattr(self, "bt%d" % i, L.Linear(cdim, hdim))
 
         self.elayers = elayers
         self.cdim = cdim

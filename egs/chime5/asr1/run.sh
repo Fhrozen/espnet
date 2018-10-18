@@ -52,18 +52,19 @@ opt=adadelta
 epochs=15
 
 # rnnlm related
-use_wordlm=true     # false means to train/use a character LM
+use_wordlm=false     # false means to train/use a character LM
 lm_vocabsize=35000  # effective only for word LMs
 lm_lr=1             # training lr for LMs (sgd)
 lm_alpha=0.001     # training alpha for LMs (adam)
-lm_layers=1         # 2 for character LMs
-lm_units=1000       # 650 for character LMs
-lm_opt=sgd          # adam for character LMs
-lm_batchsize=100    # 1024 for character LMs
+lm_layers=2         # 2 for character LMs
+lm_units=650       # 650 for character LMs
+lm_opt=adam          # adam for character LMs
+lm_batchsize=1024    # 1024 for character LMs
 lm_epochs=20        # number of epochs
 lm_maxlen=100       # 150 for character LMs
 lm_resume=          # specify a snapshot file to resume LM training
 lmtag=              # tag for managing LMs
+multi_lvl=false
 lm_meta=0
 
 # decoding parameter
