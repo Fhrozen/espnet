@@ -1021,6 +1021,18 @@ class Encoder(chainer.Chain):
                                       bn=e_spec['b'], outs=e_spec['o'], nopad=nopad, reshape=e_spec['p'])
                     idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
                     logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'dense':
+                    _encoder = DENSENET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                      dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad, reshape=e_spec['p'])
+                    idim = get_vgg2l_odim(idim, out_channel=e_spec['o'], subsample=e_spec['s'])
+                    logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'resspk':
+                    _encoder = RESSPK(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                      dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
+                                      bn=e_spec['b'], outs=e_spec['o'], nopad=nopad, reshape=e_spec['p'])
+                    idim = get_vgg2l_odim(idim, out_channel=e_spec['o']+1, subsample=e_spec['s'])
+                    logging.info('CNN-RESNET with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'tres':
                     _encoder = TRESNET(e_spec['o'], frames=e_spec['l'], bn=e_spec['b'], projs=eunits)
                     logging.info('CNN-TRESNET with specs {} added for encoder'.format(_e[1:]))
@@ -1731,6 +1743,112 @@ class RESNET(chainer.Chain):
         return xs, ilens
 
 
+class RESSPK(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222', reshape=0):
+        super(RESSPK, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        if mode == 'single':
+            combs = [(0, y) for y in range(3)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(3)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 3)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 16, 1, stride=1, nobias=True)
+                elif j == 1:
+                    layer = BottleneckA(16, 64, 64, act=act, bn=bn)
+                else:
+                    layer = BottleneckA(64, 128, outs, act=act, bn=bn)
+                setattr(self, l_name, layer)
+            self.spk = L.Convolution2D(128, 1, 3, stride=1)
+
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = None
+            if in_channel[x] == 2:
+                if dropout == 'inc':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fix':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'rand':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
+        self.dropout = dropout
+        self.in_channel = in_channel
+        self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
+        self.nopad = nopad
+        self.reshape = reshape
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        self.iter += 1
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs)
+
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
+
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        # Apply dropout only to the binaural input
+        if not self['drop_{}'.format(idx)] is None:
+            xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+
+        xs = self['conv{}_0'.format(idx)](xs)
+        if self.mode == 'entry':
+            idx = 0
+
+        xs = self['conv{}_1'.format(idx)](xs)
+        xs, ilens = self.subsample(idx, xs, ilens)
+
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self['conv{}_2'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+        xs_shape = xs.shape
+        xs_shape[1] = 1
+        spk = F.average(F.sum(F.relu(self.spk(xs)), axis=2, keepdims=True), axis=3, keepdims=True)
+        spk = F.broadcast_to(spk, xs_shape)
+        xs = F.concat((xs, spk), axis=1)
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)+
+        
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
 class TRESNET(chainer.Chain):
     def __init__(self, in_channel=128, frames=2, bn=None, projs=512):
         super(TRESNET, self).__init__()
@@ -2108,4 +2226,121 @@ class RESLOC(chainer.Chain):
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 3), dtype=np.int32)
+        return xs, ilens
+
+
+class DenseBlock(chainer.Chain):
+    def __init__(self, in_ch, growth_rate, n_layer):
+        self.n_layer = n_layer
+        super(DenseBlock, self).__init__()
+        for i in moves.range(self.n_layer):
+            self.add_link('bn%d' % (i + 1),
+                          L.BatchReNormalization(in_ch + i * growth_rate))
+            self.add_link('conv%d' % (i + 1),
+                          L.Convolution2D(in_ch + i * growth_rate, growth_rate,
+                                          3, 1, 1))
+
+    def __call__(self, x, dropout_ratio, train):
+        for i in moves.range(1, self.n_layer + 1):
+            h = F.relu(self['bn%d' % i](x, test=not train))
+            h = F.dropout(self['conv%d' % i](h), dropout_ratio, train)
+            x = F.concat((x, h))
+        return x
+
+
+class DENSENET(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222', reshape=0):
+        super(DENSENET, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        if mode == 'single':
+            combs = [(0, y) for y in range(3)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(3)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 3)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 16, 1, stride=1)
+                elif j == 1:
+                    layer = DenseBlock(16, growth_rate=16, n_layer=4)
+                else:
+                    layer = DenseBlock(64, growth_rate=16, n_layer=4)
+                setattr(self, l_name, layer)
+
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = None
+            if in_channel[x] == 2:
+                if dropout == 'inc':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fix':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'rand':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
+        self.dropout = dropout
+        self.in_channel = in_channel
+        self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
+        self.nopad = nopad
+        self.reshape = reshape
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        self.iter += 1
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs)
+
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
+
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        # Apply dropout only to the binaural input
+        if not self['drop_{}'.format(idx)] is None:
+            xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+
+        xs = self['conv{}_0'.format(idx)](xs)
+        if self.mode == 'entry':
+            idx = 0
+
+        xs = self['conv{}_1'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self['conv{}_2'.format(idx)](xs)
+        xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)+
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.reshape(
+            xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+        xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
         return xs, ilens

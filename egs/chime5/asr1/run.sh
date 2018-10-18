@@ -55,7 +55,7 @@ epochs=15
 use_wordlm=true     # false means to train/use a character LM
 lm_vocabsize=35000  # effective only for word LMs
 lm_lr=1             # training lr for LMs (sgd)
-lm_alpha=0.0001     # training alpha for LMs (adam)
+lm_alpha=0.001     # training alpha for LMs (adam)
 lm_layers=1         # 2 for character LMs
 lm_units=1000       # 650 for character LMs
 lm_opt=sgd          # adam for character LMs
@@ -104,7 +104,25 @@ train_dev=dev_${enhancement}_ref
 enhancement1=addition
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_wpe_${enhancement1}_ref dev_${enhancement}_ref dev_${enhancement1}_ref"
+recog_set="dev_worn dev_${enhancement}_ref dev_${enhancement1}_ref" #dev_wpe_${enhancement1}_ref 
+
+if [ ${stage} -le -1 ]; then
+    for dset in train dev eval; do # dev_wpe
+    	mics="u01 u02 u03 u04 u05 u06"
+        if [ "${dset}" == "train" ]; then
+            mics="u01 u02 u04 u05 u06"
+        fi
+        for mictype in ${mics}; do
+    	    local/run_wpe_py.sh --cmd "$train_cmd" \
+    				    ${audio_dir}/${dset} \
+    				    ${audio_dir}/wpe/${dset} \
+    				    ${mictype} \
+                        wpe_${dset}_${mictype}
+    	done
+    done
+    wait
+    exit 0
+fi
 
 if [ ${stage} -le 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -148,17 +166,21 @@ if [ ${stage} -le 0 ]; then
 			      ${json_dir}/${dset} data/${dset}_${enhancement}_ref
     done
 
-    for dset in dev dev_wpe; do
+    for dset in dev; do # dev_wpe
+        aset=${dset}
+        if [ "${dset}" == "dev_wpe" ]; then
+            aset="wpe/dev"
+        fi
     	for mictype in u01 u02 u03 u04 u05 u06; do
     	    local/run_addition.sh --cmd "$train_cmd" \
-    				    ${audio_dir}/${dset} \
+    				    ${audio_dir}/${aset} \
     				    ${enhandir}/${dset}_${enhancement1}_${mictype} \
     				    ${mictype} &
     	done
     done
     wait
     #eval#for dset in dev eval; do
-    for dset in dev dev_wpe; do
+    for dset in dev; do # dev_wpe
     	local/prepare_data.sh --mictype ref "$PWD/${enhandir}/${dset}_${enhancement1}_u0*" \
     			      ${json_dir}/dev data/${dset}_${enhancement1}_ref
     done
@@ -325,7 +347,6 @@ if [ ${stage} -le 3 ]; then
         --dict ${lmdict} \
         --meta ${lm_meta} \
         ${lm_options}
-    exit 0
 fi
 
 if [ -z ${tag} ]; then
@@ -376,12 +397,11 @@ if [ ${stage} -le 4 ]; then
         --sampling-probability ${samp_prob} \
         --opt ${opt} \
         --epochs ${epochs}
-    exit 0
 fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=32
+    nj=64
 
     for rtask in ${recog_set}; do
     (

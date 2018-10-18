@@ -85,7 +85,7 @@ def add_noise(_AUDIO, _NOISE='clean', _SNR=None):
 
 def donoisy(arguments):
     args, audio, noisefile = arguments
-    snr = np.random.randint(7, 12)
+    snr = np.random.randint(3, 12)
     audio_out = audio.replace(args.audio_folder, args.folder)
     inwave, _ = sf.read(audio)
     inwave = inwave / np.amax(np.absolute(inwave))
