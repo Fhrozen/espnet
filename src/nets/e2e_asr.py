@@ -1832,10 +1832,9 @@ class RESSPK(chainer.Chain):
 
         xs = self['conv{}_2'.format(idx)](xs)
         xs = F.max_pooling_2d(xs, 2, stride=2)
-        xs_shape = xs.shape
-        xs_shape[1] = 1
+        bs, _, frm, dim = xs.shape
         spk = F.average(F.sum(F.relu(self.spk(xs)), axis=2, keepdims=True), axis=3, keepdims=True)
-        spk = F.broadcast_to(spk, xs_shape)
+        spk = F.broadcast_to(spk, (bs, 1, frm, dim))
         xs = F.concat((xs, spk), axis=1)
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
