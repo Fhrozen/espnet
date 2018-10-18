@@ -1057,6 +1057,14 @@ class Encoder(chainer.Chain):
                     logging.info('FilterNet added for encoder')
                     idim = 40
                     nopad = True
+                elif e_type == 'ftprev':
+                    _encoder = LMFILTPREV(in_channel)
+                    logging.info('Residual Filter with previous frame added for encoder')
+                    nopad = True
+                elif e_type == 'ftlat':
+                    _encoder = LMFILTLT(in_channel)
+                    logging.info('LM-Res Filter with lateral frames added for encoder')
+                    nopad = True
                 else:
                     logging.error(
                         "Error: {} not found. Need to specify an appropriate encoder archtecture".format(e_type))
@@ -2342,5 +2350,72 @@ class DENSENET(chainer.Chain):
         xs = F.reshape(
             xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
         xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
+        return xs, ilens
+
+
+class LMFILTPREV(chainer.Chain):
+    def __init__(self, in_channel=1):
+        super(LMFILTPREV, self).__init__()
+        with self.init_scope():
+            self.up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x input channel x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x input channel x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+
+        _xs = F.relu(self.up(xs))
+        xs = F.relu(xs[:, :, 1:] + self.down(_xs))
+
+        # change ilens accordingly
+        ilens = ilens - 1
+
+        return xs, ilens
+
+
+class LMFILTLT(chainer.Chain):
+    def __init__(self, in_channel=1):
+        super(LMFILTLT, self).__init__()
+        with self.init_scope():
+            self.left_up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.left_down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
+            self.right_up = L.Convolution2D(in_channel, 16, 2, stride=1, nobias=True)
+            self.right_down = L.Convolution2D(16, in_channel, 1, stride=1, nobias=True)
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        # x: utt x frame x input channel x dim
+        xs = F.pad_sequence(xs)
+
+        # x: utt x input channel x frame x dim
+        xs = F.swapaxes(xs, 1, 2)
+
+        l_xs = self.left_down(F.relu(self.left_up(xs[:, :, :-1])))
+        r_xs = self.right_down(F.relu(self.right_up(xs[:, :, 1:])))
+        with chainer.no_backprop_mode():
+            k = r_xs / l_xs
+        xs = F.relu((1 - k) * l_xs + xs[:, :, 1:-1] + k * r_xs)
+
+        # change ilens accordingly
+        ilens = ilens - 2
 
         return xs, ilens
