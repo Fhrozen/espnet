@@ -107,10 +107,11 @@ noises="white"
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Data Augmentation"
     for noise in white; do 
-        local/augmentation.py --folder ${audio_dir}/train_${noise} \
+        local/augmentation.py --folder ${audio_dir}/${noise}/train \
             --noise-type ${noise} \
             --audio-folder ${audio_dir}/train
     done
+    exit 0
 fi
 
 if [ ${stage} -le 0 ]; then

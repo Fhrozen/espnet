@@ -2236,7 +2236,7 @@ class DenseBlock(chainer.Chain):
     def __init__(self, in_ch, growth_rate, n_layer):
         self.n_layer = n_layer
         super(DenseBlock, self).__init__()
-        for i in moves.range(self.n_layer):
+        for i in range(self.n_layer):
             self.add_link('bn%d' % (i + 1),
                           L.BatchReNormalization(in_ch + i * growth_rate))
             self.add_link('conv%d' % (i + 1),
@@ -2244,7 +2244,7 @@ class DenseBlock(chainer.Chain):
                                           3, 1, 1))
 
     def __call__(self, x, dropout_ratio, train):
-        for i in moves.range(1, self.n_layer + 1):
+        for i in range(1, self.n_layer + 1):
             h = F.relu(self['bn%d' % i](x, test=not train))
             h = F.dropout(self['conv%d' % i](h), dropout_ratio, train)
             x = F.concat((x, h))
@@ -2375,6 +2375,8 @@ class LMFILTPREV(chainer.Chain):
         xs = F.relu(xs[:, :, 1:] + self.down(_xs))
 
         # change ilens accordingly
+        if isinstance(ilens, list):
+            ilens = np.asarray(ilens)
         ilens = ilens - 1
 
         return xs, ilens
@@ -2411,6 +2413,8 @@ class LMFILTLT(chainer.Chain):
         xs = F.relu(k * l_xs + xs[:, :, 1:-1] + (1 - k) * r_xs)
 
         # change ilens accordingly
+        if isinstance(ilens, list):
+            ilens = np.asarray(ilens)
         ilens = ilens - 2
 
         return xs, ilens

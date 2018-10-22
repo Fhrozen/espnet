@@ -108,15 +108,17 @@ if [ ${stage} -le 0 ]; then
     echo "stage 0: Data files preparation"
     for noise in ${noises}; do
         trainset=train
+        label=train
         if [ "${noise}" != "None" ]; then
-            trainset="${trainset}_${noise}"
+            trainset="${noise}/${trainset}"
+            label="${trainset}_${noise}"
         fi
         for mictype in worn u01 u02 u04 u05 u06; do
             local/prepare_data.sh --mictype ${mictype} --noise ${noise} \
-                    ${audio_dir}/${trainset} ${json_dir}/train data/${trainset}_${mictype}
+                    ${audio_dir}/${trainset} ${json_dir}/train data/train
         done
-        utils/combine_data.sh data/${trainset}_uall data/${trainset}_u01 data/${trainset}_u02 data/${trainset}_u04 data/${trainset}_u05 data/${trainset}_u06
-        rm -rf data/${trainset}_u0*
+        utils/combine_data.sh data/${label}_uall data/${label}_u01 data/${label}_u02 data/${label}_u04 data/${label}_u05 data/${label}_u06
+        rm -rf data/${label}_u0*
     done
 
     utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
@@ -159,14 +161,16 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
+    fbankdir=fbank
+    # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
     folders=""
     for x in uall worn ; do
         for y in ${trainsets}; do
             folders="${y}_${x} ${folders}"
         done
     done
-    for x in ${folders} ${recog_set}; do
-        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
+    for x in ${folders}; do
+        local/make_feats.sh --cmd "$train_cmd" --compress false --type 1 --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done
     folders=""
@@ -175,8 +179,8 @@ if [ ${stage} -le 1 ]; then
             folders="data/${y}_${x} ${folders}"
         done
     done
-    utils/combine_data.sh data/${train_set} ${folders}
     # compute global CMVN
+    utils/combine_data.sh data/${train_set} ${folders}
     compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
 fi
 dict=data/lang_1char/${train_set}_units.txt
@@ -201,27 +205,6 @@ if [ ${stage} -le 2 ]; then
     # remove 1 or 0 length outputs
     #utils/copy_data_dir.sh data/train_worn_u200k data/train_worn_u200k_org
     #remove_longshortdata.sh --nlsyms ${nlsyms} --minchars 1 data/train_worn_u200k_org data/train_worn_u200k
-
-    folders=""
-    for x in uall worn ; do
-        for y in ${trainsets}; do
-            folders="${y}_${x} ${folders}"
-        done
-    done
-    for rtask in ${folders}; do
-        feat_tr=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_tr}
-        dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
-            data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_tr}
-    done
-
-    dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
-        data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
-
-    for rtask in ${recog_set}; do
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
-        dump.sh --cmd "$train_cmd" --nj 4 --do_delta $do_delta \
-            data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_recog_dir}
-    done
 
     echo "make json files"
     for rtask in ${folders}; do
