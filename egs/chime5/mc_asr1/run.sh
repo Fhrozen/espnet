@@ -101,8 +101,8 @@ audio_dir=${chime5_corpus}/audio
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_ref dev_wpe_ref" # eval_ref eval_wpe_ref"  
-noises="white"
+recog_set="dev_worn dev_ref wpe_dev_ref" # eval_ref eval_wpe_ref"  
+noises="None white"
 
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Data Augmentation"
@@ -121,21 +121,59 @@ if [ ${stage} -le 0 ]; then
     echo "stage 0: Data files preparation"
     for noise in ${noises}; do
         trainset=train
+        label=train
         if [ "${noise}" != "None" ]; then
-            trainset="${trainset}_${noise}"
+            label="${trainset}_${noise}"
+            trainset="${noise}/${trainset}"
         fi
         for mictype in worn u01 u02 u04 u05 u06; do
             local/prepare_data.sh --mictype ${mictype} --noise ${noise} \
-                    ${audio_dir}/${trainset} ${json_dir}/train data/${trainset}_${mictype}
+                    ${audio_dir}/${trainset} ${json_dir}/train data/${label}_${mictype}
         done
-        utils/combine_data.sh data/${trainset}_uall data/${trainset}_u01 data/${trainset}_u02 data/${trainset}_u04 data/${trainset}_u05 data/${trainset}_u06
-        rm -rf data/${trainset}_u0*
+        utils/combine_data.sh data/${label}_uall data/${label}_u01 data/${label}_u02 data/${label}_u04 data/${label}_u05 data/${label}_u06
+        rm -rf data/${label}_u0*
     done
 
-    utils/copy_data_dir.sh ../asr1/data/${dset}_worn_stere  data/${dset}_worn 
+    utils/combine_data.sh data/train_worn_uall data/train_worn data/train_uall
+
+    for mictype in u01 u02 u04 u05 u06; do
+        local/prepare_data.sh --mictype ${mictype} \
+                ${audio_dir}/wpe/train ${json_dir}/train data/wpe_train_${mictype}
+    done
+    utils/combine_data.sh data/wpe_train_uall data/wpe_train_u01 data/wpe_train_u02 data/wpe_train_u04 data/wpe_train_u05 data/wpe_train_u06
+    rm -rf data/wpe_train_u0*
+
+    for dset in dev; do
+        for mictype in worn; do
+        local/prepare_data.sh --mictype ${mictype} \
+                ${audio_dir}/${dset} ${json_dir}/${dset} \
+                data/${dset}_${mictype}
+    done
+    done
+
+    for dset in dev eval; do
+        for aset in None wpe; do
+            if [ "${aset}" == "None" ]; then
+            aset=${dset}
+            else
+            aset="wpe/${dset}"
+            fi
+            local/prepare_data.sh --mictype ref \
+                ${audio_dir}/${aset} ${json_dir}/${dset} \
+                data/${aset////_}_ref
+        done
+    done
 fi
 
-trainsets="train train_white"
+trainsets=""
+for noise in ${noises}; do
+    trainset=train
+    if [ "${noise}" != "None" ]; then
+        trainset="${trainset}_${noise}"
+    fi
+    trainsets="${trainset} ${trainsets}"
+done
+
 feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta};
 feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ]; then
@@ -150,7 +188,7 @@ if [ ${stage} -le 1 ]; then
             folders="${y}_${x} ${folders}"
         done
     done
-    for x in ${folders} ${recog_set}; do
+    for x in ${folders} ${recog_set} wpe_train_uall; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done

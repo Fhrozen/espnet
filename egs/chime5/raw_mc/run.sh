@@ -110,12 +110,12 @@ if [ ${stage} -le 0 ]; then
         trainset=train
         label=train
         if [ "${noise}" != "None" ]; then
-            trainset="${noise}/${trainset}"
             label="${trainset}_${noise}"
+            trainset="${noise}/${trainset}"
         fi
         for mictype in worn u01 u02 u04 u05 u06; do
             local/prepare_data.sh --mictype ${mictype} --noise ${noise} \
-                    ${audio_dir}/${trainset} ${json_dir}/train data/train
+                    ${audio_dir}/${trainset} ${json_dir}/train data/${label}_${mictype}
         done
         utils/combine_data.sh data/${label}_uall data/${label}_u01 data/${label}_u02 data/${label}_u04 data/${label}_u05 data/${label}_u06
         rm -rf data/${label}_u0*
@@ -131,18 +131,17 @@ if [ ${stage} -le 0 ]; then
     done
     done
 
-    for dset in dev dev_wpe; do
-        local/prepare_data.sh --mictype ref \
-        ${audio_dir}/${dset} ${json_dir}/dev \
-        data/${dset}_ref
+    for dset in dev eval; do
+        for aset in None wpe; do
+            aset=${dset}
+            if [ "${dset}" != "None" ]; then
+            aset="wpe/${dset}"
+            fi
+            local/prepare_data.sh --mictype ref \
+                ${audio_dir}/${aset} ${json_dir}/${dset} \
+                data/${dset////_}_ref
+        done
     done
-
-    for eset in eval eval_wpe; do
-        local/prepare_data.sh --mictype ref \
-        ${audio_dir}/${eset} ${json_dir}/eval \
-        data/${eset}_ref
-    done
-
 fi
 trainsets=""
 for noise in ${noises}; do

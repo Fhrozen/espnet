@@ -167,7 +167,7 @@ if [ ${stage} -le 0 ]; then
 			      ${json_dir}/${dset} data/${dset}_${enhancement}_ref
     done
 
-    for dset in dev; do # dev_wpe
+    for dset in dev dev_wpe; do # 
         aset=${dset}
         if [ "${dset}" == "dev_wpe" ]; then
             aset="wpe/dev"
