@@ -2236,17 +2236,19 @@ class DenseBlock(chainer.Chain):
     def __init__(self, in_ch, growth_rate, n_layer):
         self.n_layer = n_layer
         super(DenseBlock, self).__init__()
-        for i in range(self.n_layer):
-            self.add_link('bn%d' % (i + 1),
-                          L.BatchReNormalization(in_ch + i * growth_rate))
-            self.add_link('conv%d' % (i + 1),
-                          L.Convolution2D(in_ch + i * growth_rate, growth_rate,
-                                          3, 1, 1))
+        with self.init_scope():
+            for i in range(self.n_layer):
+                l_name = 'conv%d' % (i + 1)
+                #self.add_link('bn%d' % (i + 1),
+                #              L.BatchReNormalization(in_ch + i * growth_rate))
+                l_layer = L.Convolution2D(in_ch + i * growth_rate, growth_rate,
+                                              3, 1, 1)
+                setattr(self, l_name, layer)
 
-    def __call__(self, x, dropout_ratio, train):
+    def __call__(self, x):
         for i in range(1, self.n_layer + 1):
-            h = F.relu(self['bn%d' % i](x, test=not train))
-            h = F.dropout(self['conv%d' % i](h), dropout_ratio, train)
+            h = self['conv%d' % i](F.relu(x))
+            # h = F.dropout(self['conv%d' % i](h), dropout_ratio, train)
             x = F.concat((x, h))
         return x
 
