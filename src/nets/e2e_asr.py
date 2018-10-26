@@ -2243,7 +2243,7 @@ class DenseBlock(chainer.Chain):
                 #              L.BatchReNormalization(in_ch + i * growth_rate))
                 l_layer = L.Convolution2D(in_ch + i * growth_rate, growth_rate,
                                               3, 1, 1)
-                setattr(self, l_name, layer)
+                setattr(self, l_name, l_layer)
 
     def __call__(self, x):
         for i in range(1, self.n_layer + 1):
