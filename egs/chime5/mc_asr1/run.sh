@@ -152,15 +152,10 @@ if [ ${stage} -le 0 ]; then
     done
 
     for dset in dev eval; do
-        for aset in None wpe; do
-            if [ "${aset}" == "None" ]; then
-            aset=${dset}
-            else
-            aset="wpe/${dset}"
-            fi
+        for aset in "" "/wpe"; do
             local/prepare_data.sh --mictype ref \
-                ${audio_dir}/${aset} ${json_dir}/${dset} \
-                data/${aset////_}_ref
+                ${audio_dir}${aset}/${dset} ${json_dir}/${dset} \
+                data/${dset}${aset////_}_ref
         done
     done
 fi

@@ -132,14 +132,10 @@ if [ ${stage} -le 0 ]; then
     done
 
     for dset in dev eval; do
-        for aset in None wpe; do
-            aset=${dset}
-            if [ "${dset}" != "None" ]; then
-            aset="wpe/${dset}"
-            fi
+        for aset in "" "/wpe"; do
             local/prepare_data.sh --mictype ref \
-                ${audio_dir}/${aset} ${json_dir}/${dset} \
-                data/${dset////_}_ref
+                ${audio_dir}${aset}/${dset} ${json_dir}/${dset} \
+                data/${dset}${aset////_}_ref
         done
     done
 fi
@@ -337,7 +333,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=16
+    nj=2
 
     for rtask in ${recog_set}; do
     (
