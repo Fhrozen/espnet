@@ -5,8 +5,10 @@
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import argparse
+import codecs
 import json
 import logging
+import sys
 
 
 if __name__ == '__main__':
@@ -17,6 +19,8 @@ if __name__ == '__main__':
                         help='Test the json file for multiple input/output', default=0)
     parser.add_argument('--verbose', '-V', default=0, type=int,
                         help='Verbose option')
+    parser.add_argument('--output-json', default='', type=str,
+                        help='output json file')
     args = parser.parse_args()
     
     # logging info
@@ -121,5 +125,9 @@ if __name__ == '__main__':
         raise ValueError('Wrong preparation index')    
 
     # ensure "ensure_ascii=False", which is a bug
-    jsonstring = json.dumps({'utts': new_dic}, indent=4, ensure_ascii=False, sort_keys=True).encode('utf_8')
-    print(jsonstring)
+    if args.output_json:
+	with codecs.open(args.output_json, "w", encoding='utf-8') as json_file:
+            json.dump({'utts': new_dic}, json_file, indent=4, ensure_ascii=False, sort_keys=True, encoding="utf-8")
+    else:
+        sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+        json.dump({'utts': new_dic}, sys.stdout, indent=4, ensure_ascii=False, sort_keys=True, encoding="utf-8")

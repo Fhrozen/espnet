@@ -13,63 +13,56 @@ import copy
 import json
 import logging
 import numpy as np
+import os
 import six
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-from chainer import Chain
+import chainer
 from chainer.dataset import convert
+import chainer.functions as F
+import chainer.links as L
+
+# for classifier link
+from chainer.functions.loss import softmax_cross_entropy
+from chainer import link
 from chainer import reporter
 from chainer import training
 from chainer.training import extensions
 
-from e2e_asr_th import to_cuda
-from lm_utils import compute_perplexity
-from lm_utils import count_tokens
-from lm_utils import MakeSymlinkToBestModel
-from lm_utils import ParallelSentenceIterator
-from lm_utils import read_tokens
+from espnet.lm.lm_utils import compute_perplexity
+from espnet.lm.lm_utils import count_tokens
+from espnet.lm.lm_utils import MakeSymlinkToBestModel
+from espnet.lm.lm_utils import ParallelSentenceIterator
+from espnet.lm.lm_utils import read_tokens
 
-from asr_utils import torch_load
-from asr_utils import torch_resume
-from asr_utils import torch_save
-from asr_utils import torch_snapshot
+import espnet.nets.deterministic_embed_id as DL
 
 REPORT_INTERVAL = 100
 
 
-# dummy module to use chainer's trainer
-class Reporter(Chain):
-    def report(self, loss):
-        pass
-
-
-class ClassifierWithState(nn.Module):
+class ClassifierWithState(link.Chain):
 
     def __init__(self, predictor,
-                 lossfun=F.cross_entropy,
+                 lossfun=softmax_cross_entropy.softmax_cross_entropy,
                  label_key=-1):
         if not (isinstance(label_key, (int, str))):
             raise TypeError('label_key must be int or str, but is %s' %
                             type(label_key))
+
         super(ClassifierWithState, self).__init__()
         self.lossfun = lossfun
         self.y = None
         self.loss = None
         self.label_key = label_key
-        self.predictor = predictor
-        self.reporter = Reporter()
 
-    def forward(self, state, *args, **kwargs):
-        """Computes the loss value for an input and label pair.az
+        with self.init_scope():
+            self.predictor = predictor
 
-        It also computes accuracy and stores it to the attribute.
+    def __call__(self, state, *args, **kwargs):
+        """Computes the loss value for an input and label pair.
 
         Args:
-            args (list of ~torch.Tensor): Input minibatch.
-            kwargs (dict of ~torch.Tensor): Input minibatch.
+            args (list of ~chainer.Variable): Input minibatch.
+            kwargs (dict of ~chainer.Variable): Input minibatch.
 
         When ``label_key`` is ``int``, the correpoding element in ``args``
         is treated as ground truth labels. And when it is ``str``, the
@@ -80,7 +73,7 @@ class ClassifierWithState(nn.Module):
         with ground truth labels.
 
         Returns:
-            ~torch.Tensor: Loss value.
+            ~chainer.Variable: Loss value.
 
         """
 
@@ -111,14 +104,14 @@ class ClassifierWithState(nn.Module):
 
         Returns:
             any type: new state
-            TorchTensor: log probability vector
+            cupy/numpy array: log probability vector
 
         """
         if hasattr(self.predictor, 'normalized') and self.predictor.normalized:
             return self.predictor(state, x)
         else:
             state, z = self.predictor(state, x)
-            return state, F.log_softmax(z, dim=1)
+            return state, F.log_softmax(z).data
 
     def final(self, state):
         """Predict final log probabilities for given state using the predictor
@@ -134,60 +127,39 @@ class ClassifierWithState(nn.Module):
 
 
 # Definition of a recurrent net for language modeling
-class RNNLM(nn.Module):
+class RNNLM(chainer.Chain):
 
     def __init__(self, n_vocab, n_layers, n_units):
         super(RNNLM, self).__init__()
-        self.embed = nn.Embedding(n_vocab, n_units)
-        self.lstm = nn.ModuleList(
-            [nn.LSTMCell(n_units, n_units) for _ in range(n_layers)])
-        self.dropout = nn.ModuleList(
-            [nn.Dropout() for _ in range(n_layers + 1)])
-        self.lo = nn.Linear(n_units, n_vocab)
+        with self.init_scope():
+            self.embed = DL.EmbedID(n_vocab, n_units)
+            self.lstm = chainer.ChainList(
+                *[L.StatelessLSTM(n_units, n_units) for _ in range(n_layers)])
+            self.lo = L.Linear(n_units, n_vocab)
+
+        for param in self.params():
+            param.data[...] = np.random.uniform(-0.1, 0.1, param.data.shape)
         self.n_layers = n_layers
-        self.n_units = n_units
 
-        # initialize parameters from uniform distribution
-        for param in self.parameters():
-            param.data.uniform_(-0.1, 0.1)
-
-    def zero_state(self, batchsize):
-        return torch.zeros(batchsize, self.n_units).float()
-
-    def forward(self, state, x):
+    def __call__(self, state, x):
         if state is None:
-            c = [to_cuda(self, self.zero_state(x.size(0))) for n in six.moves.range(self.n_layers)]
-            h = [to_cuda(self, self.zero_state(x.size(0))) for n in six.moves.range(self.n_layers)]
-            state = {'c': c, 'h': h}
-
+            state = {'c': [None] * self.n_layers, 'h': [None] * self.n_layers}
         h = [None] * self.n_layers
         c = [None] * self.n_layers
         emb = self.embed(x)
-        h[0], c[0] = self.lstm[0](self.dropout[0](emb), (state['h'][0], state['c'][0]))
+        c[0], h[0] = self.lstm[0](state['c'][0], state['h'][0], F.dropout(emb))
         for n in six.moves.range(1, self.n_layers):
-            h[n], c[n] = self.lstm[n](self.dropout[n](h[n - 1]), (state['h'][n], state['c'][n]))
-        y = self.lo(self.dropout[-1](h[-1]))
+            c[n], h[n] = self.lstm[n](state['c'][n], state['h'][n], F.dropout(h[n - 1]))
+        y = self.lo(F.dropout(h[-1]))
         state = {'c': c, 'h': h}
         return state, y
 
 
-def concat_examples(batch, device=None, padding=None):
-    x, t = convert.concat_examples(batch, padding=padding)
-    x = torch.from_numpy(x)
-    t = torch.from_numpy(t)
-    if device is not None and device >= 0:
-        x = x.cuda(device)
-        t = t.cuda(device)
-    return x, t
+class BPTTUpdater(training.updaters.StandardUpdater):
 
-
-class BPTTUpdater(training.StandardUpdater):
-
-    def __init__(self, train_iter, model, optimizer, device, gradclip=None):
-        super(BPTTUpdater, self).__init__(train_iter, optimizer)
-        self.model = model
-        self.device = device
-        self.gradclip = gradclip
+    def __init__(self, train_iter, optimizer, device):
+        super(BPTTUpdater, self).__init__(
+            train_iter, optimizer, device=device)
 
     # The core part of the update routine can be customized by overriding.
     def update_core(self):
@@ -197,83 +169,88 @@ class BPTTUpdater(training.StandardUpdater):
         optimizer = self.get_optimizer('main')
         # Progress the dataset iterator for sentences at each iteration.
         batch = train_iter.__next__()
-        x, t = concat_examples(batch, device=self.device, padding=(0, -100))
+        x, t = convert.concat_examples(batch, device=self.device, padding=(0, -1))
         # Concatenate the token IDs to matrices and send them to the device
         # self.converter does this job
         # (it is chainer.dataset.concat_examples by default)
+        xp = chainer.backends.cuda.get_array_module(x)
         loss = 0
         count = 0
         state = None
         batch_size, sequence_length = x.shape
         for i in six.moves.range(sequence_length):
             # Compute the loss at this time step and accumulate it
-            state, loss_batch = self.model(state, x[:, i], t[:, i])
-            non_zeros = torch.sum(x[:, i] != 0, dtype=torch.float)
+            state, loss_batch = optimizer.target(state, chainer.Variable(x[:, i]),
+                                                 chainer.Variable(t[:, i]))
+            non_zeros = xp.count_nonzero(x[:, i])
             loss += loss_batch * non_zeros
             count += int(non_zeros)
 
-        reporter.report({'loss': float(loss.detach())}, optimizer.target)
+        reporter.report({'loss': float(loss.data)}, optimizer.target)
         reporter.report({'count': count}, optimizer.target)
         # update
-        loss = loss / batch_size  # normalized by batch size
-        self.model.zero_grad()  # Clear the parameter gradients
+        loss /= batch_size  # normalized by batch size
+        optimizer.target.cleargrads()  # Clear the parameter gradients
         loss.backward()  # Backprop
-        if self.gradclip is not None:
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.gradclip)
-        optimizer.step()  # Update the parameters
+        loss.unchain_backward()  # Truncate the graph
+        optimizer.update()  # Update the parameters
 
 
 class LMEvaluator(extensions.Evaluator):
 
-    def __init__(self, val_iter, eval_model, reporter, device):
+    def __init__(self, val_iter, eval_model, device):
         super(LMEvaluator, self).__init__(
-            val_iter, reporter, device=device)
-        self.model = eval_model
+            val_iter, eval_model, device=device)
 
     def evaluate(self):
         val_iter = self.get_iterator('main')
+        target = self.get_target('main')
         loss = 0
         count = 0
-        self.model.eval()
-        with torch.no_grad():
-            for batch in copy.copy(val_iter):
-                x, t = concat_examples(batch, device=self.device, padding=(0, -100))
-                state = None
-                for i in six.moves.range(len(x[0])):
-                    state, loss_batch = self.model(state, x[:, i], t[:, i])
-                    non_zeros = torch.sum(x[:, i] != 0, dtype=torch.float)
-                    loss += loss_batch * non_zeros
-                    count += int(non_zeros)
-        self.model.train()
+        for batch in copy.copy(val_iter):
+            x, t = convert.concat_examples(batch, device=self.device, padding=(0, -1))
+            xp = chainer.backends.cuda.get_array_module(x)
+            state = None
+            for i in six.moves.range(len(x[0])):
+                state, loss_batch = target(state, x[:, i], t[:, i])
+                non_zeros = xp.count_nonzero(x[:, i])
+                loss += loss_batch.data * non_zeros
+                count += int(non_zeros)
         # report validation loss
         observation = {}
         with reporter.report_scope(observation):
-            reporter.report({'loss': float(loss / count)}, self.model.reporter)
+            reporter.report({'loss': float(loss / count)}, target)
         return observation
 
 
 def train(args):
-    # display torch version
-    logging.info('torch version = ' + torch.__version__)
+    # display chainer version
+    logging.info('chainer version = ' + chainer.__version__)
 
-    # seed setting
+    # seed setting (chainer seed may not need it)
     nseed = args.seed
-    torch.manual_seed(nseed)
-    logging.info('torch seed = ' + str(nseed))
+    os.environ['CHAINER_SEED'] = str(nseed)
+    logging.info('chainer seed = ' + os.environ['CHAINER_SEED'])
 
     # debug mode setting
     # 0 would be fastest, but 1 seems to be reasonable
     # by considering reproducability
+    # revmoe type check
+    if args.debugmode < 2:
+        chainer.config.type_check = False
+        logging.info('chainer type check is disabled')
     # use determinisitic computation or not
     if args.debugmode < 1:
-        torch.backends.cudnn.deterministic = False
-        logging.info('torch cudnn deterministic is disabled')
+        chainer.config.cudnn_deterministic = False
+        logging.info('chainer cudnn deterministic is disabled')
     else:
-        torch.backends.cudnn.deterministic = True
+        chainer.config.cudnn_deterministic = True
 
     # check cuda and cudnn availability
-    if not torch.cuda.is_available():
+    if not chainer.cuda.available:
         logging.warning('cuda is not available')
+    if not chainer.cuda.cudnn_enabled:
+        logging.warning('cudnn is not available')
 
     # get special label ids
     unk = args.char_list_dict['<unk>']
@@ -307,7 +284,8 @@ def train(args):
     if args.ngpu > 0:
         # Make the specified GPU current
         gpu_id = 0
-        model.cuda(gpu_id)
+        chainer.cuda.get_device_from_id(gpu_id).use()
+        model.to_gpu()
     else:
         gpu_id = -1
 
@@ -319,41 +297,38 @@ def train(args):
 
     # Set up an optimizer
     if args.opt == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
+        optimizer = chainer.optimizers.SGD(lr=args.lr)
     elif args.opt == 'adam':
-        optimizer = torch.optim.Adam(model.parameters())
+        optimizer = chainer.optimizers.Adam(args.alpha)
 
-    # FIXME: TOO DIRTY HACK
-    reporter = model.reporter
-    setattr(optimizer, "target", reporter)
-    setattr(optimizer, "serialize", lambda s: reporter.serialize(s))
+    optimizer.setup(model)
+    optimizer.add_hook(chainer.optimizer.GradientClipping(args.gradclip))
 
-    updater = BPTTUpdater(train_iter, model, optimizer, gpu_id, gradclip=args.gradclip)
+    updater = BPTTUpdater(train_iter, optimizer, gpu_id)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.outdir)
-    trainer.extend(LMEvaluator(val_iter, model, reporter, device=gpu_id))
+    trainer.extend(LMEvaluator(val_iter, model, device=gpu_id))
     trainer.extend(extensions.LogReport(postprocess=compute_perplexity,
                                         trigger=(REPORT_INTERVAL, 'iteration')))
     trainer.extend(extensions.PrintReport(
-        ['epoch', 'iteration', 'perplexity', 'val_perplexity', 'elapsed_time']
+        ['epoch', 'iteration', 'perplexity', 'val_perplexity', 'elapsed_time', 'lr']
     ), trigger=(REPORT_INTERVAL, 'iteration'))
     trainer.extend(extensions.ProgressBar(update_interval=REPORT_INTERVAL))
-    # Save best models
-    trainer.extend(torch_snapshot(filename='snapshot.ep.{.updater.epoch}'))
+    trainer.extend(extensions.snapshot(filename='snapshot.ep.{.updater.epoch}'))
     trainer.extend(extensions.snapshot_object(
-        model, 'rnnlm.model.{.updater.epoch}', savefun=torch_save))
-    # T.Hori: MinValueTrigger should be used, but it fails when resuming
+        model, 'rnnlm.model.{.updater.epoch}'))
+    # MEMO(Hori): wants to use MinValueTrigger, but it seems to fail in resuming
     trainer.extend(MakeSymlinkToBestModel('validation/main/loss', 'rnnlm.model'))
 
     if args.resume:
         logging.info('resumed from %s' % args.resume)
-        torch_resume(args.resume, trainer)
+        chainer.serializers.load_npz(args.resume, trainer)
 
     trainer.run()
 
     # compute perplexity for test set
     if args.test_label:
         logging.info('test the best model')
-        torch_load(args.outdir + '/rnnlm.model.best', model)
+        chainer.serializers.load_npz(args.outdir + '/rnnlm.model.best', model)
         test = read_tokens(args.test_label, args.char_list_dict)
         n_test_tokens, n_test_oovs = count_tokens(test, unk)
         logging.info('#sentences in the test data = ' + str(len(test)))
@@ -361,6 +336,7 @@ def train(args):
         logging.info('oov rate in the test data = %.2f %%' % (n_test_oovs / n_test_tokens * 100))
         test_iter = ParallelSentenceIterator(test, args.batchsize,
                                              max_length=args.maxlen, sos=eos, eos=eos, repeat=False)
-        evaluator = LMEvaluator(test_iter, model, reporter, device=gpu_id)
-        result = evaluator()
+        evaluator = LMEvaluator(test_iter, model, device=gpu_id)
+        with chainer.using_config('train', False):
+            result = evaluator()
         logging.info('test perplexity: ' + str(np.exp(float(result['main/loss']))))
