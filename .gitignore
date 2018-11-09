@@ -5,6 +5,10 @@
 *DS_Store
 slurm-*.out
 *.tar.gz
+.eggs/
+.pytest_cache/
+espnet.egg-info/
+
 doc/_build
 docker/in_run*
 
@@ -40,5 +44,4 @@ tools/chainer_ctc*
 tools/warp-ctc*
 tools/sentencepiece*
 tools/moses
-
-.pytest_cache
+tools/*.done
