@@ -125,17 +125,17 @@ def main():
     logging.info('backend = ' + args.backend)
     if args.backend == "chainer":
         if args.meta:
-            from lm_chainer_meta import train
+            from espnet.lm.lm_chainer_meta import train
             train(args)
         else:
-            from lm_chainer import train
+            from espnet.lm.lm_chainer import train
             train(args)
     elif args.backend == "pytorch":
         if args.meta:
-            from lm_pytorch_meta import train
+            from espnet.lm.lm_pytorch_meta import train
             train(args)
         else:
-            from lm_pytorch import train
+            from espnet.lm.lm_pytorch import train
             train(args)
     else:
         raise ValueError("chainer and pytorch are only supported.")
