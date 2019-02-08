@@ -25,7 +25,7 @@ from espnet.nets.ctc_prefix_score import CTCPrefixScore
 from espnet.nets.e2e_asr_common import end_detect
 from espnet.nets.e2e_asr_common import get_vgg2l_odim
 from espnet.nets.e2e_asr_common import label_smoothing_dist
-from net_utils import GridLSTMCell
+# from net_utils import GridLSTMCell
 
 import espnet.nets.deterministic_embed_id as DL
 
@@ -967,7 +967,7 @@ class Encoder(chainer.Chain):
                           'r': 0.0,
                           's': '2222',
                           'a': F.relu,
-                          'p': 0,
+                          'p': 1,
                           'l': 2}
 
                 for j in range(len(_e) - 1):
@@ -1213,7 +1213,7 @@ class LSTMP(chainer.Chain):
         self.subsample = subsample
 
     def __call__(self, xs, ilens):
-        '''BLSTMP forward
+        '''LSTMP forward
 
         :param xs:
         :param ilens:
