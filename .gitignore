@@ -13,6 +13,7 @@ doc/_build
 docker/in_run*
 
 # recipe related
+egs/*/*/beam*
 egs/*/*/data*
 egs/*/*/db
 egs/*/*/downloads

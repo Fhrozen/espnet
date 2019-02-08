@@ -62,17 +62,6 @@ def make_batchset(data, batch_size, max_length_in, max_length_out,
         # change batchsize depending on the input and output length
         # if ilen = 1000 and max_length_in = 800
         # then b = batchsize / 2
-<<<<<<< HEAD
-        # and max(1, .) avoids batchsize = 0
-        b = max(1, int(batch_size / (1 + factor)))
-        end = min(len(sorted_data), start + b)
-        while True:
-            if len(sorted_data[start][1]['input']) == len(sorted_data[end - 1][1]['input']):
-                break
-            else:
-                end = end - 1
-        minibatch.append(sorted_data[start:end])
-=======
         # and max(min_batches, .) avoids batchsize = 0
         bs = max(min_batch_size, int(batch_size / (1 + factor)))
         end = min(len(sorted_data), start + bs)
@@ -85,7 +74,6 @@ def make_batchset(data, batch_size, max_length_in, max_length_out,
             minibatch.extend(additional_minibatch)
         minibatches.append(minibatch)
 
->>>>>>> upstream/master
         if end == len(sorted_data):
             break
         start = end
