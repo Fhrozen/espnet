@@ -43,6 +43,16 @@ def make_batchset(data, batch_size, max_length_in, max_length_out,
     :param int min_batch_size: mininum batch size (for multi-gpu)
     :return: list of batches
     """
+    # remove 0 length utts
+    labels = [x for x in data]
+    cnt = 0
+    for lbl in labels:
+        ys = data[lbl]['output'][0]['tokenid'].split()
+        if len(ys) == 0:
+            del data[lbl]
+            cnt += 1
+    if cnt > 0:
+        logging.info(str(cnt) + ' utts with 0 length removed')
     # sort it by input lengths (long to short)
     sorted_data = sorted(data.items(), key=lambda data: (len(
         data[1]['input']), int(data[1]['input'][0]['shape'][0])), reverse=True)
@@ -82,7 +92,6 @@ def make_batchset(data, batch_size, max_length_in, max_length_out,
     if num_batches > 0:
         minibatches = minibatches[:num_batches]
     logging.info('# minibatches: ' + str(len(minibatches)))
-
     return minibatches
 
 
@@ -124,17 +133,6 @@ def load_multich_bank(batch):
         xs.append(feat)
         ys.append(data[1]['output'][0]['tokenid'].split())
         del(feat)
-    # get index of non-zero length samples
-    nonzero_idx = filter(lambda i: len(ys[i]) > 0, range(len(xs)))
-    # sort in input lengths
-    nonzero_sorted_idx = sorted(nonzero_idx, key=lambda i: -len(xs[i]))
-    if len(nonzero_sorted_idx) != len(xs):
-        logging.warning('Target sequences include empty tokenid (batch %d -> %d).' % (
-            len(xs), len(nonzero_sorted_idx)))
-
-    # remove zero-length samples
-    xs = [xs[i] for i in nonzero_sorted_idx]
-    ys = [np.fromiter(map(int, ys[i]), dtype=np.int64) for i in nonzero_sorted_idx]
     return xs, ys
 
 
