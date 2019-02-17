@@ -1183,6 +1183,7 @@ class BLSTMP(chainer.Chain):
         :return:
         '''
         logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        ilens = [xx.shape[0] for xx in xs]
         for layer in six.moves.range(self.elayers):
             hy, cy, ys = self['bilstm' + str(layer)](None, None, xs)
             # ys: utt list of frame x cdim x 2 (2: means bidirectional)
