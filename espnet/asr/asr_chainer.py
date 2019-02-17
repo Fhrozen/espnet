@@ -33,6 +33,7 @@ from espnet.asr.asr_utils import chainer_load
 from espnet.asr.asr_utils import CompareValueTrigger
 from espnet.asr.asr_utils import get_model_conf
 from espnet.asr.asr_utils import load_inputs_and_targets
+from espnet.asr.asr_utils import load_multich_bank
 from espnet.asr.asr_utils import make_batchset
 from espnet.asr.asr_utils import PlotAttentionReport
 from espnet.asr.asr_utils import restore_snapshot
@@ -323,7 +324,7 @@ def train(args):
     # set up training iterator and updater
     converter = CustomConverter(e2e.subsample[0])
     if args.converter == 'mcbank':
-        converter.transformer = LoadMultichFbank
+        converter.transformer = load_multich_bank
     elif args.converter == 'mcspec':
         converter.transformer = load_multich_spectro
     else:

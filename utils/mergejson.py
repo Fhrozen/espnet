@@ -48,11 +48,7 @@ if __name__ == '__main__':
         
     old_dic = dict()
     for k in intersec_ks:
-        try:
-            v = js[0]['utts'][k]
-        except Exception as e:
-            continue
-        
+        v = js[0]['utts'][k]
         for j in js[1:]:
             v.update(j['utts'][k])
         old_dic[k] = v
@@ -130,7 +126,7 @@ if __name__ == '__main__':
 
     # ensure "ensure_ascii=False", which is a bug
     if args.output_json:
-	with codecs.open(args.output_json, "w", encoding='utf-8') as json_file:
+        with codecs.open(args.output_json, "w", encoding='utf-8') as json_file:
             json.dump({'utts': new_dic}, json_file, indent=4, ensure_ascii=False, sort_keys=True, encoding="utf-8")
     else:
         sys.stdout = codecs.getwriter('utf8')(sys.stdout)

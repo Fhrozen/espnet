@@ -207,10 +207,15 @@ if [ ${stage} -le 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --multi 1 --feat ${dumpdir}/mdm8_train/delta${do_delta}/feats.scp \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${dumpdir}/ihm_train/delta${do_delta}/feats.scp \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+    for rtask in mdm8 ihm; do
+        multi=1
+        if [ "${rtask}" == "ihm" ]; then
+            multi=0
+        fi
+        feat_tr=${dumpdir}/${rtask}_train/delta${do_delta}
+        data2json.sh --multi ${multi} --feat ${feat_tr}//feats.scp \
+            data/${rtask}_train ${dict} > ${feat_tr}/data.json
+    done
 
     mkdir -p ${dumpdir}/mdm8_ihm_train/delta${do_delta}
     joinjson.py ${dumpdir}/ihm_train/delta${do_delta}/data.json \
@@ -218,8 +223,12 @@ if [ ${stage} -le 2 ]; then
     data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     for rtask in ${recog_set}; do
+        multi=1
+        if [ "${rtask}" == "ihm_eval" ]; then
+            multi=0
+        fi
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-        data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
+        data2json.sh --multi ${multi} --feat ${feat_recog_dir}/feats.scp \
             data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
     exit 0

@@ -124,6 +124,17 @@ def load_multich_bank(batch):
         xs.append(feat)
         ys.append(data[1]['output'][0]['tokenid'].split())
         del(feat)
+    # get index of non-zero length samples
+    nonzero_idx = filter(lambda i: len(ys[i]) > 0, range(len(xs)))
+    # sort in input lengths
+    nonzero_sorted_idx = sorted(nonzero_idx, key=lambda i: -len(xs[i]))
+    if len(nonzero_sorted_idx) != len(xs):
+        logging.warning('Target sequences include empty tokenid (batch %d -> %d).' % (
+            len(xs), len(nonzero_sorted_idx)))
+
+    # remove zero-length samples
+    xs = [xs[i] for i in nonzero_sorted_idx]
+    ys = [np.fromiter(map(int, ys[i]), dtype=np.int64) for i in nonzero_sorted_idx]
     return xs, ys
 
 
