@@ -173,8 +173,8 @@ class CustomConverter(object):
         xs, ys = batch[0]
 
         # perform subsamping
-        if self.subsamping_factor > 1:
-            xs = [x[::self.subsampling_factor, :] for x in xs]
+        #if self.subsamping_factor > 1:
+        #    xs = [x[::self.subsampling_factor, :] for x in xs]
 
         # get batch of lengths of input sequences
         ilens = [x.shape[0] for x in xs]
@@ -323,7 +323,7 @@ def train(args):
     # set up training iterator and updater
     converter = CustomConverter(e2e.subsample[0])
     if args.converter == 'mcbank':
-        converter.transformer = load_multich_bank
+        converter.transformer = LoadMultichFbank
     elif args.converter == 'mcspec':
         converter.transformer = load_multich_spectro
     else:

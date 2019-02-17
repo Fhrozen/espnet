@@ -101,7 +101,7 @@ audio_dir=${chime5_corpus}/audio
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_ref wpe_dev_ref" # eval_ref eval_wpe_ref"  
+recog_set="dev_worn dev_ref dev_wpe_ref eval_ref eval_wpe_ref" # eval_ref eval_wpe_ref"  
 noises="None white"
 
 if [ ${stage} -le -1 ]; then
@@ -183,7 +183,8 @@ if [ ${stage} -le 1 ]; then
             folders="${y}_${x} ${folders}"
         done
     done
-    for x in ${folders} ${recog_set} wpe_train_uall; do
+    recog_set="dev_wpe_ref eval_ref eval_wpe_ref"
+    for x in ${recog_set} wpe_train_uall; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 20 data/${x} exp/make_fbank/${x} ${fbankdir}
         utils/fix_data_dir.sh data/${x}
     done

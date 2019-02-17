@@ -26,7 +26,7 @@ etype=blstmp     # encoder architecture type
 elayers=8
 eunits=320
 eprojs=320
-subsample=1_2_2_1_1 # skip every n frame from input to nth layers
+subsample=0 # skip every n frame from input to nth layers
 # decoder related
 dlayers=1
 dunits=300
@@ -79,20 +79,10 @@ recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.bes
 # scheduled sampling option
 samp_prob=0.0
 
-# You may set 'mic' to:
-#  ihm [individual headset mic- the default which gives best results]
-#  sdm1 [single distant microphone- the current script allows you only to select
-#        the 1st of 8 microphones]
-#  mdm8 [multiple distant microphones-- currently we only support averaging over
-#       the 8 source microphones].
-# ... by calling this script as, for example,
-# ./run.sh --mic sdm1
-# ./run.sh --mic mdm8
-mic=mdm8
 
 # exp tag
 tag="" # tag for managing experiments.
-
+train_set=mdm8_train  # mdm8_ihm_train for 8 + 1 CH
 . utils/parse_options.sh || exit 1;
 
 . ./path.sh
@@ -104,19 +94,15 @@ set -e
 set -u
 set -o pipefail
 
-base_mic=$(echo $mic | sed 's/[0-9]//g') # sdm, ihm or mdm
-nmics=$(echo $mic | sed 's/[a-z]//g') # e.g. 8 for mdm8.
-
 # Path where AMI gets downloaded (or where locally available):
 AMI_DIR=$PWD/wav_db # Default,
 case $(hostname -d) in
     clsp.jhu.edu) AMI_DIR=/export/corpora4/ami/amicorpus ;; # JHU,
 esac
 
-train_set=${mic}_train
-train_dev=${mic}_dev
-train_test=${mic}_eval
-recog_set="${mic}_dev ${mic}_eval"
+train_dev=mdm8_dev
+train_test=mdm8_eval
+recog_set="mdm8_dev mdm8_eval ihm_eval"
 
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Data Download"
@@ -125,6 +111,12 @@ if [ ${stage} -le -1 ]; then
 	echo " ... Assuming the data does not need to be downloaded.  Please use --stage 0 or more."
 	exit 1
     fi
+    mic=mdm8
+    if [ -e data/local/downloads/wget_$mic.sh ]; then
+	echo "data/local/downloads/wget_$mic.sh already exists, better quit than re-download... (use --stage N)"
+    exit 1
+    fi
+    mic=ihm
     if [ -e data/local/downloads/wget_$mic.sh ]; then
 	echo "data/local/downloads/wget_$mic.sh already exists, better quit than re-download... (use --stage N)"
 	exit 1
@@ -138,26 +130,24 @@ if [ ${stage} -le 0 ]; then
     echo "stage 0: Data preparation"
 
     # common data prep
-    if [ ! -d data/local/downloads ]; then
+    if [ ! -d data/local/downloads/annotations ]; then
 	local/ami_text_prep.sh data/local/downloads
     fi
-
-    # beamforming
-    if [ "$base_mic" == "mdm" ]; then
-	PROCESSED_AMI_DIR=${PWD}/beamformed
-	if [ -z $BEAMFORMIT ] ; then
-	    export BEAMFORMIT=$KALDI_ROOT/tools/BeamformIt
-	fi
-	export PATH=${PATH}:$BEAMFORMIT
-	! hash BeamformIt && echo "Missing BeamformIt, run 'cd ../../../tools/kaldi/tools; extras/install_beamformit.sh; cd -;'" && exit 1
-	local/ami_beamform.sh --cmd "$train_cmd" --nj 20 $nmics $AMI_DIR $PROCESSED_AMI_DIR
-    else
+    mic=mdm8
+    base_mic=$(echo $mic | sed 's/[0-9]//g') # sdm, ihm or mdm
 	PROCESSED_AMI_DIR=$AMI_DIR
-    fi
-    local/ami_${base_mic}_data_prep.sh $PROCESSED_AMI_DIR $mic
-    local/ami_${base_mic}_scoring_data_prep.sh $PROCESSED_AMI_DIR $mic dev
-    local/ami_${base_mic}_scoring_data_prep.sh $PROCESSED_AMI_DIR $mic eval
+    local/ami_${base_mic}_mc_data_prep.sh $PROCESSED_AMI_DIR $mic
+    local/ami_${base_mic}_mc_scoring_data_prep.sh $PROCESSED_AMI_DIR $mic dev
+    local/ami_${base_mic}_mc_scoring_data_prep.sh $PROCESSED_AMI_DIR $mic eval
     for dset in train dev eval; do
+	# changed the original AMI data structure in the Kaldi recipe to the following
+	utils/data/modify_speaker_info.sh --seconds-per-spk-max 30 data/${mic}/${dset}_orig data/${mic}_${dset}
+    done
+    mic=ihm
+    base_mic=$(echo $mic | sed 's/[0-9]//g') # sdm, ihm or mdm
+    local/ami_${base_mic}_data_prep.sh $PROCESSED_AMI_DIR $mic
+    local/ami_${base_mic}_scoring_data_prep.sh $PROCESSED_AMI_DIR $mic eval
+    for dset in train eval; do
 	# changed the original AMI data structure in the Kaldi recipe to the following
 	utils/data/modify_speaker_info.sh --seconds-per-spk-max 30 data/${mic}/${dset}_orig data/${mic}_${dset}
     done
@@ -171,23 +161,34 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
+    mic=mdm8
     for x in ${mic}_train ${mic}_dev ${mic}_eval; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 32 --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
     done
+    mic=ihm
+    for x in ${mic}_train ${mic}_eval; do
+        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 32 --write_utt2num_frames true \
+            data/${x} exp/make_fbank/${x} ${fbankdir}
+    done
 
+    utils/combine_data.sh data/mdm8_ihm_train data/mdm8_train data/ihm_train
     # compute global CMVN
-    compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
+    compute-cmvn-stats scp:data/mdm8_ihm_train/feats.scp data/mdm8_ihm_train/cmvn.ark
 
     # dump features for training
-    dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
-        data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
+    for rtask in mdm8 ihm; do
+        feat_tr=${dumpdir}/${rtask}_train/delta${do_delta}; mkdir -p ${feat_tr}
+        dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
+            data/${rtask}_train/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
+    done
+    
     dump.sh --cmd "$train_cmd" --nj 10 --do_delta $do_delta \
-        data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
+        data/${train_dev}/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         dump.sh --cmd "$train_cmd" --nj 10 --do_delta $do_delta \
-            data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/recog/${rtask} \
+            data/${rtask}/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/recog/${rtask} \
             ${feat_recog_dir}
     done
 fi
@@ -206,15 +207,22 @@ if [ ${stage} -le 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --feat ${feat_tr_dir}/feats.scp \
+    data2json.sh --multi 1 --feat ${dumpdir}/mdm8_train/delta${do_delta}/feats.scp \
          data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${feat_dt_dir}/feats.scp \
+    data2json.sh --feat ${dumpdir}/ihm_train/delta${do_delta}/feats.scp \
+         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+
+    mkdir -p ${dumpdir}/mdm8_ihm_train/delta${do_delta}
+    joinjson.py ${dumpdir}/ihm_train/delta${do_delta}/data.json \
+                ${dumpdir}/mdm8_train/delta${do_delta}/data.json > ${dumpdir}/mdm8_ihm_train/delta${do_delta}/data.json 
+    data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-        data2json.sh --feat ${feat_recog_dir}/feats.scp \
+        data2json.sh --multi 1 --feat ${feat_recog_dir}/feats.scp \
             data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
+    exit 0
 fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
@@ -234,7 +242,7 @@ if [[ ${stage} -le 3 && $use_lm == true ]]; then
 	lmdatadir=data/local/wordlm_train
 	lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
 	mkdir -p ${lmdatadir}
-        cat data/${train_set}/text | cut -f 2- -d" " > ${lmdatadir}/train.txt
+        cat data/ihm_train/text | cut -f 2- -d" " > ${lmdatadir}/train.txt
         cat data/${train_dev}/text | cut -f 2- -d" " > ${lmdatadir}/valid.txt
         cat data/${train_test}/text | cut -f 2- -d" " > ${lmdatadir}/test.txt
         text2vocabulary.py -s ${lm_vocabsize} -o ${lmdict} ${lmdatadir}/train.txt
@@ -242,7 +250,7 @@ if [[ ${stage} -le 3 && $use_lm == true ]]; then
 	lmdatadir=data/local/lm_train
 	lmdict=$dict
 	mkdir -p ${lmdatadir}
-        text2token.py -s 1 -n 1 data/${train_set}/text | cut -f 2- -d" " \
+        text2token.py -s 1 -n 1 data/ihm_train/text | cut -f 2- -d" " \
             > ${lmdatadir}/train.txt
         text2token.py -s 1 -n 1 data/${train_dev}/text | cut -f 2- -d" " \
             > ${lmdatadir}/valid.txt

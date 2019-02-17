@@ -48,7 +48,11 @@ if __name__ == '__main__':
         
     old_dic = dict()
     for k in intersec_ks:
-        v = js[0]['utts'][k]
+        try:
+            v = js[0]['utts'][k]
+        except Exception as e:
+            continue
+        
         for j in js[1:]:
             v.update(j['utts'][k])
         old_dic[k] = v

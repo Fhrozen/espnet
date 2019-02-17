@@ -105,7 +105,7 @@ train_dev=dev_${enhancement}_ref
 enhancement1=addition
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_${enhancement}_ref dev_${enhancement1}_ref" #dev_wpe_${enhancement1}_ref 
+recog_set="dev_worn dev_${enhancement}_ref dev_${enhancement1}_ref eval_${enhancement}_ref eval_${enhancement1}_ref" #dev_wpe_${enhancement1}_ref 
 
 if [ ${stage} -le -1 ]; then
     for dset in train dev eval; do # dev_wpe
@@ -142,10 +142,10 @@ if [ ${stage} -le 0 ]; then
 	done
     done
     enhandir=enhan
-    #eval#for dset in dev eval; do
-    for dset in train dev; do
+
+    for dset in train dev eval; do
         mics="u01 u02 u04 u05 u06"
-        if [ "${dset}" == "dev" ]; then
+        if [ ! "${dset}" == "train" ]; then
             mics="${mics} u03"
         fi
         for mictype in ${mics}; do
@@ -161,35 +161,44 @@ if [ ${stage} -le 0 ]; then
 			      "$PWD/${enhandir}/train_${enhancement}_${mictype}" \
                   ${json_dir}/train data/train_${enhancement}_${mictype}
     done
-    #eval#for dset in dev eval; do
-    for dset in dev; do
+
+    for dset in dev eval; do
 	local/prepare_data.sh --mictype ref "$PWD/${enhandir}/${dset}_${enhancement}_u0*" \
 			      ${json_dir}/${dset} data/${dset}_${enhancement}_ref
     done
 
-    for dset in dev dev_wpe; do # 
+    for dset in dev dev_wpe eval eval_wpe; do # 
         aset=${dset}
         if [ "${dset}" == "dev_wpe" ]; then
             aset="wpe/dev"
+        fi
+        if [ "${dset}" == "eval_wpe" ]; then
+            aset="wpe/eval"
         fi
     	for mictype in u01 u02 u03 u04 u05 u06; do
     	    local/run_addition.sh --cmd "$train_cmd" \
     				    ${audio_dir}/${aset} \
     				    ${enhandir}/${dset}_${enhancement1}_${mictype} \
-    				    ${mictype} &
+    				    ${mictype}
     	done
     done
     wait
-    #eval#for dset in dev eval; do
-    for dset in dev; do # dev_wpe
+ 
+    for dset in dev eval dev_wpe eval_wpe; do # dev_wpe
+        aset=${dset}
+        if [ "${dset}" == "dev_wpe" ]; then
+            aset="dev"
+        fi
+        if [ "${dset}" == "eval_wpe" ]; then
+            aset="eval"
+        fi
     	local/prepare_data.sh --mictype ref "$PWD/${enhandir}/${dset}_${enhancement1}_u0*" \
-    			      ${json_dir}/dev data/${dset}_${enhancement1}_ref
+    			      ${json_dir}/${aset} data/${dset}_${enhancement1}_ref
     done
 
     # only use left channel for worn mic recognition
     # you can use both left and right channels for training
-    #eval#for dset in train dev eval; do
-    for dset in dev; do
+    for dset in train dev; do
 	utils/copy_data_dir.sh data/${dset}_worn data/${dset}_worn_stereo
 	grep "\.L-" data/${dset}_worn_stereo/text > data/${dset}_worn/text
 	utils/fix_data_dir.sh data/${dset}_worn
@@ -283,7 +292,7 @@ if [ ${stage} -le 2 ]; then
             --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
-
+exit 0
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
 if [ ${lm_meta} -gt 0 ]; then 

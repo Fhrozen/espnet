@@ -989,6 +989,10 @@ class Encoder(chainer.Chain):
                     _encoder = BLSTMP(idim, elayers, eunits,
                                       eprojs, subsample, dropout)
                     logging.info('BLSTM with every-layer projection added for encoder')
+                elif e_type == 'blstmp2':
+                    _encoder = BLSTMP2(idim, elayers, eunits,
+                                      eprojs, subsample, dropout)
+                    logging.info('BLSTM2 with every-layer projection added for encoder')
                 elif e_type == 'lstmp':
                     _encoder = LSTMP(idim, elayers, eunits,
                                       eprojs, subsample, dropout)
@@ -1014,6 +1018,11 @@ class Encoder(chainer.Chain):
                                      nopad=nopad, reshape=e_spec['p'])
                     idim = get_vgg2l_odim(idim, subsample=e_spec['s'])
                     logging.info('CNN-VGG with specs {} added for encoder'.format(_e[1:]))
+                elif e_type == 'vgg2':
+                    _encoder = VGG2(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
+                                     nopad=nopad, reshape=e_spec['p'])
+                    idim = get_vgg2l_odim(idim, subsample=e_spec['s'])
+                    logging.info('CNN with specs {} added for encoder'.format(_e[1:]))
                 elif e_type == 'res':
                     _encoder = RESNET(in_channel, mode=e_spec['m'], subsample=e_spec['s'],
                                       dropout=e_spec['d'], dratio=e_spec['r'], act=e_spec['a'],
@@ -1178,12 +1187,57 @@ class BLSTMP(chainer.Chain):
             hy, cy, ys = self['bilstm' + str(layer)](None, None, xs)
             # ys: utt list of frame x cdim x 2 (2: means bidirectional)
             # TODO(watanabe) replace subsample and FC layer with CNN
-            ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
+            # ys, ilens = _subsamplex(ys, self.subsample[layer + 1])
             # (sum _utt frame_utt) x dim
             ys = self['bt' + str(layer)](F.vstack(ys))
             xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
             del hy, cy
 
+        # final tanh operation
+        xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
+
+        # 1 utterance case, it becomes an array, so need to make a utt tuple
+        if not isinstance(xs, tuple):
+            xs = [xs]
+
+        return xs, ilens  # x: utt list of frame x dim
+
+
+class BLSTMP2(chainer.Chain):
+    def __init__(self, idim, elayers, cdim, hdim, subsample, dropout):
+        super(BLSTMP2, self).__init__()
+        with self.init_scope():
+            for i in six.moves.range(elayers):
+                if i == 0:
+                    inputdim = idim
+                else:
+                    inputdim = hdim
+                setattr(self, "bilstm%d" % i, L.NStepBiLSTM(
+                    1, inputdim, cdim, 0.0))
+                # bottleneck layer to merge
+                setattr(self, "bt_0_%d" % i, L.Linear(2 * cdim, 4 * hdim))
+                setattr(self, "bt_1_%d" % i, L.Linear(4 * hdim, hdim))
+        self.elayers = elayers
+        self.cdim = cdim
+        self.subsample = subsample
+
+    def __call__(self, xs, ilens):
+        '''BLSTMP forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        ilens = [xx.shape[0] for xx in xs]
+        for layer in six.moves.range(self.elayers):
+            hy, cy, ys = self['bilstm' + str(layer)](None, None, xs)
+            # ys: utt list of frame x cdim x 2 (2: means bidirectional)
+            # (sum _utt frame_utt) x dim
+            ys = F.relu(self['bt_0_' + str(layer)](F.vstack(ys)))
+            ys = F.dropout(self['bt_1_' + str(layer)](ys), 0.1)
+            xs = F.split_axis(ys, np.cumsum(ilens[:-1]), axis=0)
+            del hy, cy
         # final tanh operation
         xs = F.split_axis(F.tanh(F.vstack(xs)), np.cumsum(ilens[:-1]), axis=0)
 
@@ -1207,7 +1261,6 @@ class LSTMP(chainer.Chain):
                     1, inputdim, cdim, dropout))
                 # bottleneck layer to merge
                 setattr(self, "bt%d" % i, L.Linear(cdim, hdim))
-
         self.elayers = elayers
         self.cdim = cdim
         self.subsample = subsample
@@ -1480,6 +1533,65 @@ class VGG2L(chainer.Chain):
         return xs, ilens
 
 
+class VGG2(chainer.Chain):
+    def __init__(self, in_channel=1, mode='single', subsample='2222', nopad=False, reshape=0):
+        super(VGG2, self).__init__()
+        if isinstance(in_channel, int):
+            in_channel = [in_channel]
+        if mode == 'single':
+            combs = [(0, y) for y in range(2)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(2)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, 2)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 64, 3, stride=2)
+                elif j == 1:
+                    layer = L.Convolution2D(64, 64, 3, stride=2)
+                setattr(self, l_name, layer)
+        self.in_channel = in_channel
+        self.mode = mode
+        self.nopad = nopad
+        self.reshape = reshape
+
+    def __call__(self, xs, ilens):
+        '''VGG2L forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+        # x: utt x frame x input channel x dim
+        if not self.nopad:
+            xs = F.pad_sequence(xs, padding=-1)
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2).data
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        xs = F.relu(self['conv{}_0'.format(idx)](xs))
+        if self.mode == 'entry':
+            idx = 0
+        xs = F.relu(self['conv{}_1'.format(idx)](xs))
+
+        # change ilens accordingly
+        ilens = self.xp.array(ilens) // 4
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)
+        if self.reshape:
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.reshape(
+                xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+            xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+        return xs, ilens
+
+
 class ConvWithBReNorm(chainer.Chain):
     def __init__(self, in_channels, out_channels,
                  kernel=1, stride=1, pad=0, nobias=True, groups=1):
@@ -1514,6 +1626,42 @@ class BottleneckA(chainer.Chain):
         res_x = self.conv2(res_x)
         x = self.shortcut(x)
         return self.act(x + res_x)
+
+
+class BottleneckA2(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None, bn=None, act=F.relu, groups=1):
+        super(BottleneckA2, self).__init__()
+        Conv = L.Convolution2D
+        with self.init_scope():
+            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True, groups=groups)
+            self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True, groups=groups)
+            self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True, groups=groups)
+            self.bn = L.BatchRenormalization(in_channels)
+        self.act = act
+
+    def __call__(self, x):
+        x = self.bn(x)
+        res_x = self.act(self.conv1(x))
+        res_x = self.conv2(res_x)
+        x = self.shortcut(x)
+        return self.act(x + res_x)
+
+
+class BottleneckB2(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, initialW=None):
+        super(BottleneckB, self).__init__()
+        with self.init_scope():
+            self.conv1 = L.Convolution2D(
+                in_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.conv2 = L.Convolution2D(
+                mid_channels, mid_channels, 3, stride=1, pad=1, nobias=True)
+            self.bn = L.BatchRenormalization(in_channels)
+
+    def __call__(self, x):
+        res_x = F.relu(self.conv1(self.bn(x)))
+        res_x = self.conv2(res_x)
+        return F.relu(x + res_x)
 
 
 class LMBottleneckA(chainer.Chain):
@@ -1747,6 +1895,106 @@ class RESNET(chainer.Chain):
         # change ilens accordingly
         ilens = self.xp.array(self.xp.ceil(self.xp.array(
             ilens, dtype=np.float32) / 3), dtype=np.int32)
+        return xs, ilens
+
+
+class RESNET2(chainer.Chain):
+    def __init__(self, in_channel=1, mode=None, act=F.relu, bn=None,
+                 outs=128, dropout=None, dratio=0.0, nopad=False, subsample='2222', reshape=0):
+        super(RESNET2, self).__init__()
+        if type(in_channel) is int:
+            in_channel = [in_channel]
+        n_layers = 5
+        if mode == 'single':
+            combs = [(0, y) for y in range(n_layers)]
+        elif mode == 'parallel':
+            combs = [(x, y) for x in range(len(in_channel)) for y in range(n_layers)]
+        elif mode == 'entry':
+            combs = [(x, 0) for x in range(len(in_channel))] + [(0, y) for y in range(1, n_layers)]
+        else:
+            raise ValueError('Incorrect mode.')
+        with self.init_scope():
+            # CNN layer (RESNET motivated)
+            for i, j in combs:
+                l_name = 'conv{}_{}'.format(i, j)
+                if j == 0:
+                    layer = L.Convolution2D(in_channel[i], 64, 1, stride=1, nobias=True)
+                elif j == 1:
+                    layer = BottleneckA(64, 64, 64, act=act, bn=bn)
+                else:
+                    layer = BottleneckA(64, 64, outs, act=act, bn=bn)
+                setattr(self, l_name, layer)
+
+        for x in range(len(in_channel)):
+            doutname = 'drop_{}'.format(x)
+            douttype = None
+            if in_channel[x] == 2:
+                if dropout == 'inc':
+                    logging.info('Adding Incremental dropout to the training')
+                    douttype = dropout_incremental
+                elif dropout == 'fix':
+                    logging.info('Adding fixed dropout to the training')
+                    douttype = dropout_fixed
+                elif dropout == 'rand':
+                    logging.info('Adding random dropout to the training')
+                    douttype = dropout_random
+            setattr(self, doutname, douttype)
+
+        self.dropout = dropout
+        self.in_channel = in_channel
+        self.mode = mode
+        self.iter = 0
+        self.dratio = dratio
+        self.nopad = nopad
+        self.reshape = reshape
+
+    def __call__(self, xs, ilens):
+        '''RESNET forward
+
+        :param xs:
+        :param ilens:
+        :return:
+        '''
+        self.iter += 1
+        logging.info(self.__class__.__name__ + ' input lengths: ' + str(ilens))
+
+        if not self.nopad:
+            # x: utt x frame x input channel x dim
+            xs = F.pad_sequence(xs, padding=-1)
+
+            # x: utt x input channel x frame x dim
+            xs = F.swapaxes(xs, 1, 2)
+
+        chn = xs.shape[1]
+        idx = self.in_channel.index(chn)
+
+        xs = self['conv{}_0'.format(idx)](xs)
+        if self.mode == 'entry':
+            idx = 0
+
+        xs = self['conv{}_1'.format(idx)](xs)
+        #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        xs = self['conv{}_2'.format(idx)](xs)
+        #xs = F.max_pooling_2d(xs, 2, stride=2)
+
+        # Apply dropout only to the binaural input
+        if not self['drop_{}'.format(idx)] is None:
+            xs = self['drop_{}'.format(idx)](xs, self.dratio, self.iter)
+
+        # change ilens accordingly
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+        ilens = self.xp.array(self.xp.ceil(self.xp.array(
+            ilens, dtype=np.float32) / 2), dtype=np.int32)
+
+        # x: utt_list of frame (remove zeropaded frames) x (input channel num x dim)+
+        if self.reshape:
+            xs = F.swapaxes(xs, 1, 2)
+            xs = F.reshape(
+                xs, (xs.shape[0], xs.shape[1], xs.shape[2] * xs.shape[3]))
+            xs = [xs[i, :ilens[i], :] for i in range(len(ilens))]
+
         return xs, ilens
 
 
