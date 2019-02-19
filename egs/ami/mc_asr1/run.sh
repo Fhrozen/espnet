@@ -7,7 +7,7 @@
 . ./cmd.sh
 
 # general configuration
-backend=pytorch
+backend=chainer
 stage=-1       # start from -1 if you need to start from data download
 ngpu=0         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
@@ -22,8 +22,9 @@ do_delta=false
 
 # network archtecture
 # encoder related
-etype=blstmp     # encoder architecture type
-elayers=8
+einputs=8
+etype=vgg_blstmp     # encoder architecture type
+elayers=6
 eunits=320
 eprojs=320
 subsample=0 # skip every n frame from input to nth layers
@@ -309,6 +310,7 @@ if [ ${stage} -le 4 ]; then
         asr_train.py \
         --ngpu ${ngpu} \
         --backend ${backend} \
+        --converter mcbank \
         --outdir ${expdir}/results \
         --debugmode ${debugmode} \
         --dict ${dict} \
@@ -321,6 +323,7 @@ if [ ${stage} -le 4 ]; then
         --valid-json ${feat_dt_dir}/data.json \
         --etype ${etype} \
         --elayers ${elayers} \
+        --einputs ${einputs} \
         --eunits ${eunits} \
         --eprojs ${eprojs} \
         --subsample ${subsample} \
@@ -341,6 +344,7 @@ if [ ${stage} -le 4 ]; then
         --sampling-probability ${samp_prob} \
         --opt ${opt} \
         --epochs ${epochs}
+    exit 0
 fi
 
 if [ ${stage} -le 5 ]; then
