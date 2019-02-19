@@ -79,12 +79,13 @@ def make_batchset(data, batch_size, max_length_in, max_length_out,
 
         # check each batch is more than minimum batchsize
         if len(minibatch) < min_batch_size:
-            mod = min_batch_size - len(minibatch) % min_batch_size
-            additional_minibatch = [sorted_data[i] for i in np.random.randint(0, start, mod)]
-            minibatch.extend(additional_minibatch)
-        minibatches.append(minibatch)
+            end += 1
+            minibatch = sorted_data[start:end]
 
-        if end == len(sorted_data):
+        if len(minibatch) > 0:
+            minibatches.append(minibatch)
+
+        if end >= len(sorted_data):
             break
         start = end
 
