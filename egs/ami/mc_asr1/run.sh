@@ -96,7 +96,7 @@ set -u
 set -o pipefail
 
 # Path where AMI gets downloaded (or where locally available):
-AMI_DIR=$PWD/wav_db # Default,
+AMI_DIR=$PWD/../asr1/wav_db # Default,
 case $(hostname -d) in
     clsp.jhu.edu) AMI_DIR=/export/corpora4/ami/amicorpus ;; # JHU,
 esac
@@ -107,22 +107,15 @@ recog_set="mdm8_dev mdm8_eval ihm_eval"
 
 if [ ${stage} -le -1 ]; then
     echo "stage -1: Data Download"
-    if [ -d $AMI_DIR ] && ! touch $AMI_DIR/.foo 2>/dev/null; then
-	echo "$0: directory $AMI_DIR seems to exist and not be owned by you."
-	echo " ... Assuming the data does not need to be downloaded.  Please use --stage 0 or more."
-	exit 1
+    if [ ! -e wav_db ]; then
+        ln -s ../asr1/wav_db ./ || exit 1
     fi
-    mic=mdm8
-    if [ -e data/local/downloads/wget_$mic.sh ]; then
-	echo "data/local/downloads/wget_$mic.sh already exists, better quit than re-download... (use --stage N)"
-    exit 1
-    fi
-    mic=ihm
-    if [ -e data/local/downloads/wget_$mic.sh ]; then
-	echo "data/local/downloads/wget_$mic.sh already exists, better quit than re-download... (use --stage N)"
-	exit 1
-    fi
-    local/ami_download.sh $mic $AMI_DIR
+    echo "stage -1: Data Augmentation"
+    for noise in white; do 
+        local/augmentation.py --folder ${audio_dir}/${noise}/train \
+            --noise-type ${noise} \
+            --audio-folder ${audio_dir}/train
+    done
 fi
 
 if [ ${stage} -le 0 ]; then
@@ -162,13 +155,21 @@ if [ ${stage} -le 1 ]; then
     echo "stage 1: Feature Generation"
     fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
+
     mic=mdm8
     for x in ${mic}_train ${mic}_dev ${mic}_eval; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 32 --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
     done
     mic=ihm
-    for x in ${mic}_train ${mic}_eval; do
+    # speed-perturbed
+    utils/perturb_data_dir_speed.sh 0.9 data/${mic}_train data/temp1
+    utils/perturb_data_dir_speed.sh 1.0 data/${mic}_train data/temp2
+    utils/perturb_data_dir_speed.sh 1.1 data/${mic}_train data/temp3
+
+    utils/combine_data.sh --extra-files utt2uniq data/${mic}_train_speed data/temp1 data/temp2 data/temp3
+    rm -rf data/temp1 data/temp2 data/temp3
+    for x in ${mic}_train ${mic}_train_speed ${mic}_eval; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 32 --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
     done
@@ -183,6 +184,10 @@ if [ ${stage} -le 1 ]; then
         dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
             data/${rtask}_train/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
     done
+
+    feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}; mkdir -p ${feat_tr}
+    dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
+        data/${rtask}_train_speed/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
     
     dump.sh --cmd "$train_cmd" --nj 10 --do_delta $do_delta \
         data/${train_dev}/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
@@ -214,9 +219,13 @@ if [ ${stage} -le 2 ]; then
             multi=0
         fi
         feat_tr=${dumpdir}/${rtask}_train/delta${do_delta}
-        data2json.sh --multi ${multi} --feat ${feat_tr}//feats.scp \
+        data2json.sh --multi ${multi} --feat ${feat_tr}/feats.scp \
             data/${rtask}_train ${dict} > ${feat_tr}/data.json
     done
+    rtask="ihm"
+    feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}
+    data2json.sh --feat ${feat_tr}/feats.scp \
+            data/${rtask}_train_speed ${dict} > ${feat_tr}/data.json
 
     mkdir -p ${dumpdir}/mdm8_ihm_train/delta${do_delta}
     joinjson.py ${dumpdir}/ihm_train/delta${do_delta}/data.json \
