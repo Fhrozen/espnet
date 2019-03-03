@@ -49,6 +49,7 @@ import espnet.lm.lm_chainer as lm_chainer
 
 # numpy related
 import matplotlib
+import multiprocessing
 import numpy as np
 matplotlib.use('Agg')
 
@@ -154,6 +155,31 @@ class CustomParallelUpdater(training.updaters.MultiprocessParallelUpdater):
                 self.comm.bcast(gp.data.ptr, gp.size, nccl.NCCL_FLOAT,
                                 0, null_stream.ptr)
 
+            for data in x:
+                del data[1]['feat']
+
+    def setup_workers(self):
+        if self._initialized:
+            return
+        self._initialized = True
+
+        self._master.cleargrads()
+        for i in six.moves.range(1, len(self._devices)):
+            pipe, worker_end = multiprocessing.Pipe()
+            worker = CustomWorker(i, worker_end, self)
+            worker.start()
+            self._workers.append(worker)
+            self._pipes.append(pipe)
+
+        with cuda.Device(self._devices[0]):
+            from cupy.cuda import nccl
+            self._master.to_gpu(self._devices[0])
+            if len(self._devices) > 1:
+                comm_id = nccl.get_unique_id()
+                self._send_message(("set comm_id", comm_id))
+                self.comm = nccl.NcclCommunicator(len(self._devices),
+                                                  comm_id, 0)
+
 
 class CustomConverter(object):
     """CUSTOM CONVERTER"""
@@ -186,6 +212,74 @@ class CustomConverter(object):
         ys = [Variable(xp.array(y, dtype=xp.int32)) for y in ys]
 
         return xs, ilens, ys
+
+
+class CustomWorker(multiprocessing.Process):
+
+    def __init__(self, proc_id, pipe, master):
+        super(CustomWorker, self).__init__()
+        self.proc_id = proc_id
+        self.pipe = pipe
+        self.converter = master.converter
+        self.model = master._master
+        self.device = master._devices[proc_id]
+        self.iterator = master._mpu_iterators[proc_id]
+        self.n_devices = len(master._devices)
+
+    def setup(self):
+        from cupy.cuda import nccl
+        _, comm_id = self.pipe.recv()
+        self.comm = nccl.NcclCommunicator(self.n_devices, comm_id,
+                                          self.proc_id)
+
+        self.model.to_gpu(self.device)
+        self.reporter = reporter_module.Reporter()
+        self.reporter.add_observer('main', self.model)
+        self.reporter.add_observers('main',
+                                    self.model.namedlinks(skipself=True))
+
+    def run(self):
+        from cupy.cuda import nccl
+        dev = cuda.Device(self.device)
+        dev.use()
+        self.setup()
+        gp = None
+        while True:
+            job, data = self.pipe.recv()
+            if job == 'finalize':
+                dev.synchronize()
+                break
+            if job == 'update':
+                # For reducing memory
+                self.model.cleargrads()
+
+                x = self.converter(self.iterator.next(), self.device)
+                with self.reporter.scope({}):
+                    loss = self.model(*x)
+
+                self.model.cleargrads()
+                loss.backward()
+                loss.unchain_backward()
+
+                del loss
+
+                gg = gather_grads(self.model)
+                null_stream = cuda.Stream.null
+                self.comm.reduce(gg.data.ptr, gg.data.ptr, gg.size,
+                                 nccl.NCCL_FLOAT,
+                                 nccl.NCCL_SUM, 0,
+                                 null_stream.ptr)
+                del gg
+                self.model.cleargrads()
+                gp = gather_params(self.model)
+                self.comm.bcast(gp.data.ptr, gp.size,
+                                nccl.NCCL_FLOAT, 0,
+                                null_stream.ptr)
+                scatter_params(self.model, gp)
+                gp = None
+
+                for data in x:
+                    del data[1]['feat']
 
 
 def LoadMultichSpec(data):
