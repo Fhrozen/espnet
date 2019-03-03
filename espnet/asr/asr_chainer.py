@@ -18,6 +18,7 @@ import chainer
 from chainer import cuda
 from chainer import training
 from chainer import Variable
+from chainer import reporter as reporter_module
 
 from chainer.datasets import TransformDataset
 
