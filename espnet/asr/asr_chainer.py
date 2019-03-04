@@ -26,6 +26,7 @@ from chainer.training import extensions
 from chainer.training.updaters.multiprocess_parallel_updater import gather_grads
 from chainer.training.updaters.multiprocess_parallel_updater import gather_params
 from chainer.training.updaters.multiprocess_parallel_updater import scatter_grads
+from chainer.training.updaters.multiprocess_parallel_updater import scatter_params
 
 # espnet related
 from espnet.asr.asr_utils import adadelta_eps_decay
