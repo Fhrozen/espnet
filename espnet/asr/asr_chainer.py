@@ -156,8 +156,7 @@ class CustomParallelUpdater(training.updaters.MultiprocessParallelUpdater):
                 self.comm.bcast(gp.data.ptr, gp.size, nccl.NCCL_FLOAT,
                                 0, null_stream.ptr)
 
-            for data in x:
-                del data[1]['feat']
+            del x
 
     def setup_workers(self):
         if self._initialized:
@@ -278,7 +277,7 @@ class CustomWorker(multiprocessing.Process):
                                 null_stream.ptr)
                 scatter_params(self.model, gp)
                 gp = None
-                x = None
+                del x
 
 
 def LoadMultichSpec(data):
