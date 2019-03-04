@@ -278,9 +278,7 @@ class CustomWorker(multiprocessing.Process):
                                 null_stream.ptr)
                 scatter_params(self.model, gp)
                 gp = None
-
-                for data in x:
-                    del data[1]['feat']
+                x = None
 
 
 def LoadMultichSpec(data):
