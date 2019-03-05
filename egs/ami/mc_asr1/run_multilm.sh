@@ -70,7 +70,7 @@ use_lm=true
 
 
 lmch_dir="exp/rnnlm/train_chainer_2layer_unit1024_adam0.001_bs128_maxlen200"
-lmwd_dir="exp/rnnlm/train_chainer_1layer_unit512_sgd1_bs512_maxlen100_word4000"
+lmwd_dir="exp/rnnlm/train_chainer_1layer_unit1024_sgd1_bs512_maxlen100_word4000"
 
 
 # decoding parameter
@@ -129,6 +129,7 @@ if ! [ -d ${lmch_dir} ]; then
         cp -r ../asr1/${lmch_dir} ./${lmch_dir}
     else
         echo "First need to train ${lmch_dir} in ../asr1"
+        exit 1
     fi
 fi
 if ! [ -d ${lmwd_dir} ]; then
@@ -136,6 +137,7 @@ if ! [ -d ${lmwd_dir} ]; then
         cp -r ../asr1/${lmwd_dir} ./${lmwd_dir}
     else
         echo "First need to train ${lmwd_dir} in ../asr1"
+        exit 1
     fi
 fi
 
