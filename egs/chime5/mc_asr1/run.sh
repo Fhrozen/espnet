@@ -65,6 +65,7 @@ lm_epochs=20        # number of epochs
 lm_maxlen=100       # 150 for character LMs
 lm_resume=          # specify a snapshot file to resume LM training
 lmtag=              # tag for managing LMs
+njobs=32
 
 # decoding parameter
 lm_weight=0.1
@@ -101,7 +102,7 @@ audio_dir=${chime5_corpus}/audio
 train_dev=dev_ref
 # use the below once you obtain the evaluation data. Also remove the comment #eval# in the lines below
 #eval#recog_set="dev_worn dev_${enhancement}_ref eval_${enhancement}_ref"
-recog_set="dev_worn dev_ref dev_wpe_ref eval_ref eval_wpe_ref" # eval_ref eval_wpe_ref"  
+recog_set="dev_worn dev_ref"  # dev_wpe_ref eval_ref eval_wpe_ref  
 noises="None white"
 
 if [ ${stage} -le -1 ]; then
@@ -385,7 +386,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=64
+    nj=${njobs}
 
     for rtask in ${recog_set}; do
     (

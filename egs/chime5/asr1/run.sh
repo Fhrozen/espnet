@@ -292,7 +292,7 @@ if [ ${stage} -le 2 ]; then
             --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
-exit 0
+
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
 if [ ${lm_meta} -gt 0 ]; then 
@@ -308,17 +308,17 @@ else
     lm_options="--alpha ${lm_alpha}"
 fi
 if [ -z ${lmtag} ]; then
-    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_meta_tag}${lm_optval}_bs${lm_batchsize}
-    if [ $use_wordlm = true ]; then
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_meta_tag}${lm_optval}_bs${lm_batchsize}_maxlen${lm_maxlen}
+    if [ ${use_wordlm} = true ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
 fi
-lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
+lmexpdir=exp/rnnlm/train_${backend}_${lmtag}
 mkdir -p ${lmexpdir}
 
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
-    if [ $use_wordlm = true ]; then
+    if [ ${use_wordlm} = true ]; then
         lmdatadir=data/local/wordlm_train
         lmdict=${lmdatadir}/wordlist_${lm_vocabsize}.txt
         mkdir -p ${lmdatadir}
@@ -357,6 +357,7 @@ if [ ${stage} -le 3 ]; then
         --dict ${lmdict} \
         --meta ${lm_meta} \
         ${lm_options}
+    exit 0
 fi
 
 if [ -z ${tag} ]; then

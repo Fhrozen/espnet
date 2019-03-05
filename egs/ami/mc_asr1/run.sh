@@ -76,6 +76,7 @@ maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.3
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
+njobs=32
 
 # scheduled sampling option
 samp_prob=0.0
@@ -157,7 +158,17 @@ if [ ${stage} -le 1 ]; then
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
 
     mic=mdm8
-    for x in ${mic}_train ${mic}_dev ${mic}_eval; do
+    # speed-perturbed
+    utils/perturb_data_dir_speed.sh 0.9 data/${mic}_train data/temp1
+    for i in $(ls data/temp1); do sed -i 's/sp0.9/sp0_9/g' "data/temp1/${i}"; done
+    utils/perturb_data_dir_speed.sh 1.0 data/${mic}_train data/temp2
+    for i in $(ls data/temp2); do sed -i 's/sp1.0/sp1_0/g' "data/temp2/${i}"; done
+    utils/perturb_data_dir_speed.sh 1.1 data/${mic}_train data/temp3
+    for i in $(ls data/temp3); do sed -i 's/sp1.1/sp1_1/g' "data/temp3/${i}"; done
+
+    utils/combine_data.sh --extra-files utt2uniq data/${mic}_train_speed data/temp1 data/temp2 data/temp3
+    rm -rf data/temp1 data/temp2 data/temp3
+    for x in ${mic}_train ${mic}_train_speed ${mic}_dev ${mic}_eval; do
         steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 32 --write_utt2num_frames true \
             data/${x} exp/make_fbank/${x} ${fbankdir}
     done
@@ -183,12 +194,10 @@ if [ ${stage} -le 1 ]; then
         feat_tr=${dumpdir}/${rtask}_train/delta${do_delta}; mkdir -p ${feat_tr}
         dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
             data/${rtask}_train/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
+        feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}; mkdir -p ${feat_tr}
+        dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
+            data/${rtask}_train_speed/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
     done
-
-    feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}; mkdir -p ${feat_tr}
-    dump.sh --cmd "$train_cmd" --nj 32 --do_delta $do_delta \
-        data/${rtask}_train_speed/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/train ${feat_tr}
-    
     dump.sh --cmd "$train_cmd" --nj 10 --do_delta $do_delta \
         data/${train_dev}/feats.scp data/mdm8_ihm_train/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
     for rtask in ${recog_set}; do
@@ -221,15 +230,24 @@ if [ ${stage} -le 2 ]; then
         feat_tr=${dumpdir}/${rtask}_train/delta${do_delta}
         data2json.sh --multi ${multi} --feat ${feat_tr}/feats.scp \
             data/${rtask}_train ${dict} > ${feat_tr}/data.json
-    done
-    rtask="ihm"
-    feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}
-    data2json.sh --feat ${feat_tr}/feats.scp \
+        feat_tr=${dumpdir}/${rtask}_train_speed/delta${do_delta}
+        data2json.sh --multi ${multi} --feat ${feat_tr}/feats.scp \
             data/${rtask}_train_speed ${dict} > ${feat_tr}/data.json
-
+    done
     mkdir -p ${dumpdir}/mdm8_ihm_train/delta${do_delta}
     joinjson.py ${dumpdir}/ihm_train/delta${do_delta}/data.json \
                 ${dumpdir}/mdm8_train/delta${do_delta}/data.json > ${dumpdir}/mdm8_ihm_train/delta${do_delta}/data.json 
+
+    feat_tr=${dumpdir}/mdm8_ihm_speed_train/delta${do_delta}; mkdir -p ${feat_tr}
+    joinjson.py ${dumpdir}/ihm_train_speed/delta${do_delta}/data.json \
+                ${dumpdir}/mdm8_train/delta${do_delta}/data.json > ${feat_tr}/data.json
+    feat_tr=${dumpdir}/mdm8_speed_ihm_train/delta${do_delta}; mkdir -p ${feat_tr}
+    joinjson.py ${dumpdir}/ihm_train/delta${do_delta}/data.json \
+                ${dumpdir}/mdm8_train_speed/delta${do_delta}/data.json > ${feat_tr}/data.json
+    data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp \
+    feat_tr=${dumpdir}/mdm8_speed_ihm_speed_train/delta${do_delta}; mkdir -p ${feat_tr}
+    joinjson.py ${dumpdir}/ihm_train_speed/delta${do_delta}/data.json \
+                ${dumpdir}/mdm8_train_speed/delta${do_delta}/data.json > ${feat_tr}/data.json
     data2json.sh --multi 1 --feat ${feat_dt_dir}/feats.scp \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
     for rtask in ${recog_set}; do
@@ -358,7 +376,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=32
+    nj=${njobs}
 
     for rtask in ${recog_set}; do
     (

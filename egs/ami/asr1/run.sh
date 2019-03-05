@@ -7,7 +7,7 @@
 . ./cmd.sh
 
 # general configuration
-backend=pytorch
+backend=chainer
 stage=-1       # start from -1 if you need to start from data download
 ngpu=0         # number of gpus ("0" uses cpu, otherwise use gpu)
 debugmode=1
@@ -60,6 +60,8 @@ lm_vocabsize=20000  # effective only for word LMs
 lm_layers=1         # 2 for character LMs
 lm_units=1000       # 650 for character LMs
 lm_opt=sgd          # adam for character LMs
+lm_lr=1             # training lr for LMs (sgd)
+lm_alpha=0.001     # training alpha for LMs (adam)
 lm_batchsize=64    # 1024 for character LMs
 lm_epochs=20        # number of epochs
 lm_maxlen=40        # 150 for character LMs
@@ -75,6 +77,7 @@ maxlenratio=0.0
 minlenratio=0.0
 ctc_weight=0.3
 recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
+njobs=32
 
 # scheduled sampling option
 samp_prob=0.0
@@ -231,13 +234,20 @@ fi
 
 # It takes a few days. If you just want to end-to-end ASR without LM,
 # you can skip this and remove --rnnlm option in the recognition (stage 5)
+if [ "${lm_opt}" == "sgd" ]; then
+    lm_optval=${lm_lr}
+    lm_options="--lr ${lm_lr}"
+else
+    lm_optval=${lm_alpha}
+    lm_options="--alpha ${lm_alpha}"
+fi
 if [ -z ${lmtag} ]; then
-    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}_bs${lm_batchsize}
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}_maxlen${lm_maxlen}
     if [ $use_wordlm = true ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
 fi
-lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
+lmexpdir=exp/rnnlm/train_${backend}_${lmtag}
 mkdir -p ${lmexpdir}
 
 if [[ ${stage} -le 3 && $use_lm == true ]]; then
@@ -281,7 +291,9 @@ if [[ ${stage} -le 3 && $use_lm == true ]]; then
         --batchsize ${lm_batchsize} \
         --epoch ${lm_epochs} \
         --maxlen ${lm_maxlen} \
-        --dict ${lmdict}
+        --dict ${lmdict} \
+        ${lm_options}
+    exit 0
 fi
 
 if [ -z ${tag} ]; then
@@ -340,7 +352,7 @@ fi
 
 if [ ${stage} -le 5 ]; then
     echo "stage 5: Decoding"
-    nj=32
+    nj=${njobs}
 
     for rtask in ${recog_set}; do
     (
