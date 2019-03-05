@@ -6,6 +6,7 @@ docker_folders=
 docker_cuda=9.1
 docker_user=true
 docker_env=
+docker_cmd=
 
 
 while test $# -gt 0
@@ -109,6 +110,10 @@ fi
 
 cmd1="cd /espnet/egs/${docker_egs}"
 cmd2="./run.sh $@"
+if [ ! -z "${docker_cmd}" ]; then
+  cmd2="${docker_cmd} $@"
+fi
+
 if [ ${docker_user} = false ]; then
   # Required to access to the folder once the training if finished in root access
   cmd2="${cmd2}; chmod -R 777 /espnet/egs/${docker_egs}"
