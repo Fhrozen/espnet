@@ -273,7 +273,7 @@ else
     lm_options="--alpha ${lm_alpha}"
 fi
 if [ -z ${lmtag} ]; then
-    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}
+    lmtag=${lm_layers}layer_unit${lm_units}_${lm_opt}${lm_optval}_bs${lm_batchsize}_maxlen${lm_maxlen}
     if [ $use_wordlm = true ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
