@@ -270,7 +270,7 @@ if [ -z ${lmtag} ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
 fi
-lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
+lmexpdir=exp/rnnlm/train_${backend}_${lmtag}
 mkdir -p ${lmexpdir}
 
 if [[ ${stage} -le 3 && $use_lm == true ]]; then

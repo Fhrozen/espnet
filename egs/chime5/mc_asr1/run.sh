@@ -278,7 +278,7 @@ if [ -z ${lmtag} ]; then
         lmtag=${lmtag}_word${lm_vocabsize}
     fi
 fi
-lmexpdir=exp/train_rnnlm_${backend}_${lmtag}
+lmexpdir=exp/rnnlm/train_${backend}_${lmtag}
 
 if [ ${stage} -le 3 ]; then
     echo "stage 3: LM Preparation"
