@@ -257,6 +257,13 @@ def get_parser(parser=None, required=True):
                         help='')
     parser.add_argument('--fbank-fmax', type=float, default=None,
                         help='')
+    # Noam Scheduler Optimizer
+    parser.add_argument('--noam-lr', default=10.0, type=float,
+                        help='Initial value of learning rate')
+    parser.add_argument('--noam-warmup-steps', default=25000, type=int,
+                        help='optimizer warmup steps')
+    parser.add_argument('--noam-scheduler', default='inv_sqrt', type=str,
+                        help='Type of scheduler')
     return parser
 
 

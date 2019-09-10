@@ -231,7 +231,7 @@ def train(args):
 
         # set up updater
         updater = CustomParallelUpdater(
-            train_iters, optimizer, converter=converter, devices=devices)
+            train_iters, optimizer, converter=converter, devices=devices, accum_grad=accum_grad)
 
     # Set up a trainer
     trainer = training.Trainer(
@@ -241,9 +241,9 @@ def train(args):
         trainer.extend(ShufflingEnabler(train_iters),
                        trigger=(args.sortagrad if args.sortagrad != -1 else args.epochs, 'epoch'))
     if args.opt == 'noam':
-        from espnet.nets.chainer_backend.transformer.training import VaswaniRule
-        trainer.extend(VaswaniRule('alpha', d=args.adim, warmup_steps=args.transformer_warmup_steps,
-                                   scale=args.transformer_lr), trigger=(1, 'iteration'))
+        from espnet.nets.chainer_backend.training import Scheduler
+        trainer.extend(Scheduler('alpha', d=args.adim, warmup_steps=args.noam_warmup_steps,
+                                   scale=args.noam_lr, schedule=args.noam_scheduler), trigger=(1, 'iteration'))
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
