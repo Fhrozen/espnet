@@ -243,7 +243,7 @@ def train(args):
     if args.opt == 'noam':
         from espnet.nets.chainer_backend.training import Scheduler
         trainer.extend(Scheduler('alpha', d=args.adim, warmup_steps=args.noam_warmup_steps,
-                                   scale=args.noam_lr, schedule=args.noam_scheduler), trigger=(1, 'iteration'))
+                                 scale=args.noam_lr, schedule=args.noam_scheduler), trigger=(1, 'iteration'))
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
