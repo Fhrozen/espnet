@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import re
-from text import cleaners
-from text.symbols import symbols
+from espnet.tts.text import cleaners
+from espnet.tts.text.symbols import symbols
 
 
 # Mappings from symbol to numeric ID and vice versa:

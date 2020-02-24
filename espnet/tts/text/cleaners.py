@@ -15,7 +15,7 @@ import re
 
 from unidecode import unidecode
 
-from text.numbers import normalize_numbers
+from espnet.tts.text.numbers import normalize_numbers
 
 # Regular expression matching whitespace:
 _whitespace_re = re.compile(r'\s+')
