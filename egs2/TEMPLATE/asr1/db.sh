@@ -31,8 +31,8 @@ if [[ "$(hostname -d)" == clsp.jhu.edu ]]; then
 else
     AISHELL=downloads
     AN4=downloads
-    WSJ0=
-    WSJ1=
+    WSJ0=/export/corpus/LDC/LDC93S6B
+    WSJ1=/export/corpus/LDC/LDC94S13B
     WSJCAM0=
     REVERB=
     CHIME3=
