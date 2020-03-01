@@ -20,11 +20,11 @@ def main(args):
         ('espnet', None),
         ('kaldiio', None),
         ('matplotlib', None),
-        ('torch', ("0.4.1", "1.0.0", "1.0.1.post2")),
+        ('torch', ("0.4.1", "1.0.0", "1.0.1.post2", "1.3.1")),
         ('chainer', ("6.0.0")),
-        ('chainer_ctc', None),
-        ('warpctc_pytorch', ("0.1.1", "0.1.3")),
-        ('warprnnt_pytorch', ("0.1"))
+        # ('chainer_ctc', None),
+        # ('warpctc_pytorch', ("0.1.1", "0.1.3")),
+        # ('warprnnt_pytorch', ("0.1"))
     ]
 
     if not args.no_cupy:

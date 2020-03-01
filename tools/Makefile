@@ -7,7 +7,7 @@ PYTHON_VERSION := 3.7.3
 CUPY_VERSION := 6.0.0
 CUDA_VERSION := 10.0
 # PyTorch version: 0.4.1 or 1.0.0 or 1.0.1
-TH_VERSION := 1.0.1
+TH_VERSION := 1.3.1
 # Use a prebuild Kaldi to omit the installation
 KALDI :=
 WGET := wget --tries=3
@@ -31,7 +31,9 @@ endif
 
 all: kaldi.done python check_install
 
-python: venv $(CUDA_DEPS) warp-ctc.done warp-transducer.done chainer_ctc.done
+python: venv $(CUDA_DEPS) 
+
+# warp-ctc.done warp-transducer.done chainer_ctc.done
 
 extra: nkf.done moses.done mwerSegmenter.done pesq
 
