@@ -60,3 +60,5 @@ tools/PESQ*
 tools/hts_engine_API*
 tools/open_jtalk*
 tools/pyopenjtalk*
+
+model.tar.gz

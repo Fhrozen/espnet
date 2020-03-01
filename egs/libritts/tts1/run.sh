@@ -38,7 +38,7 @@ griffin_lim_iters=64  # the number of iterations of Griffin-Lim
 # Set this to somewhere where you want to put your data, or where
 # someone else has already put it. You'll want to change this
 # if you're not on the CLSP grid.
-datadir=/export/a15/vpanayotov/data
+datadir=/export/corpus/librispeech
 
 # base url for downloads.
 data_url=www.openslr.org/resources/60
@@ -72,7 +72,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     echo "stage 0: Data preparation"
     for part in dev-clean test-clean train-clean-100 train-clean-360; do
         # use underscore-separated names in data directories.
-        local/data_prep.sh ${datadir}/LibriTTS/${part} data/${part//-/_}
+        local/data_prep.sh ${datadir}/Librispeech/${part} data/${part//-/_}
     done
 fi
 

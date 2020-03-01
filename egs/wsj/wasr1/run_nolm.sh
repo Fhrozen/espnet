@@ -22,8 +22,8 @@ seed=1
 do_delta=false
 
 # config files
-preprocess_config=conf/preprocess_stft.json  # use conf/specaug.yaml for data augmentation
-train_config=conf/tuning/train_1.yaml
+preprocess_config=conf/preprocess_fbank.json  # use conf/specaug.yaml for data augmentation
+train_config=conf/tuning/train_pytorch_transformer.yaml
 decode_config=conf/tuning/decode.yaml
 
 # decoding parameter
