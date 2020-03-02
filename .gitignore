@@ -5,6 +5,7 @@
 .\#*
 *DS_Store
 *.vscode
+out.txt
 espnet.egg-info/
 doc/_build
 slurm-*.out
@@ -22,6 +23,9 @@ shellcheck*
 check_shellcheck*
 test_spm.vocab
 test_spm.model
+.vscode*
+*.vim
+*.swp
 
 # recipe related
 egs/*/*/data*
@@ -40,6 +44,7 @@ egs/*/*/wav*
 tools/bin
 tools/include
 tools/lib
+tools/lib64
 tools/bats-core
 tools/chainer_ctc/
 tools/kaldi*
