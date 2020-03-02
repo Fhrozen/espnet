@@ -50,7 +50,7 @@ class TimeWarp(FuncTrans):
     _func = time_warp
     __doc__ = time_warp.__doc__
 
-    def __call__(self, x, train):
+    def __call__(self, x, train=None):
         if not train:
             return x
         return super().__call__(x)
@@ -91,7 +91,7 @@ class FreqMask(FuncTrans):
     _func = freq_mask
     __doc__ = freq_mask.__doc__
 
-    def __call__(self, x, train):
+    def __call__(self, x, train=None):
         if not train:
             return x
         return super().__call__(x)
@@ -133,7 +133,7 @@ class TimeMask(FuncTrans):
     _func = time_mask
     __doc__ = time_mask.__doc__
 
-    def __call__(self, x, train):
+    def __call__(self, x, train=None):
         if not train:
             return x
         return super().__call__(x)
@@ -169,7 +169,7 @@ class SpecAugment(FuncTrans):
     _func = spec_augment
     __doc__ = spec_augment.__doc__
 
-    def __call__(self, x, train):
+    def __call__(self, x, train=None):
         if not train:
             return x
         return super().__call__(x)

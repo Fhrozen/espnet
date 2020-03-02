@@ -93,14 +93,13 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 1: Feature Generation"
-    fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    # for x in dev_clean test_clean dev_other test_other train_clean_100 train_clean_360 train_other_500; do
-    #     # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
-    #     #     data/${x} exp/make_fbank/${x} ${fbankdir}
-    #     dump_pcm.sh --nj ${nj} --cmd "${train_cmd}" --filetype "sound.hdf5" --format flac data/${x}
-    #     utils/fix_data_dir.sh data/${x}
-    # done
+    for x in dev_clean test_clean dev_other test_other train_clean_100 train_clean_360 train_other_500; do
+        # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
+        #     data/${x} exp/make_fbank/${x} ${fbankdir}
+        dump_pcm.sh --nj ${nj} --cmd "${train_cmd}" --filetype "sound.hdf5" --format flac data/${x}
+        utils/fix_data_dir.sh data/${x}
+    done
 
     utils/combine_data.sh --extra_files utt2num_frames data/${train_set}_org data/train_clean_100 data/train_clean_360 data/train_other_500
     utils/combine_data.sh --extra_files utt2num_frames data/${train_dev}_org data/dev_clean data/dev_other
@@ -117,23 +116,23 @@ echo "dictionary: ${dict}"
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
-    mkdir -p data/lang_char/
-    echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    cut -f 2- -d" " data/${train_set}/text > data/lang_char/input.txt
-    spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000
-    spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+1}' >> ${dict}
+    # mkdir -p data/lang_char/
+    # echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
+    # cut -f 2- -d" " data/${train_set}/text > data/lang_char/input.txt
+    # spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000
+    # spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+1}' >> ${dict}
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --feat data/${train_set}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
-        --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-        data/${train_set} ${dict} > ${feat_tr_dir}/data_${bpemode}${nbpe}.json
-    data2json.sh --feat data/${train_dev}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
-        --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-        data/${train_dev} ${dict} > ${feat_dt_dir}/data_${bpemode}${nbpe}.json
+    # data2json.sh --feat data/${train_set}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
+    #     --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+    #     data/${train_set} ${dict} > ${feat_tr_dir}/data_${bpemode}${nbpe}.json
+    # data2json.sh --feat data/${train_dev}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
+    #     --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+    #     data/${train_dev} ${dict} > ${feat_dt_dir}/data_${bpemode}${nbpe}.json
 
     for rtask in ${recog_set}; do
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         data2json.sh --feat data/${rtask}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
             --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
             data/${rtask} ${dict} > ${feat_recog_dir}/data_${bpemode}${nbpe}.json
