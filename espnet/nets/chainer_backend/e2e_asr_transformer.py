@@ -53,7 +53,6 @@ class E2E(ChainerASRInterface):
         group.add_argument("--transformer-init", type=str, default="pytorch",
                            help='how to initialize transformer parameters')
         group.add_argument("--transformer-input-layer", type=str, default="conv2d",
-                           choices=["conv2d", "linear", "embed"],
                            help='transformer input layer type')
         group.add_argument('--transformer-attn-dropout-rate', default=None, type=float,
                            help='dropout in transformer attention. use --dropout-rate if None is set')
@@ -391,6 +390,7 @@ class E2E(ChainerASRInterface):
                     local_best_ids = self.xp.argsort(local_scores, axis=1)[0, ::-1][:beam]
                     local_best_scores = local_scores[:, local_best_ids]
 
+                # _beam = beam if beam >= local_best_scores.shape[1] else local_best_scores.shape[1]
                 for j in six.moves.range(beam):
                     new_hyp = {}
                     new_hyp['score'] = hyp['score'] + float(local_best_scores[0, j])

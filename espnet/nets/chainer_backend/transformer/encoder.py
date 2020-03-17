@@ -9,8 +9,7 @@ from espnet.nets.chainer_backend.transformer.embedding import PositionalEncoding
 from espnet.nets.chainer_backend.transformer.encoder_layer import EncoderLayer
 from espnet.nets.chainer_backend.transformer.layer_norm import LayerNorm
 from espnet.nets.chainer_backend.transformer.mask import make_history_mask
-from espnet.nets.chainer_backend.transformer.subsampling import Conv2dSubsampling
-from espnet.nets.chainer_backend.transformer.subsampling import LinearSampling
+from espnet.nets.chainer_backend.transformer import subsampling as S 
 
 import logging
 import numpy as np
@@ -55,17 +54,35 @@ class Encoder(chainer.Chain):
         initialW = chainer.initializers.Uniform if initialW is None else initialW
         initial_bias = chainer.initializers.Uniform if initial_bias is None else initial_bias
         self.do_history_mask = False
+        self.is_conv2d = False
         with self.init_scope():
             channels = 64  # Based in paper
             if input_layer == 'conv2d':
+                self.is_conv2d = True
                 idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels
-                self.input_layer = Conv2dSubsampling(channels, idim,
+                self.input_layer = S.Conv2dSubsampling(channels, idim,
+                                                     attention_dim,
+                                                     dropout=dropout_rate,
+                                                     initialW=initialW,
+                                                     initial_bias=initial_bias)
+            elif input_layer == 'res1':
+                self.is_conv2d = True
+                idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels
+                self.input_layer = S.Residual1(channels, idim,
+                                                     attention_dim,
+                                                     dropout=dropout_rate,
+                                                     initialW=initialW,
+                                                     initial_bias=initial_bias)
+            elif input_layer == 'res2':
+                self.is_conv2d = True
+                idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels
+                self.input_layer = S.Residual2(channels, idim,
                                                      attention_dim,
                                                      dropout=dropout_rate,
                                                      initialW=initialW,
                                                      initial_bias=initial_bias)
             elif input_layer == 'linear':
-                self.input_layer = LinearSampling(idim, attention_dim, initialW=initialW, initial_bias=initial_bias)
+                self.input_layer = S.LinearSampling(idim, attention_dim, initialW=initialW, initial_bias=initial_bias)
             elif input_layer == "embed":
                 self.input_layer = chainer.Sequential(
                     L.EmbedID(idim, attention_dim, ignore_label=-1),
@@ -97,7 +114,7 @@ class Encoder(chainer.Chain):
             chainer.Variable: Batch of lengths of each encoder outputs.
 
         """
-        if isinstance(self.input_layer, Conv2dSubsampling):
+        if self.is_conv2d:
             e, ilens = self.input_layer(e, ilens)
         else:
             e = self.input_layer(e)
