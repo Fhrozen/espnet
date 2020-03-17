@@ -38,7 +38,7 @@ def main(args):
     ]
 
     if not args.no_cupy:
-        MANUALLY_INSTALLED_LIBRARIES.append(('cupy', ("6.0.0")))
+        MANUALLY_INSTALLED_LIBRARIES.append(('cupy', ("7.0.0")))
     
     if LooseVersion(args.torch_version) < LooseVersion('1.2.0'):
         MANUALLY_INSTALLED_LIBRARIES.append(('warpctc_pytorch', ("0.1.1", "0.1.3")))
