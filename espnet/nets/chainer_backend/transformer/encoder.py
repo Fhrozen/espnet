@@ -73,6 +73,14 @@ class Encoder(chainer.Chain):
                                                      dropout=dropout_rate,
                                                      initialW=initialW,
                                                      initial_bias=initial_bias)
+            elif input_layer == 'resbn':
+                self.is_conv2d = True
+                idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels
+                self.input_layer = S.ResBN(channels, idim,
+                                           attention_dim,
+                                           dropout=dropout_rate,
+                                           initialW=initialW,
+                                           initial_bias=initial_bias)
             elif input_layer == 'res2':
                 self.is_conv2d = True
                 idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels

@@ -9,6 +9,7 @@ import math
 import six
 
 # chainer related
+import chainer
 from chainer import cuda
 from chainer import training
 
@@ -75,7 +76,7 @@ class CustomUpdater(training.StandardUpdater):
         self.accum_grad = accum_grad
         self.forward_count = 0
         self.start = True
-        self.device = device
+        # self.device = device
         logging.debug('using custom converter for transformer')
 
     # The core part of the update routine can be customized by overriding.
@@ -146,7 +147,7 @@ class CustomParallelUpdater(training.updaters.MultiprocessParallelUpdater):
         from cupy.cuda import nccl
         super(CustomParallelUpdater, self).__init__(
             train_iters, optimizer, converter=converter, devices=devices)
-        self.accum_grad = accum_grad
+        self.accum_grad = accum_grad  # Current setup uses accum_grad 1, Need to set to n-grads
         self.forward_count = 0
         self.nccl = nccl
         logging.debug('using custom parallel updater for transformer')
@@ -155,13 +156,12 @@ class CustomParallelUpdater(training.updaters.MultiprocessParallelUpdater):
     def update_core(self):
         """Process main update routine for Custom Parallel Updater."""
         self.setup_workers()
-
         self._send_message(('update', None))
-        with cuda.Device(self._devices[0]):
+        with chainer.using_device(self._devices[0]):
             # For reducing memory
             optimizer = self.get_optimizer('main')
             batch = self.get_iterator('main').next()
-            x = self.converter(batch, self._devices[0])
+            x = self.converter(batch, None)
 
             loss = self._master(*x) / self.accum_grad
             loss.backward()

@@ -112,14 +112,15 @@ class ConvWithNorm(chainer.Chain):
 
 class Bottleneck(chainer.Chain):
     def __init__(self, in_channels, mid_channels, out_channels,
-                 stride=1, initialW=None, bn=None, act=F.relu, groups=1):
+                 stride=1, initialW=None, bn=True, act=F.relu, groups=1):
         super(Bottleneck, self).__init__()
-        if bn == 'Norm':
+        if bn:
             Conv = ConvWithNorm
         else:
             Conv = L.Convolution2D
         with self.init_scope():
-            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride, pad=0, nobias=True, groups=groups)
+            self.shortcut = Conv(in_channels, out_channels, 1, stride=stride,
+                                 pad=0, nobias=True, groups=groups)
             self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True, groups=groups)
             self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True, groups=groups)
         self.act = act
@@ -130,6 +131,49 @@ class Bottleneck(chainer.Chain):
         res_x = self.conv2(res_x)
         x = self.shortcut(x)
         return self.act(x + res_x)
+
+
+class ResBN(chainer.Chain):
+    def __init__(self, channels, idim, dims, dropout=0.1,
+                 initialW=None, initial_bias=None):
+        """Initialize Conv2dSubsampling."""
+        super(ResBN, self).__init__()
+        self.dropout = dropout
+        with self.init_scope():
+            # Standard deviation for Conv2D with 1 channel and kernel 3 x 3.
+            n = 1 * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.conv0 = L.Convolution2D(1, channels, 1, stride=1, initial_bias=initial_bias(scale=stvd),
+                                         nobias=True)
+            self.conv1 = Bottleneck(channels, channels, channels, stride=2,
+                                         initialW=initialW(scale=stvd))
+            n = channels * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.conv2 = Bottleneck(channels, channels, channels, stride=2,
+                                         initialW=initialW(scale=stvd))
+            stvd = 1. / np.sqrt(dims)
+            self.out = L.Linear(idim, dims, initialW=initialW(scale=stvd),
+                                initial_bias=initial_bias(scale=stvd))
+            self.pe = PositionalEncoding(dims, dropout)
+
+    def forward(self, xs, ilens):
+        """Subsample x.
+
+        :param chainer.Variable x: input tensor
+        :return: subsampled x and mask
+
+        """
+        xs = self.xp.array(xs[:, None])
+        xs = self.conv0(xs)
+        xs = self.conv1(xs)
+        xs = self.conv2(xs)
+        batch, _, length, _ = xs.shape
+        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
+        xs = self.pe(xs.reshape(batch, length, -1))
+        # change ilens accordingly
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        return xs, ilens
 
 
 class Residual1(chainer.Chain):
@@ -255,3 +299,5 @@ class Residual2(chainer.Chain):
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         return xs, ilens
+
+

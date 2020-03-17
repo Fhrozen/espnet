@@ -333,6 +333,10 @@ def train(args):
         report_keys.append('eps')
     trainer.extend(extensions.PrintReport(
         report_keys), trigger=(args.report_interval_iters, 'iteration'))
+    
+    if 'dump_plot' in args:
+        if args.dump_plot:
+            trainer.extend(extensions.DumpGraph('main/loss'))
 
     trainer.extend(extensions.ProgressBar(update_interval=args.report_interval_iters))
 

@@ -80,6 +80,8 @@ class E2E(ChainerASRInterface):
                            help='Number of decoder layers')
         group.add_argument('--dunits', default=320, type=int,
                            help='Number of decoder hidden units')
+        group.add_argument('--dump-plot', default=False, type=strtobool,
+                           help='Dump Model')
         return parser
 
     def __init__(self, idim, odim, args, ignore_id=-1, flag_return=True):
@@ -256,7 +258,7 @@ class E2E(ChainerASRInterface):
             reporter.report({'wer': wer}, self)
 
             logging.info('mtl loss:' + str(loss_data))
-            reporter.report({'loss': loss_data}, self)
+            reporter.report({'loss': self.loss}, self)
         else:
             logging.warning('loss (=%f) is not correct', loss_data)
 
