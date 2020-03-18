@@ -4,8 +4,6 @@
 # Apache 2.0
 
 # Begin configuration section.
-mictype=worn # worn, ref or others
-cleanup=true
 # End configuration section
 . ./utils/parse_options.sh  # accept options.. you can run this run.sh with the
 
@@ -22,8 +20,12 @@ fi
 
 set -e -o pipefail
 
-adir=$1
-jdir=$2
+datadir=$1
+dtype=$2
+
+adir=${datadir}/Audio/Streams/${dtype}
+jdir=${datadir}/Transcripts/ASR_track1/${dtype}
+
 dir=$3
 
 json_count=$(find $jdir -name "*.json" | wc -l)
@@ -44,91 +46,34 @@ echo "$0: Converting transcription to text"
 
 mkdir -p $dir
 for file in $jdir/*json; do
-  ./local/json2text.py --mictype $mictype $file
+  ./local/json2text.py $file
 done | \
   sed -e "s/\[inaudible[- 0-9]*\]/[inaudible]/g" |\
   sed -e 's/ - / /g' |\
   sed -e 's/mm-/mm/g' > $dir/text.orig
 
-echo "$0: Creating datadir $dir for type=\"$mictype\""
+echo "$0: Creating datadir $dir for type=\"$dtype\""
 
-if [ $mictype == "worn" ]; then
-  # convert the filenames to wav.scp format, use the basename of the file
-  # as a the wav.scp key, add .L and .R for left and right channel
-  # i.e. each file will have two entries (left and right channel)
-  find $adir -name  "S[0-9]*_P[0-9]*.wav" | \
-    perl -ne '{
-      chomp;
-      $path = $_;
-      next unless $path;
-      @F = split "/", $path;
-      ($f = $F[@F-1]) =~ s/.wav//;
-      @F = split "_", $f;
-      print "${F[1]}_${F[0]}.L sox $path -t wav - remix 1 |\n";
-      print "${F[1]}_${F[0]}.R sox $path -t wav - remix 2 |\n";
-    }' | sort > $dir/wav.scp
+# fixed reference
 
-  # generate the transcripts for both left and right channel
-  # from the original transcript in the form
-  # P09_S03-0006072-0006147 gimme the baker
-  # create left and right channel transcript
-  # P09_S03.L-0006072-0006147 gimme the baker
-  # P09_S03.R-0006072-0006147 gimme the baker
-  sed -n 's/  *$//; h; s/-/\.L-/p; g; s/-/\.R-/p' $dir/text.orig | sort > $dir/text
-elif [ $mictype == "ref" ]; then
-  # fixed reference array
+# first get a text, which will be used to extract reference arrays
+cat $dir/text.orig | sort > $dir/text
 
-  # first get a text, which will be used to extract reference arrays
-  perl -ne 's/-/.ENH-/;print;' $dir/text.orig | sort > $dir/text
+find $adir -name "*.wav" |\
+  perl -ne '$p=$_;chomp $_;@F=split "/";$F[$#F]=~s/\.wav//;$G= uc $F[$#F];print "$G $p";' |\
+  sort -u  > $dir/wav.scp
 
-  find $adir | grep "\.wav" | sort > $dir/wav.flist
-  # following command provide the argument for grep to extract only reference arrays
-  grep `cut -f 1 -d"-" $dir/text | awk -F"_" '{print $2 "_" $3}' | sed -e "s/\.ENH//" | sort | uniq | sed -e "s/^/ -e /" | tr "\n" " "` $dir/wav.flist > $dir/wav.flist2
-  paste -d" " \
-	<(awk -F "/" '{print $NF}' $dir/wav.flist2 | sed -e "s/\.wav/.ENH/") \
-	$dir/wav.flist2 | sort > $dir/wav.scp
-else
-  # array mic case
-  # convert the filenames to wav.scp format, use the basename of the file
-  # as a the wav.scp key
-  find $adir -name "*.wav" -ipath "*${mictype}*" |\
-    perl -ne '$p=$_;chomp $_;@F=split "/";$F[$#F]=~s/\.wav//;print "$F[$#F] $p";' |\
-    sort -u > $dir/wav.scp
-
-  # convert the transcripts from
-  # P09_S03-0006072-0006147 gimme the baker
-  # to the per-channel transcripts
-  # P09_S03_U01_NOLOCATION.CH1-0006072-0006147 gimme the baker
-  # P09_S03_U01_NOLOCATION.CH2-0006072-0006147 gimme the baker
-  # P09_S03_U01_NOLOCATION.CH3-0006072-0006147 gimme the baker
-  # P09_S03_U01_NOLOCATION.CH4-0006072-0006147 gimme the baker
-  perl -ne '$l=$_;
-    for($i=1; $i<=4; $i++) {
-      ($x=$l)=~ s/-/.CH\Q$i\E-/;
-      print $x;}' $dir/text.orig | sort > $dir/text
-
-fi
 $cleanup && rm -f $dir/text.* $dir/wav.scp.* $dir/wav.flist
 
 # Prepare 'segments', 'utt2spk', 'spk2utt'
-if [ $mictype == "worn" ]; then
-  cut -d" " -f 1 $dir/text | \
-    awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" \
-    > $dir/segments
-elif [ $mictype == "ref" ]; then
-  cut -d" " -f 1 $dir/text | \
-    awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" |\
-    sed -e "s/ P.._/ /" > $dir/segments
-else
-  cut -d" " -f 1 $dir/text | \
-    awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
-    sed -e "s/_[A-Z]*\././2" |\
-    sed -e 's/ P.._/ /' > $dir/segments
-fi
+cut -d" " -f 1 $dir/text | \
+    awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $2, $3/100.0, $4/100.0)}' > $dir/segments 
+    # awk -F"-" '{printf("%s %s %08.2f %08.2f\n", $0, $1, $2/100.0, $3/100.0)}' |\
+    # sed -e "s/_[A-Z]*\././2" |\
+    # sed -e 's/ P.._/ /' > $dir/segments
+
 cut -f 1 -d ' ' $dir/segments | \
-  perl -ne 'chomp;$utt=$_;s/_.*//;print "$utt $_\n";' > $dir/utt2spk
+  perl -ne 'chomp;$utt=$_;s/-.*//;print "$utt $_\n";' > $dir/utt2spk
 
 utils/utt2spk_to_spk2utt.pl $dir/utt2spk > $dir/spk2utt
 

@@ -6,6 +6,7 @@
 import json
 import argparse
 import logging
+import os
 import sys
 
 
@@ -26,9 +27,6 @@ def hms_to_seconds(hms):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('json', help='JSON transcription file')
-    parser.add_argument('--mictype',
-                        choices=['ref', 'worn', 'u01', 'u02', 'u03', 'u04', 'u05', 'u06'],
-                        help='Type of microphones')
     args = parser.parse_args()
 
     # logging info
@@ -39,46 +37,29 @@ if __name__ == '__main__':
     with open(args.json, 'rt', encoding="utf-8") as f:
         j = json.load(f)
 
+    session_id = os.path.basename(args.json).split('.json')[0]
     for x in j:
-        if '[redacted]' not in x['words']:
-            session_id = x['session_id']
-            speaker_id = x['speaker']
-            if args.mictype == 'ref':
-                mictype = x['ref']
-            elif args.mictype == 'worn':
-                mictype = 'original'
-            else:
-                mictype = args.mictype.upper() # convert from u01 to U01
+        speaker_id = x['speakerID']
 
-            # add location tag for scoring (only for dev and eval sets)
-            if 'location' in x.keys():
-                location = x['location'].upper()
-            else:
-                location = 'NOLOCATION'
+        start_time = x['startTime']
+        end_time = x['endTime']
+    
+        # remove meta chars and convert to lower
+        words = x['words'].replace('"', '')\
+                            .replace('.', '')\
+                            .replace('?', '')\
+                            .replace(',', '')\
+                            .replace(':', '')\
+                            .replace(';', '')\
+                            .replace('!', '').lower()
 
-            start_time = x['start_time'][mictype]
-            end_time = x['end_time'][mictype]
+        # remove multiple spaces
+        words = " ".join(words.split())
         
-            # remove meta chars and convert to lower
-            words = x['words'].replace('"', '')\
-                              .replace('.', '')\
-                              .replace('?', '')\
-                              .replace(',', '')\
-                              .replace(':', '')\
-                              .replace(';', '')\
-                              .replace('!', '').lower()
+        # Time is already in seconds
+        start_time = '{:07d}'.format(int(start_time * 100))
+        end_time = '{:07d}'.format(int(end_time * 100))
 
-            # remove multiple spaces
-            words = " ".join(words.split())
+        uttid = speaker_id + '-' + session_id.upper() + '-' + start_time + '-' + end_time
 
-            # convert to seconds, e.g., 1:10:05.55 -> 3600 + 600 + 5.55 = 4205.55
-            start_time = hms_to_seconds(start_time)
-            end_time = hms_to_seconds(end_time)
-
-            uttid = speaker_id + '_' + session_id
-            if not args.mictype == 'worn':
-                uttid += '_' + mictype
-            uttid += '_' + location + '-' + start_time + '-' + end_time
-
-            if end_time > start_time:
-                sys.stdout.buffer.write((uttid + ' ' + words + '\n').encode("utf-8"))
+        sys.stdout.buffer.write((uttid + ' ' + words + '\n').encode("utf-8"))
