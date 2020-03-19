@@ -145,11 +145,11 @@ class ResBN(chainer.Chain):
             stvd = 1. / np.sqrt(n)
             self.conv0 = L.Convolution2D(1, channels, 1, stride=1, initial_bias=initial_bias(scale=stvd),
                                          nobias=True)
-            self.conv1 = Bottleneck(channels, channels, channels, stride=2,
+            self.conv1 = Bottleneck(channels, channels, 3, stride=2,
                                          initialW=initialW(scale=stvd))
             n = channels * 3 * 3
             stvd = 1. / np.sqrt(n)
-            self.conv2 = Bottleneck(channels, channels, channels, stride=2,
+            self.conv2 = Bottleneck(channels, channels, 3, stride=2,
                                          initialW=initialW(scale=stvd))
             stvd = 1. / np.sqrt(dims)
             self.out = L.Linear(idim, dims, initialW=initialW(scale=stvd),

@@ -300,7 +300,9 @@ class CustomConverter(object):
         # batch should be located in list
         assert len(batch) == 1
         xs, ys = batch[0]
-        xs = F.pad_sequence(xs, padding=-1).data
         # get batch of lengths of input sequences
+        
         ilens = np.array([x.shape[0] for x in xs], dtype=np.int32)
+        xs = F.pad_sequence(xs, padding=-1).data
+        
         return xs, ilens, ys
