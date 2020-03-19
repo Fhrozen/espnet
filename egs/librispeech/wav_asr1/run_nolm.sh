@@ -11,7 +11,7 @@ backend=pytorch
 stage=0       # start from -1 if you need to start from data download
 stop_stage=100
 ngpu=4         # number of gpus ("0" uses cpu, otherwise use gpu)
-nj=32
+nj=2
 debugmode=1
 dumpdir=dump   # directory to dump full features
 N=0            # number of minibatches to be used (mainly for debugging). "0" uses all minibatches.
@@ -68,7 +68,7 @@ set -o pipefail
 
 train_set=train_960
 train_dev=dev
-recog_set="test_clean test_other dev_clean dev_other"
+recog_set="test_other"   # "test_clean test_other dev_clean dev_other"
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
     echo "stage -1: Data Download"
@@ -116,20 +116,20 @@ echo "dictionary: ${dict}"
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
     echo "stage 2: Dictionary and Json Data Preparation"
-    # mkdir -p data/lang_char/
-    # echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
-    # cut -f 2- -d" " data/${train_set}/text > data/lang_char/input.txt
-    # spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000
-    # spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+1}' >> ${dict}
+    mkdir -p data/lang_char/
+    echo "<unk> 1" > ${dict} # <unk> must be 1, 0 will be used for "blank" in CTC
+    cut -f 2- -d" " data/${train_set}/text > data/lang_char/input.txt
+    spm_train --input=data/lang_char/input.txt --vocab_size=${nbpe} --model_type=${bpemode} --model_prefix=${bpemodel} --input_sentence_size=100000000
+    spm_encode --model=${bpemodel}.model --output_format=piece < data/lang_char/input.txt | tr ' ' '\n' | sort | uniq | awk '{print $0 " " NR+1}' >> ${dict}
     wc -l ${dict}
 
     # make json labels
-    # data2json.sh --feat data/${train_set}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
-    #     --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-    #     data/${train_set} ${dict} > ${feat_tr_dir}/data_${bpemode}${nbpe}.json
-    # data2json.sh --feat data/${train_dev}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
-    #     --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-    #     data/${train_dev} ${dict} > ${feat_dt_dir}/data_${bpemode}${nbpe}.json
+    data2json.sh --feat data/${train_set}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
+        --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+        data/${train_set} ${dict} > ${feat_tr_dir}/data_${bpemode}${nbpe}.json
+    data2json.sh --feat data/${train_dev}/feats.scp --bpecode ${bpemodel}.model --category "singlechannel" \
+        --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+        data/${train_dev} ${dict} > ${feat_dt_dir}/data_${bpemode}${nbpe}.json
 
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
