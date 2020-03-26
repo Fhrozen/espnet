@@ -33,9 +33,7 @@ recog_model=model.acc.best # set a model to be used for decoding: 'model.acc.bes
 n_average=10
 
 # data
-chime5_corpus=/export/corpus/CHiME5
-json_dir=${chime5_corpus}/transcriptions
-audio_dir=${chime5_corpus}/audio
+chime5_corpus=/export/corpora4/CHiME5
 
 # exp tag
 tag="" # tag for managing experiments.
@@ -48,6 +46,8 @@ set -e
 set -u
 set -o pipefail
 
+json_dir=${chime5_corpus}/transcriptions
+audio_dir=${chime5_corpus}/audio
 enhancement=beamformit
 train_set=train_worn_u200k
 train_dev=dev_${enhancement}_ref
