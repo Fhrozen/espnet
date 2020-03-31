@@ -177,6 +177,52 @@ class ResBN(chainer.Chain):
         return xs, ilens
 
 
+class ResBNwithUtNorm(chainer.Chain):
+    def __init__(self, channels, idim, dims, dropout=0.1,
+                 initialW=None, initial_bias=None):
+        """Initialize Conv2dSubsampling."""
+        super(ResBNwithUtNorm, self).__init__()
+        self.dropout = dropout
+        logging.info(channels)
+        with self.init_scope():
+            # Standard deviation for Conv2D with 1 channel and kernel 3 x 3.
+            n = 1 * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.cmvn = L.GroupNormalization(1, 1)
+            self.conv0 = L.Convolution2D(1, channels, 1, stride=1, initial_bias=initial_bias(scale=stvd),
+                                         nobias=True)
+            self.conv1 = Bottleneck(channels, channels, channels, stride=2,
+                                         initialW=initialW(scale=stvd))
+            n = channels * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.conv2 = Bottleneck(channels, channels, channels, stride=2,
+                                         initialW=initialW(scale=stvd))
+            stvd = 1. / np.sqrt(dims)
+            self.out = L.Linear(idim, dims, initialW=initialW(scale=stvd),
+                                initial_bias=initial_bias(scale=stvd))
+            self.pe = PositionalEncoding(dims, dropout)
+
+    def forward(self, xs, ilens):
+        """Subsample x.
+
+        :param chainer.Variable x: input tensor
+        :return: subsampled x and mask
+
+        """
+        xs = self.xp.array(xs[:, None])
+        xs = self.cmvn(xs)
+        xs = self.conv0(xs)
+        xs = self.conv1(xs)
+        xs = self.conv2(xs)
+        batch, _, length, _ = xs.shape
+        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
+        xs = self.pe(xs.reshape(batch, length, -1))
+        # change ilens accordingly
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        return xs, ilens
+
+
 class Residual1(chainer.Chain):
     """Convolutional 2D subsampling (to 1/4 length).
 

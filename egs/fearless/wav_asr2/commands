@@ -1,0 +1,1 @@
+./run.sh --ngpu 2 --stage 4 --preprocess_config conf/fbankonly.yaml --train_config conf/tuning/train_transformer_resbnutt.yaml 

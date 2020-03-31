@@ -1,0 +1,7 @@
+process:
+    - type: "fbank"
+      win_length: 400
+      n_fft: 400
+      n_shift: 160
+      n_mels: 80
+      fs: 8000
