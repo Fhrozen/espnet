@@ -1,0 +1,25 @@
+process:
+  - type: "fbank"
+    win_length: 400
+    n_fft: 400
+    n_shift: 160
+    n_mels: 80
+    fs: 16000
+  - type: "utterance_cmvn"
+    norm_means: true
+    norm_vars: true
+  # these three processes are a.k.a. SpecAugument
+  - type: "time_warp"
+    max_time_warp: 5
+    inplace: true
+    mode: "PIL"
+  - type: "freq_mask"
+    F: 30
+    n_mask: 2
+    inplace: true
+    replace_with_zero: false
+  - type: "time_mask"
+    T: 40
+    n_mask: 2
+    inplace: true
+    replace_with_zero: false
