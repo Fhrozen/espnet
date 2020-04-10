@@ -29,14 +29,14 @@ class MultiHeadedAttention(nn.Module):
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
         self.h = n_head
-        self.linear_q = nn.Linear(n_feat, n_feat)
-        self.linear_k = nn.Linear(n_feat, n_feat)
-        self.linear_v = nn.Linear(n_feat, n_feat)
-        self.linear_out = nn.Linear(n_feat, n_feat)
+        self.linear_q = nn.Linear(n_feat, n_feat, bias=False)
+        self.linear_k = nn.Linear(n_feat, n_feat, bias=False)
+        self.linear_v = nn.Linear(n_feat, n_feat, bias=False)
+        self.linear_out = nn.Linear(n_feat, n_feat, bias=False)
         self.attn = None
         self.dropout = nn.Dropout(p=dropout_rate)
 
-    def forward(self, query, key, value, mask):
+    def forward(self, query, key, value, mask, key_pe=None):
         """Compute 'Scaled Dot Product Attention'.
 
         :param torch.Tensor query: (batch, time1, size)
@@ -55,7 +55,11 @@ class MultiHeadedAttention(nn.Module):
         k = k.transpose(1, 2)  # (batch, head, time2, d_k)
         v = v.transpose(1, 2)  # (batch, head, time2, d_k)
 
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
+        scores = torch.matmul(q, k.transpose(-2, -1)) 
+        if key_pe is not None:
+            att_pos = torch.matmul(q, key_pe.transpose(-2, -1))
+            scores = scores + att_pos
+        scores = scores / math.sqrt(self.d_k)  # (batch, head, time1, time2)
         if mask is not None:
             mask = mask.unsqueeze(1).eq(0)  # (batch, 1, time1, time2)
             min_value = float(numpy.finfo(torch.tensor(0, dtype=scores.dtype).numpy().dtype).min)

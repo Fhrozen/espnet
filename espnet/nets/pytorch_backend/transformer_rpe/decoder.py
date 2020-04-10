@@ -60,14 +60,15 @@ class Decoder(ScorerInterface, torch.nn.Module):
                  use_output_layer=True,
                  pos_enc_class=PositionalEncoding,
                  normalize_before=True,
-                 concat_after=False):
+                 concat_after=False,
+                 relative_pos=16):
         """Construct an Decoder object."""
         torch.nn.Module.__init__(self)
         self._register_load_state_dict_pre_hook(_pre_hook)
         if input_layer == "embed":
             self.embed = torch.nn.Sequential(
                 torch.nn.Embedding(odim, attention_dim),
-                pos_enc_class(attention_dim, positional_dropout_rate)
+                torch.nn.Dropout(dropout_rate)
             )
         elif input_layer == "linear":
             self.embed = torch.nn.Sequential(
@@ -94,7 +95,9 @@ class Decoder(ScorerInterface, torch.nn.Module):
                 PositionwiseFeedForward(attention_dim, linear_units, dropout_rate),
                 dropout_rate,
                 normalize_before,
-                concat_after
+                concat_after,
+                relative_pos,
+                attention_heads
             )
         )
         if self.normalize_before:

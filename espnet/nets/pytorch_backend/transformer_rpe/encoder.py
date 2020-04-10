@@ -66,7 +66,8 @@ class Encoder(torch.nn.Module):
                  concat_after=False,
                  positionwise_layer_type="linear",
                  positionwise_conv_kernel_size=1,
-                 padding_idx=-1):
+                 padding_idx=-1,
+                 relative_pos=16):
         """Construct an Encoder object."""
         super(Encoder, self).__init__()
         self._register_load_state_dict_pre_hook(_pre_hook)
@@ -119,7 +120,9 @@ class Encoder(torch.nn.Module):
                 positionwise_layer(*positionwise_layer_args),
                 dropout_rate,
                 normalize_before,
-                concat_after
+                concat_after,
+                relative_pos,
+                attention_heads
             )
         )
         if self.normalize_before:

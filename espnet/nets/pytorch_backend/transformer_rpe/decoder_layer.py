@@ -29,7 +29,7 @@ class DecoderLayer(nn.Module):
     """
 
     def __init__(self, size, self_attn, src_attn, feed_forward, dropout_rate,
-                 normalize_before=True, concat_after=False):
+                 normalize_before=True, concat_after=False, relative_pos=16, attention_heads=0):
         """Construct an DecoderLayer object."""
         super(DecoderLayer, self).__init__()
         self.size = size
@@ -42,9 +42,16 @@ class DecoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout_rate)
         self.normalize_before = normalize_before
         self.concat_after = concat_after
+        self.relative_pos = relative_pos
         if self.concat_after:
             self.concat_linear1 = nn.Linear(size + size, size)
             self.concat_linear2 = nn.Linear(size + size, size)
+        if attention_heads != 0:
+            self.emb_pos = nn.Embedding(relative_pos, size // attention_heads)
+            self.emb_pos_src = nn.Embedding(relative_pos, size // attention_heads)
+        else:
+            self.emb_pos = None
+            self.emb_pos_src = None
 
     def forward(self, tgt, tgt_mask, memory, memory_mask, cache=None):
         """Compute decoded features.
@@ -57,6 +64,15 @@ class DecoderLayer(nn.Module):
             cache (torch.Tensor): cached output (batch, max_time_out-1, size)
 
         """
+        if self.emb_pos is not None:
+            key_pe = torch.arange(tgt.shape[1]).to(tgt.device) % self.relative_pos
+            key_pe = torch.tanh(self.emb_pos(key_pe))
+            key_pe_src = torch.arange(memory.shape[1]).to(memory.device) % self.relative_pos
+            key_pe_src = torch.tanh(self.emb_pos(key_pe_src))
+        else:
+            key_pe = None
+            key_pe_src = None
+
         residual = tgt
         if self.normalize_before:
             tgt = self.norm1(tgt)
@@ -75,10 +91,10 @@ class DecoderLayer(nn.Module):
                 tgt_q_mask = tgt_mask[:, -1:, :]
 
         if self.concat_after:
-            tgt_concat = torch.cat((tgt_q, self.self_attn(tgt_q, tgt, tgt, tgt_q_mask)), dim=-1)
+            tgt_concat = torch.cat((tgt_q, self.self_attn(tgt_q, tgt, tgt, tgt_q_mask, key_pe=key_pe)), dim=-1)
             x = residual + self.concat_linear1(tgt_concat)
         else:
-            x = residual + self.dropout(self.self_attn(tgt_q, tgt, tgt, tgt_q_mask))
+            x = residual + self.dropout(self.self_attn(tgt_q, tgt, tgt, tgt_q_mask, key_pe=key_pe))
         if not self.normalize_before:
             x = self.norm1(x)
 
@@ -86,10 +102,10 @@ class DecoderLayer(nn.Module):
         if self.normalize_before:
             x = self.norm2(x)
         if self.concat_after:
-            x_concat = torch.cat((x, self.src_attn(x, memory, memory, memory_mask)), dim=-1)
+            x_concat = torch.cat((x, self.src_attn(x, memory, memory, memory_mask, key_pe=key_pe_src)), dim=-1)
             x = residual + self.concat_linear2(x_concat)
         else:
-            x = residual + self.dropout(self.src_attn(x, memory, memory, memory_mask))
+            x = residual + self.dropout(self.src_attn(x, memory, memory, memory_mask, key_pe=key_pe_src))
         if not self.normalize_before:
             x = self.norm2(x)
 

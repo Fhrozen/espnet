@@ -78,6 +78,8 @@ class E2E(ASRInterface, torch.nn.Module):
                            help='Number of decoder layers')
         group.add_argument('--dunits', default=320, type=int,
                            help='Number of decoder hidden units')
+        group.add_argument('--relative-pos', default=16, type=int,
+                           help='')
         return parser
 
     @property
@@ -104,7 +106,8 @@ class E2E(ASRInterface, torch.nn.Module):
             input_layer=args.transformer_input_layer,
             dropout_rate=args.dropout_rate,
             positional_dropout_rate=args.dropout_rate,
-            attention_dropout_rate=args.transformer_attn_dropout_rate
+            attention_dropout_rate=args.transformer_attn_dropout_rate,
+            relative_pos=args.relative_pos
         )
         self.decoder = Decoder(
             odim=odim,
@@ -115,7 +118,8 @@ class E2E(ASRInterface, torch.nn.Module):
             dropout_rate=args.dropout_rate,
             positional_dropout_rate=args.dropout_rate,
             self_attention_dropout_rate=args.transformer_attn_dropout_rate,
-            src_attention_dropout_rate=args.transformer_attn_dropout_rate
+            src_attention_dropout_rate=args.transformer_attn_dropout_rate,
+            relative_pos=args.relative_pos
         )
         self.sos = odim - 1
         self.eos = odim - 1
