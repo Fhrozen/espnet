@@ -27,7 +27,7 @@ class StftConv2DSubsamp(chainer.Chain):
         fourier_basis = np.hstack([fourier_basis.real,
                                     fourier_basis.imag]).astype(np.float32).T
         _mel_options = dict(sr=freq_samp,
-                            n_fft=512,
+                            n_fft=filter_length,
                             n_mels=mels,
                             fmin=0.0,
                             fmax=None)
@@ -35,7 +35,6 @@ class StftConv2DSubsamp(chainer.Chain):
         melmat = librosa.filters.mel(**_mel_options).T
         self.fourier_basis = fourier_basis[:, None, None, :]
         self.melmat = melmat.astype(np.float32)
-
         with self.init_scope():
             self.norm = L.GroupNormalization(1, mels)
             n = 1 * 3 * 3
@@ -69,15 +68,15 @@ class StftConv2DSubsamp(chainer.Chain):
         xs = F.swapaxes(xs, 1, 2)
         xs = F.matmul(xs, xp.array(self.melmat))
         # BS x T x MEL
-        xs = F.log(F.absolute(xs) + 1e-20)
-
+        xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
+        # Norm
+        xs = self.norm(xs.data).transpose(0, 2, 1)
         xs = F.expand_dims(xs, axis=1)
-        xs = self.norm(xs).transpose(0, 2, 1)
-
         xs = F.relu(self.conv1(xs))
         xs = F.relu(self.conv2(xs))
         batch, _, length, _ = xs.shape
-        xs = self.pe(self.out(F.swapaxes(xs, 1, 2), n_batch_axes=2))
+        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
+        xs = self.pe(xs.reshape(batch, length, -1))
         # change ilens accordingly
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
