@@ -105,7 +105,7 @@ else
     # --rm erase the container when the training is finished.
     if [ -z "$( which nvidia-docker )" ]; then
         # we assume that you already installed nvidia-docker 2
-        cmd0="docker run --gpus 'device=${docker_gpu}'"
+        cmd0="docker run --gpus '\"device=${docker_gpu}\"'"
     else
         cmd0="NV_GPU='${docker_gpu}' nvidia-docker run "
     fi
