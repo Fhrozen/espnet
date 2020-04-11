@@ -1,7 +1,8 @@
 process:
+    # set for 8KHz
     - type: "fbank"
-      win_length: 400
-      n_fft: 400
-      n_shift: 160
+      win_length: 200
+      n_fft: 256
+      n_shift: 80
       n_mels: 80
       fs: 8000

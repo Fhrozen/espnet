@@ -4,4 +4,4 @@ process:
       nfft: 512
       frame_shift: 160
       preemphasis_coefficient: 0.97
-      fs: 8000
+      # fs: 8000

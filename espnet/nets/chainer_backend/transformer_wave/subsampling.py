@@ -12,157 +12,72 @@ import logging
 import numpy as np
 
 
-class WAVConv2dNorm(chainer.Chain):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    :param int idim: input dim
-    :param int odim: output dim
-    :param flaot dropout_rate: dropout rate
-
-    """
-
+class StftConv2DSubsamp(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
-                 initialW=None, initial_bias=None):
-        """Initialize Conv2dSubsampling."""
-        super(STFTConv2dGN, self).__init__()
+                 initialW=None, initial_bias=None,
+                 mels=80, freq_samp=16000, filter_length=512,
+                 hop_length=160):
+        super(StftConv2DSubsamp, self).__init__()
+        import librosa
+        # Ref: https://github.com/pseeth/pytorch-stft/blob/master/stft.py#L33
+        self.filter_length = filter_length
+        self.hop_length = hop_length
+        logging.info('Stft param with stft initializer')
+        fourier_basis = np.fft.rfft(np.eye(self.filter_length))
+        fourier_basis = np.hstack([fourier_basis.real,
+                                    fourier_basis.imag]).astype(np.float32).T
+        _mel_options = dict(sr=freq_samp,
+                            n_fft=512,
+                            n_mels=mels,
+                            fmin=0.0,
+                            fmax=None)
         self.dropout = dropout
+        melmat = librosa.filters.mel(**_mel_options).T
+        self.fourier_basis = fourier_basis[:, None, None, :]
+        self.melmat = melmat.astype(np.float32)
+
         with self.init_scope():
-            # Standard deviation for Conv2D with 1 channel and kernel 3 x 3.
+            self.norm = L.GroupNormalization(1, mels)
             n = 1 * 3 * 3
-            self.norm = L.GroupNormalization(1, idim)
             stvd = 1. / np.sqrt(n)
-            self.conv1 = L.Convolution2D(1, channels, 3, stride=2, pad=1,
-                                         initialW=initialW(scale=stvd),
-                                         nobias=True)
+            self.conv1 = L.Convolution2D(1, channels, 3, stride=2, pad=1, 
+                                     initialW=initialW(scale=stvd),
+                                     initial_bias=initial_bias(scale=stvd))
             n = channels * 3 * 3
             stvd = 1. / np.sqrt(n)
             self.conv2 = L.Convolution2D(channels, channels, 3, stride=2, pad=1,
-                                         initialW=initialW(scale=stvd),
-                                         nobias=True)
+                                     initialW=initialW(scale=stvd),
+                                     initial_bias=initial_bias(scale=stvd))
             stvd = 1. / np.sqrt(dims)
-
-            idim = int(np.ceil(np.ceil(idim / 2) / 2)) * channels
-            self.out = L.Linear(idim, dims, initialW=initialW(scale=stvd),
-                                nobias=True)
+            idim = int(np.ceil(np.ceil(mels / 2) / 2)) * channels
+            self.out = L.Linear(idim, dims, initialW=chainer.initializers.Uniform(scale=stvd),
+                            initial_bias=chainer.initializers.Uniform(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
 
-    def forward(self, xs, ilens):
-        """Subsample x.
+    def __call__(self, xs, ilens):
+        xp = self.xp
+        xs = F.expand_dims(xs, axis=1).data
+        # BS x 1 x T x NFFT
+        xs = F.convolution_2d(xs, xp.array(self.fourier_basis), stride=1, pad=0)
+        # BS x NFFT/2+1 * 2 x T x 1 
+        xs = F.squeeze(xs, axis=3)
+        cutoff = int((self.filter_length / 2) + 1)
+        real_xs = xs[:, :cutoff, :]
+        imag_xs = xs[:, cutoff:, :]
+        xs = real_xs ** 2 + imag_xs ** 2
 
-        :param chainer.Variable x: input tensor
-        :return: subsampled x and mask
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.matmul(xs, xp.array(self.melmat))
+        # BS x T x MEL
+        xs = F.log(F.absolute(xs) + 1e-20)
 
-        """
-        NFFT = xs.shape[-1]
-        xs = 1.0 / NFFT * (np.square(np.absolute(xs)))
-        xs[xs <= 1e-30] = 1e-30
-        xs = 10 * np.log10(xs)
-        # BS x L x D => BS x D x L
-        xs = self.xp.array(xs.transpose(0, 2, 1))
+        xs = F.expand_dims(xs, axis=1)
+        xs = self.norm(xs).transpose(0, 2, 1)
 
-        # GN normalization
-        xs = F.expand_dims(self.norm(xs).transpose(0, 2, 1), axis=1)
         xs = F.relu(self.conv1(xs))
         xs = F.relu(self.conv2(xs))
         batch, _, length, _ = xs.shape
-        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
-        xs = self.pe(xs.reshape(batch, length, -1))
-        # change ilens accordingly
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        return xs, ilens
-
-class STFTConv2dSub2(chainer.Chain):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    :param int idim: input dim
-    :param int odim: output dim
-    :param flaot dropout_rate: dropout rate
-
-    """
-
-    def __init__(self, channels, idim, dims, dropout=0.1,
-                 initialW=None, initial_bias=None):
-        """Initialize Conv2dSubsampling."""
-        super(STFTConv2dSub2, self).__init__()
-        self.dropout = dropout
-        with self.init_scope():
-            # Standard deviation for Conv2D with 1 channel and kernel 3 x 3.
-            n = 1 * 6 * 83
-            stvd = 1. / np.sqrt(n)
-            self.norm = L.GroupNormalization(1, idim)
-            self.conv1 = L.Convolution2D(1, dims, [6, 201], stride=4, pad=[1, 0],
-                                         initialW=initialW(scale=stvd),
-                                         nobias=True)
-            self.pe = PositionalEncoding(dims, dropout)
-
-    def forward(self, xs, ilens):
-        """Subsample x.
-
-        :param chainer.Variable x: input tensor
-        :return: subsampled x and mask
-
-        """
-        NFFT = xs.shape[-1]
-        xs = 1.0 / NFFT * (np.square(np.absolute(xs)))
-        xs[xs <= 1e-30] = 1e-30
-        xs = 10 * np.log10(xs)
-        # BS x L x D => BS x D x L
-        xs = self.xp.array(xs.transpose(0, 2, 1))
-
-        # GN normalization
-        xs = F.expand_dims(self.norm(xs).transpose(0, 2, 1), axis=1)
-        xs = F.relu(self.conv1(xs)).transpose(0, 2, 1, 3)
-        batch, length, _, _ = xs.shape
-        xs = self.pe(xs.reshape(batch, length, -1))
-        # change ilens accordingly
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        return xs, ilens
-
-
-class STFTConv2dSub3(chainer.Chain):
-    """Convolutional 2D subsampling (to 1/4 length).
-
-    :param int idim: input dim
-    :param int odim: output dim
-    :param flaot dropout_rate: dropout rate
-
-    """
-
-    def __init__(self, channels, idim, dims, dropout=0.1,
-                 initialW=None, initial_bias=None):
-        """Initialize Conv2dSubsampling."""
-        super(STFTConv2dSub3, self).__init__()
-        self.dropout = dropout
-        with self.init_scope():
-            # Standard deviation for Conv2D with 1 channel and kernel 3 x 3.
-            stvd = 1. / np.sqrt(dims)
-            self.norm = L.GroupNormalization(1, idim)
-            self.conv1 = L.Convolution2D(1, dims, [4, 201], stride=4, pad=0,
-                                         initialW=initialW(scale=stvd),
-                                         nobias=True)
-            self.pe = PositionalEncoding(dims, dropout)
-
-    def forward(self, xs, ilens):
-        """Subsample x.
-
-        :param chainer.Variable x: input tensor
-        :return: subsampled x and mask
-
-        """
-        NFFT = xs.shape[-1]
-        xs = 1.0 / NFFT * (np.square(np.absolute(xs)))
-        xs[xs <= 1e-30] = 1e-30
-        xs = 10 * np.log10(xs)
-        # BS x L x D => BS x D x L
-        xs = self.xp.array(xs.transpose(0, 2, 1))
-
-        # GN normalization
-        xs = F.expand_dims(self.norm(xs).transpose(0, 2, 1), axis=1)
-        xs = F.relu(self.conv1(xs)).transpose(0, 2, 1, 3)
-        batch, length, _, _ = xs.shape
-        xs = self.pe(xs.reshape(batch, length, -1))
+        xs = self.pe(self.out(F.swapaxes(xs, 1, 2), n_batch_axes=2))
         # change ilens accordingly
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)

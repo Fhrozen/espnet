@@ -1,5 +1,5 @@
 # network architecture
-use-frontend: true   # Enable frontend and feature transform part in E2E forwarding
+
 # encoder related
 elayers: 12
 eunits: 2048
@@ -33,7 +33,7 @@ dropout-rate: 0.1
 # transformer specific setting
 backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer_wave:E2E"
-transformer-input-layer: stft_conv2dgn     # encoder architecture type
+transformer-input-layer: stft_conv2d     # encoder architecture type
 transformer-lr: 10.0
 transformer-warmup-steps: 25000
 transformer-attn-dropout-rate: 0.0

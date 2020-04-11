@@ -41,17 +41,11 @@ class Encoder(chainer.Chain):
         with self.init_scope():
             channels = 64  # Based in paper
             if args.transformer_input_layer == 'stft_conv2d':
-                self.input_layer = S.STFTConv2d(channels, idim, args.adim, dropout=args.dropout_rate,
-                                                     initialW=initialW, initial_bias=initial_bias)
-            elif args.transformer_input_layer == 'stft_conv2dgn':
-                self.input_layer = S.STFTConv2dGN(channels, idim, args.adim, dropout=args.dropout_rate,
-                                                     initialW=initialW, initial_bias=initial_bias)
-            elif args.transformer_input_layer == 'stft_conv2d2':
-                self.input_layer = S.STFTConv2dSub2(channels, idim, args.adim, dropout=args.dropout_rate,
-                                                     initialW=initialW, initial_bias=initial_bias)
-            elif args.transformer_input_layer == 'stft_conv2d3':
-                self.input_layer = S.STFTConv2dSub2(channels, idim, args.adim, dropout=args.dropout_rate,
-                                                     initialW=initialW, initial_bias=initial_bias)
+                self.input_layer = S.StftConv2DSubsamp(channels, idim, args.adim, dropout=args.dropout_rate,
+                                                       initialW=initialW, initial_bias=initial_bias,
+                                                       mels=args.mels, freq_samp=args.freq_samp,
+                                                       filter_length=args.filter_length,
+                                                       hop_length=args.hop_length)
             else:
                 raise ValueError('Incorrect type of input layer')
             self.norm = LayerNorm(args.adim)

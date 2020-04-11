@@ -79,6 +79,17 @@ class E2E(ASRInterface, chainer.Chain):
                            help='Number of decoder layers')
         group.add_argument('--dunits', default=320, type=int,
                            help='Number of decoder hidden units')
+        group.add_argument('--dump-plot', default=True, type=strtobool,
+                           help='')
+        # Wave
+        group.add_argument('--mels', default=80, type=int,
+                           help='')
+        group.add_argument('--freq-samp', default=16000, type=int,
+                           help='')
+        group.add_argument('--filter-length', default=512, type=int,
+                           help='')
+        group.add_argument('--hop-length', default=160, type=int,
+                           help='')
         return parser
 
     def __init__(self, idim, odim, args, ignore_id=-1, flag_return=True):
