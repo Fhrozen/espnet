@@ -33,8 +33,8 @@ def main(args):
                    "1.3.1",
                    "1.4.0")),
         ('chainer', ("7.0.0")),
-        ('chainer_ctc', None),
-        ('warprnnt_pytorch', ("0.1"))
+        # ('chainer_ctc', None),
+        # ('warprnnt_pytorch', ("0.1"))
     ]
 
     if not args.no_cupy:

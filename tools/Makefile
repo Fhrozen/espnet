@@ -27,16 +27,19 @@ ifneq ($(shell which nvidia-smi),) # 'nvcc' found
 CONDA_PYTORCH := pytorch=$(TH_VERSION) cudatoolkit=$(CUDA_VERSION)
 CUDA_DEPS := cupy.done
 else
-CONDA_PYTORCH := pytorch-cpu=$(TH_VERSION)
+CONDA_PYTORCH := pytorch=$(TH_VERSION) cpuonly
 CUDA_DEPS :=
+CUPY_VERSION :=
 endif
 
+$(info    CONDA_PYTORCH is $(CONDA_PYTORCH))
+$(info    CUDA_DEPS is $(CUDA_DEPS))
 
 .PHONY: all clean
 
 all: kaldi.done python check_install
 
-python: venv $(CUDA_DEPS) warp-ctc.done warp-transducer.done chainer_ctc.done
+python: venv $(CUDA_DEPS) warp-ctc.done 
 
 extra: nkf.done moses.done mwerSegmenter.done pesq
 

@@ -5,6 +5,3 @@ process:
       n_shift: 160
       n_mels: 80
       fs: 8000
-    - type: "utterance_cmvn"
-      norm_means: true
-      norm_vars: true
