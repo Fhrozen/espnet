@@ -11,7 +11,7 @@ aheads: 4
 
 # hybrid CTC/attention
 mtlalpha: 0.3
-batch-bins: 5992000
+batch-bins: 15000000  #5992000
 batch-count: bin
 ctc_type: builtin
 
