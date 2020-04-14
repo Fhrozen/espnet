@@ -57,7 +57,7 @@ class StftConv2DSubsamp(chainer.Chain):
         xp = self.xp
         xs = F.expand_dims(xs, axis=1).data
         # BS x 1 x T x NFFT
-        xs = F.convolution_2d(xs, xp.array(self.fourier_basis), stride=1, pad=0)
+        xs = F.convolution_2d(xp.array(xs), xp.array(self.fourier_basis), stride=1, pad=0)
         # BS x NFFT/2+1 * 2 x T x 1 
         xs = F.squeeze(xs, axis=3)
         cutoff = int((self.filter_length / 2) + 1)
