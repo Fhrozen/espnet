@@ -401,3 +401,30 @@ class WaveFrames(object):
                  return_raw_energy=False,
                  round_to_power_of_two=True
                  )
+
+
+class Wave(object):
+    def __init__(self, nfft, frame_shift, frame_length=None, window_type='povey', preemphasis_coefficient=0.):
+        self.nfft = nfft
+        self.frame_shift = frame_shift
+        self.frame_length = frame_length
+        self.window_type = 'povey'
+        self.preemphasis_coefficient = preemphasis_coefficient
+
+    def __repr__(self):
+        return ('{name}(nfft={nfft}, frame_shift={frame_shift}, '
+                'frame_length={frame_length}, window_type={window_type}, '
+                'preemphasis_coefficient={preemphasis_coefficient})'
+                .format(name=self.__class__.__name__,
+                        nfft=self.nfft,
+                        frame_shift=self.frame_shift,
+                        frame_length=self.frame_length,
+                        window_type=self.window_type,
+                        preemphasis_coefficient=self.preemphasis_coefficient))
+
+    def __call__(self, x):
+        x = numpy.asarray(x, dtype=numpy.float32)
+        if x.ndim == 1:
+            return x[None, ]
+        else:
+            return x

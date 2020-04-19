@@ -41,7 +41,8 @@ import_alias = dict(
     stft='espnet.transform.spectrogram:Stft',
     istft='espnet.transform.spectrogram:IStft',
     stft2fbank='espnet.transform.spectrogram:Stft2LogMelSpectrogram',
-    wave='espnet.transform.wave:WaveFrames',
+    wave_frames='espnet.transform.wave:WaveFrames',
+    wave='espnet.transform.wave:Wave',
     wpe='espnet.transform.wpe:WPE',
     channel_selector='espnet.transform.channel_selector:ChannelSelector')
 
