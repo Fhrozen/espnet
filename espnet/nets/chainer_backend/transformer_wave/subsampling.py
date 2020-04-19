@@ -221,7 +221,7 @@ class SincConv(chainer.Chain):
             self.pe = PositionalEncoding(dims, dropout)
 
     def __call__(self, xs, ilens):
-        xs, ilens = self.feats(xs, ilens)
+        xs, ilens = self.feats(self.xp.array(xs), ilens)
         # Norm
         xs = self.norm(xs)
         # Forward net
