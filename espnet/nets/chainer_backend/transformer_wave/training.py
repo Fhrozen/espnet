@@ -302,8 +302,8 @@ class CustomConverter(object):
         xs, ys = batch[0]
         ilens = np.array([x.shape[0] for x in xs], dtype=np.int32)
         x = xs[0]
-        if (x.ndim == 2) and (x.shape[0] == 1):
-            xs = [x[0] for x in xs]
+        if (x.ndim == 2) and (x.shape[1] == 1):
+            xs = [x[:, 0] for x in xs]
         xs = F.pad_sequence(xs, padding=-1).data
         # get batch of lengths of input sequences
         return xs, ilens, ys
