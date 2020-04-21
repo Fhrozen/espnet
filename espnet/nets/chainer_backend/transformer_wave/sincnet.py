@@ -74,12 +74,8 @@ class SincNet(chainer.Chain):
         # band_pass = band_pass 
 
         self.filters = F.expand_dims(band_pass, axis=1)
-        if self.iter > 4000:
-            # Cut backprop due to overfitting (?)
-            with chainer.no_backprop_mode():
-                xs = F.convolution_1d(F.expand_dims(xs, axis=1).data, self.filters, stride=self.stride)
-        else:
-            xs = F.convolution_1d(F.expand_dims(xs, axis=1).data, self.filters, stride=self.stride)
+        xs = F.convolution_1d(F.expand_dims(xs, axis=1).data, self.filters, stride=self.stride)
         # xs dims = batch x filters x len
         ilens = ((np.array(ilens, dtype=np.float32) - self.kernel_size) / self.stride).astype(np.int) + 1
-        return F.relu(xs), ilens
+        xs = F.log(F.absolute(xs) ** 2 + 1e-20)
+        return xs, ilens

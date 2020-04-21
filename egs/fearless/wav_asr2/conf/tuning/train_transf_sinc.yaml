@@ -31,7 +31,7 @@ patience: 0
 epochs: 100
 dropout-rate: 0.1
 
-dump-plot: false
+dump-plot: True
 
 # transformer specific setting
 backend: chainer
@@ -48,5 +48,5 @@ report-cer: false
 report-wer: false
 
 freq-samp: 8000
-filter-length: 256
+filter-length: 257
 hop-length: 80
