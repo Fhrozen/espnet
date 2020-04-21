@@ -290,6 +290,8 @@ class E2E(ASRInterface, chainer.Chain):
             # 1. encoder
             ilens = [x_block.shape[0]]
             batch = len(ilens)
+            if (x_block.ndim == 2) and (x_block.shape[1] == 1):
+                x_block = x_block[:, 0]
             xs, _, _ = self.encoder(x_block[None], ilens)
 
             # calculate log P(z_t|X) for CTC scores

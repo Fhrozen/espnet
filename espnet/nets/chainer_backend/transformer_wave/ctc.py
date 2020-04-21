@@ -143,7 +143,7 @@ class WarpCTC(chainer.Chain):
             chainer.Variable: A n-dimension float array.
 
         """
-        y_hat = self.ctc_lo(F.pad_sequence(hs), n_batch_axes=2)
+        y_hat = self.ctc_lo(hs, n_batch_axes=2)
         return F.log_softmax(y_hat.reshape(-1, y_hat.shape[-1])).reshape(y_hat.shape)
 
     def argmax(self, hs_pad):
