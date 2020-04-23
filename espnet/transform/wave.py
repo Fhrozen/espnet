@@ -425,6 +425,8 @@ class Wave(object):
     def __call__(self, x):
         x = numpy.asarray(x, dtype=numpy.float32)
         if x.ndim == 1:
-            return x[:, None]
+            x_max = numpy.amax(x)
+            return x[:, None] / x_max
         else:
+            # Multichannel
             return x
