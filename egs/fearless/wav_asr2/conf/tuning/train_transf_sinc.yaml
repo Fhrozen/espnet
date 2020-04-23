@@ -38,7 +38,7 @@ backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer_wave:E2E"
 transformer-input-layer: sinc_conv     # encoder architecture type
 transformer-lr: 10.0
-transformer-warmup-steps: 25000
+transformer-warmup-steps: 45000
 transformer-attn-dropout-rate: 0.0
 transformer-length-normalized-loss: false
 transformer-init: pytorch
@@ -48,5 +48,5 @@ report-cer: false
 report-wer: false
 
 freq-samp: 8000
-filter-length: 257
+filter-length: 511
 hop-length: 80
