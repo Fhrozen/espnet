@@ -70,4 +70,4 @@ class SincNet(chainer.Chain):
         # xs dims = batch x filters x len
         ilens = ((np.array(ilens, dtype=np.float32) - self.kernel_size) / self.stride).astype(np.int) + 1
         xs = F.log(F.absolute(xs) ** 2 + 1e-20)
-        return F.relu(xs), ilens
+        return xs, ilens
