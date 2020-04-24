@@ -30,6 +30,8 @@ patience: 0
 epochs: 100
 dropout-rate: 0.1
 
+dump-plot: False
+
 # transformer specific setting
 backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer_wave:E2E"
