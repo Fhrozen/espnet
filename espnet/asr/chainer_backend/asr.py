@@ -222,7 +222,7 @@ def train(args):
 
         # set up updater
         updater = model.custom_parallel_updater(
-            train_iters, optimizer, converter=converter, devices=devices)
+            train_iters, optimizer, converter=converter, devices=devices, accum_grad=accum_grad)
 
     # Set up a trainer
     trainer = training.Trainer(
