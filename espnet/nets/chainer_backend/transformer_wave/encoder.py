@@ -58,6 +58,12 @@ class Encoder(chainer.Chain):
                                               mels=args.mels, freq_samp=args.freq_samp,
                                               filter_length=args.filter_length,
                                               hop_length=args.hop_length)
+            elif args.transformer_input_layer == 'sinc_frames':
+                self.input_layer = S.SincConvFrames(channels, idim, args.adim, dropout=args.dropout_rate,
+                                                    initialW=initialW, initial_bias=initial_bias,
+                                                    mels=args.mels, freq_samp=args.freq_samp,
+                                                    filter_length=args.filter_length,
+                                                    hop_length=args.hop_length)
             elif args.transformer_input_layer == 'stft_learn':
                 self.input_layer = S.StftConv2DLearn(channels, idim, args.adim, dropout=args.dropout_rate,
                                                      initialW=initialW, initial_bias=initial_bias,

@@ -408,9 +408,9 @@ class SincConvFrames(chainer.Chain):
             self.pe = PositionalEncoding(dims, dropout)
 
     def __call__(self, xs, ilens):
-        xs, ilens = self.feats(self.xp.array(xs), ilens)
+        xs = self.feats(self.xp.array(xs))
         # Norm
-        xs = self.norm(xs)
+        xs = self.norm(xs.transpose(0, 2, 1))
         # Forward net
         xs = F.expand_dims(xs, axis=1)
         xs = self.conv1(xs)
