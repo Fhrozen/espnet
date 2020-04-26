@@ -66,10 +66,10 @@ class SincNet(chainer.Chain):
         high_pass = 2 * high * self.sinc(F.matmul(high, self.kernel) * self.sample_rate)
 
         band_pass = high_pass - low_pass
-        band_pass = (band_pass / F.max(band_pass, axis=1, keepdims=True)) * self.window
+        band_pass = (band_pass / F.max(band_pass, axis=1, keepdims=True).data) * self.window
         self.filters = band_pass
         pads = self.kernel_size - xs.shape[2]
         xs = F.pad(xs, [[0, 0], [0, 0], [0, pads]], 'constant', constant_values=0)
         xs = F.matmul(xs, self.filters.T)
         xs = F.log(F.absolute(xs) + 1e-20)
-        return xs
+        return F.elu(xs)
