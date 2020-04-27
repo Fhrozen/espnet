@@ -132,6 +132,8 @@ def train(args):
         optimizer = chainer.optimizers.Adam()
     elif args.opt == 'noam':
         optimizer = chainer.optimizers.Adam(alpha=0, beta1=0.9, beta2=0.98, eps=1e-9)
+    elif args.opt == 'adam_poly':
+        optimizer = chainer.optimizers.Adam(alpha=1e-3)
     else:
         raise NotImplementedError('args.opt={}'.format(args.opt))
 
@@ -235,6 +237,10 @@ def train(args):
         from espnet.nets.chainer_backend.transformer.training import VaswaniRule
         trainer.extend(VaswaniRule('alpha', d=args.adim, warmup_steps=args.transformer_warmup_steps,
                                    scale=args.transformer_lr), trigger=(1, 'iteration'))
+    elif args.opt == 'adam_poly':
+        from chainer.training.extensions import PolynomialShift
+        trainer.extend(PolynomialShift('alpha', 0.5, args.transformer_warmup_steps,
+                                       init=args.transformer_lr), trigger=(1, 'iteration'))
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
@@ -331,6 +337,12 @@ def train(args):
             'eps', lambda trainer: trainer.updater.get_optimizer('main').eps),
             trigger=(args.report_interval_iters, 'iteration'))
         report_keys.append('eps')
+    elif args.opt in ['adam', 'adam_poly', 'noam']:
+        trainer.extend(extensions.observe_value(
+            'alpha', lambda trainer: trainer.updater.get_optimizer('main').alpha),
+            trigger=(args.report_interval_iters, 'iteration'))
+        report_keys.append('alpha')
+
     trainer.extend(extensions.PrintReport(
         report_keys), trigger=(args.report_interval_iters, 'iteration'))
     
