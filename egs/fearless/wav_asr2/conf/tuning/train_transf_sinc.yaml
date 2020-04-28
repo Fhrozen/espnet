@@ -17,10 +17,10 @@ mtlalpha: 0.3
 lsm-weight: 0.1
 
 # minibatch related
-batch-bins: 694000 # 15000000
-# batch-size: 32
-# maxlen-in: 512  # if input length  > maxlen-in, batchsize is automatically reduced
-# maxlen-out: 150 # if output length > maxlen-out, batchsize is automatically reduced
+# batch-bins: 694000 # 15000000
+batch-size: 32
+maxlen-in: 512  # if input length  > maxlen-in, batchsize is automatically reduced
+maxlen-out: 150 # if output length > maxlen-out, batchsize is automatically reduced
 
 # optimization related
 sortagrad: 0 # Feed samples from shortest to longest ; -1: enabled for all epochs, 0: disabled, other: enabled for 'other' epochs
@@ -36,7 +36,7 @@ dump-plot: false
 # transformer specific setting
 backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer_wave:E2E"
-transformer-input-layer: sinc_conv     # encoder architecture type
+transformer-input-layer: sinc_frames     # encoder architecture type
 transformer-lr: 10.0
 transformer-warmup-steps: 25000
 transformer-attn-dropout-rate: 0.0
@@ -48,5 +48,5 @@ report-cer: false
 report-wer: false
 
 freq-samp: 8000
-filter-length: 511
+filter-length: 257
 hop-length: 80
