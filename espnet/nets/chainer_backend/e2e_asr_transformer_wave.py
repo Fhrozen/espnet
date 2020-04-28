@@ -90,6 +90,8 @@ class E2E(ASRInterface, chainer.Chain):
                            help='')
         group.add_argument('--hop-length', default=160, type=int,
                            help='')
+        group.add_argument('--nums-filters', default=16, type=int,
+                           help='')
         return parser
 
     def __init__(self, idim, odim, args, ignore_id=-1, flag_return=True):

@@ -83,6 +83,99 @@ class StftConv2DSubsamp(chainer.Chain):
         ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         return xs, ilens
 
+class BottleFilter(chainer.Chain):
+    def __init__(self, in_channels, mid_channels, out_channels,
+                 stride=1, initialW=None, bn=True, act=F.elu, groups=1):
+        super(BottleFilter, self).__init__()
+        if bn:
+            Conv = ConvWithNorm
+        else:
+            Conv = L.Convolution2D
+        with self.init_scope():
+            self.conv1 = Conv(in_channels, mid_channels, 3, stride=1, pad=1, nobias=True, groups=groups)
+            self.conv2 = Conv(mid_channels, out_channels, 3, stride=stride, pad=1, nobias=True, groups=groups)
+        self.act = act
+
+    def __call__(self, x):
+        res_x = self.act(self.conv1(x))
+        res_x = self.conv2(res_x)
+        return x + res_x
+
+
+class StftConv2DFilter(chainer.Chain):
+    def __init__(self, channels, idim, dims, dropout=0.1,
+                 initialW=None, initial_bias=None,
+                 mels=80, freq_samp=16000, filter_length=512,
+                 hop_length=160, filters=16):
+        super(StftConv2DFilter, self).__init__()
+        import librosa
+        # Ref: https://github.com/pseeth/pytorch-stft/blob/master/stft.py#L33
+        self.filter_length = filter_length
+        self.hop_length = hop_length
+        logging.info('Stft param with stft initializer')
+        fourier_basis = np.fft.rfft(np.eye(self.filter_length))
+        fourier_basis = np.hstack([fourier_basis.real,
+                                    fourier_basis.imag]).astype(np.float32).T
+        _mel_options = dict(sr=freq_samp,
+                            n_fft=filter_length,
+                            n_mels=mels,
+                            fmin=0.0,
+                            fmax=None)
+        self.dropout = dropout
+        melmat = librosa.filters.mel(**_mel_options).T
+        self.fourier_basis = fourier_basis[:, None, None, :]
+        self.melmat = melmat.astype(np.float32)
+        self.register_persistent('fourier_basis')
+        self.register_persistent('melmat')
+        with self.init_scope():
+            self.filter_r = BottleFilter(1, filters, 1, bn=False)
+            self.filter_i = BottleFilter(1, filters, 1, bn=False)
+            self.norm = L.GroupNormalization(1, mels)
+            n = 1 * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.conv1 = L.Convolution2D(1, channels, 3, stride=2, pad=1, 
+                                     initialW=initialW(scale=stvd),
+                                     initial_bias=initial_bias(scale=stvd))
+            n = channels * 3 * 3
+            stvd = 1. / np.sqrt(n)
+            self.conv2 = L.Convolution2D(channels, channels, 3, stride=2, pad=1,
+                                     initialW=initialW(scale=stvd),
+                                     initial_bias=initial_bias(scale=stvd))
+            stvd = 1. / np.sqrt(dims)
+            idim = int(np.ceil(np.ceil(mels / 2) / 2)) * channels
+            self.out = L.Linear(idim, dims, initialW=chainer.initializers.Uniform(scale=stvd),
+                            initial_bias=chainer.initializers.Uniform(scale=stvd))
+            self.pe = PositionalEncoding(dims, dropout)
+
+    def __call__(self, xs, ilens):
+        xs = F.expand_dims(self.xp.array(xs), axis=1)
+        # BS x 1 x T x NFFT
+        xs = F.convolution_2d(xs, self.fourier_basis, stride=1, pad=0)
+        # BS x NFFT/2+1 * 2 x T x 1 
+        xs = F.squeeze(xs, axis=3).data
+        cutoff = int((self.filter_length / 2) + 1)
+        real_xs = xs[:, :cutoff, :]
+        imag_xs = xs[:, cutoff:, :]
+        real_xs = F.squeeze(self.filter_r(F.expand_dims(real_xs, axis=1)), axis=1)
+        imag_xs = F.squeeze(self.filter_i(F.expand_dims(imag_xs, axis=1)), axis=1)
+        xs = real_xs ** 2 + imag_xs ** 2
+        logging.info(xs.shape)
+        xs = F.swapaxes(xs, 1, 2)
+        xs = F.matmul(xs, self.melmat)
+        # BS x T x MEL
+        xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
+        # Norm
+        xs = self.norm(xs).transpose(0, 2, 1)
+        xs = F.expand_dims(xs, axis=1)
+        xs = F.relu(self.conv1(xs))
+        xs = F.relu(self.conv2(xs))
+        batch, _, length, _ = xs.shape
+        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
+        xs = self.pe(xs.reshape(batch, length, -1))
+        # change ilens accordingly
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        return xs, ilens
 
 class StftConv2DLearn(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
