@@ -48,4 +48,4 @@ freq-samp: 8000
 filter-length: 256
 hop-length: 80
 
-dump-plot: true
+dump-plot: false
