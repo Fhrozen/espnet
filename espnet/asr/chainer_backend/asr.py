@@ -240,7 +240,7 @@ def train(args):
     elif args.opt == 'adam_poly':
         from chainer.training.extensions import PolynomialShift
         trainer.extend(PolynomialShift('alpha', 0.5, args.transformer_warmup_steps,
-                                       init=args.transformer_lr), trigger=(1, 'iteration'))
+                                       init=args.transformer_lr, target=args.transformer_lr_target), trigger=(1, 'iteration'))
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
