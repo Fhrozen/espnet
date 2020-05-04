@@ -17,7 +17,7 @@ def to_hz(mel):
 class SincNet(chainer.Chain):
     """docstring for SincConv"""
     def __init__(self, out_channels, kernel_size, stride=1, sample_rate=16000,
-                 min_low_fq_hz=50., min_band_fq_hz=50., initializer='uniform'):
+                 min_low_fq_hz=50., min_band_fq_hz=50., initializer='mel'):
         super(SincNet, self).__init__()
         self.out_channels = out_channels
         self.sample_rate = sample_rate
@@ -55,7 +55,7 @@ class SincNet(chainer.Chain):
     def sinc(self, x):
         # Numerically stable definition
         mask = (F.absolute(x).data < 1e-12)
-        y = F.where(mask, self.xp.full(x.shape, 1.e-20, dtype= np.float32), x)
+        y = F.where(mask, self.xp.full(x.shape, 1.e-12, dtype= np.float32), x)
         y = F.sin(y) / y
         return y
 

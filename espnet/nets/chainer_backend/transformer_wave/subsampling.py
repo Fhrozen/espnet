@@ -476,7 +476,7 @@ class SincConvFrames(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
                  initialW=None, initial_bias=None,
                  mels=80, freq_samp=16000, filter_length=512,
-                 hop_length=160):
+                 hop_length=160, steps=0):
         super(SincConvFrames, self).__init__()
         
         self.dropout = dropout
@@ -499,9 +499,14 @@ class SincConvFrames(chainer.Chain):
             self.out = L.Linear(idim, dims, initialW=chainer.initializers.Uniform(scale=stvd),
                             initial_bias=chainer.initializers.Uniform(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
+        self._t = 0
+        self.steps = steps
 
     def __call__(self, xs, ilens):
+        self._t += 1
         xs = self.feats(self.xp.array(xs))
+        if self._t <= self.steps:
+            xs = xs.data
         # Norm
         xs = self.norm(xs.transpose(0, 2, 1))
         # Forward net
