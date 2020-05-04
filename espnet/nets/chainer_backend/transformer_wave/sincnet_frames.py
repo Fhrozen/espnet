@@ -54,7 +54,8 @@ class SincNet(chainer.Chain):
 
     def sinc(self, x):
         # Numerically stable definition
-        y = F.where((x.data < 1e-12), self.xp.full(x.shape, 1.e-20, dtype= np.float32), x)
+        mask = (F.absolute(x).data < 1e-12)
+        y = F.where(mask, self.xp.full(x.shape, 1.e-20, dtype= np.float32), x)
         y = F.sin(y) / y
         return y
 
