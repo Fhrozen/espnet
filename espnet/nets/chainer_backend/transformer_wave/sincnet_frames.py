@@ -62,6 +62,7 @@ class SincNet(chainer.Chain):
     def forward(self, xs):
         low = F.absolute(self.low_freq) + self.min_low_fq_hz / self.sample_rate
         high = low + self.min_band_fq_hz / self.sample_rate + F.absolute(self.band_freq)
+        high = F.clip(high, self.min_band_fq_hz / self.sample_rate, 0.5)
 
         low_pass = 2 * low * self.sinc(F.matmul(low, self.kernel) * self.sample_rate)
         high_pass = 2 * high * self.sinc(F.matmul(high, self.kernel) * self.sample_rate)
