@@ -32,6 +32,7 @@ epochs: 100
 dropout-rate: 0.1
 
 dump-plot: false
+mels: 129
 
 # transformer specific setting
 backend: chainer
