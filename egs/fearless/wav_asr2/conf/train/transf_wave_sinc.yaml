@@ -18,7 +18,7 @@ lsm-weight: 0.1
 
 # minibatch related
 # batch-bins: 694000 # 15000000
-batch-size: 32
+batch-size: 16
 maxlen-in: 512  # if input length  > maxlen-in, batchsize is automatically reduced
 maxlen-out: 150 # if output length > maxlen-out, batchsize is automatically reduced
 
@@ -32,7 +32,7 @@ epochs: 100
 dropout-rate: 0.1
 
 dump-plot: false
-mels: 129
+mels: 80
 
 # transformer specific setting
 backend: chainer
