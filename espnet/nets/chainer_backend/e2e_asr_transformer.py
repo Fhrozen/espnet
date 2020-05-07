@@ -205,7 +205,7 @@ class E2E(ChainerASRInterface):
             loss_ctc = None
         else:
             _ys = [y.astype(np.int32) for y in ys_pad]
-            loss_ctc = self.ctc(xs, _ys)
+            loss_ctc = self.ctc(xs, _ys, ilens)
             if self.error_calculator is not None:
                 with chainer.no_backprop_mode():
                     ys_hat = chainer.backends.cuda.to_cpu(self.ctc.argmax(xs).data)

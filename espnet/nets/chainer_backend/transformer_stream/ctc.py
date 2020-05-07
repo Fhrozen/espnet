@@ -24,11 +24,12 @@ class CTC(chainer.Chain):
         super(CTC, self).__init__()
         self.dropout_rate = dropout_rate
         self.loss = None
+        self.margin = 1
 
         with self.init_scope():
             self.ctc_lo = L.Linear(eprojs, odim)
 
-    def __call__(self, hs, ys):
+    def __call__(self, hs, ys, ilens=None):
         """CTC forward.
 
         Args:
@@ -39,24 +40,34 @@ class CTC(chainer.Chain):
             chainer.Variable: A variable holding a scalar value of the CTC loss.
 
         """
+        xp = self.xp
         self.loss = None
-        ilens = [x.shape[0] for x in hs]
-        olens = [x.shape[0] for x in ys]
+        if ilens is None:
+            ilens = np.array([x.shape[0] for x in hs])
+        olens = np.array([x.shape[0] for x in ys])
 
+        usable = (ilens > olens + self.margin)
+        if not np.all(usable):
+            # logging.warning('Removed sample')
+            hs = hs[usable]
+            ilens = ilens[usable]
+            ys = np.array(ys)[usable]
+            olens = olens[usable]
         # zero padding for hs
         y_hat = self.ctc_lo(F.dropout(
-            F.pad_sequence(hs), ratio=self.dropout_rate), n_batch_axes=2)
+            hs, ratio=self.dropout_rate), n_batch_axes=2)
         y_hat = F.separate(y_hat, axis=1)  # ilen list of batch x hdim
 
         # zero padding for ys
+        ys = [xp.array(y) for y in ys]
         y_true = F.pad_sequence(ys, padding=-1)  # batch x olen
 
         # get length info
-        input_length = chainer.Variable(self.xp.array(ilens, dtype=np.int32))
-        label_length = chainer.Variable(self.xp.array(olens, dtype=np.int32))
+        input_length = chainer.Variable(xp.array(ilens, dtype=np.int32))
+        label_length = chainer.Variable(xp.array(olens, dtype=np.int32))
         logging.info(self.__class__.__name__ + ' input lengths:  ' + str(input_length.data))
         logging.info(self.__class__.__name__ + ' output lengths: ' + str(label_length.data))
-
+        
         # get ctc loss
         self.loss = F.connectionist_temporal_classification(
             y_hat, y_true, 0, input_length, label_length)
@@ -100,11 +111,12 @@ class WarpCTC(chainer.Chain):
         self.ctc = warp_ctc
         self.dropout_rate = dropout_rate
         self.loss = None
+        self.margin = 0
 
         with self.init_scope():
             self.ctc_lo = L.Linear(eprojs, odim)
 
-    def forward(self, hs, ys):
+    def forward(self, hs, ys, ilens=None):
         """Core function of the Warp-CTC layer.
 
         Args:
@@ -116,8 +128,17 @@ class WarpCTC(chainer.Chain):
 
         """
         self.loss = None
-        ilens = [hs.shape[1]] * hs.shape[0]
-        olens = [x.shape[0] for x in ys]
+        if ilens is None:
+            ilens = np.array([hs.shape[1]] * hs.shape[0])
+        olens = np.array([x.shape[0] for x in ys])
+
+        usable = (ilens > olens + self.margin)
+        if not np.all(usable):
+            # logging.warning('Removed sample')
+            hs = hs[usable]
+            ilens = ilens[usable].tolist()
+            ys = [ys[i] for i in range(len(olens)) if usable[i]]
+            olens = olens[usable].tolist()
 
         # zero padding for hs
         # output batch x frames x hdim > frames x batch x hdim

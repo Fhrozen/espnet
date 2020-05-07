@@ -131,13 +131,13 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    # data2json.sh --feat data/${train_set}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
-    #      --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-    #      data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+    data2json.sh --feat data/${train_set}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
 
-    # data2json.sh --feat data/${train_dev}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
-    #      --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-    #      data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
+    data2json.sh --feat data/${train_dev}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+         data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
 
     for rtask in ${recog_set}; do
         feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
