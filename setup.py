@@ -19,7 +19,7 @@ if LooseVersion(pip.__version__) < LooseVersion('19'):
 requirements = {
     'install': [
         # 'torch==1.0.1',  # Installation from anaconda is recommended for PyTorch
-        'chainer==7.0.0',
+        'chainer==7.4.0',
         # 'cupy==6.0.0',  # Do not install cupy as default
         'setuptools>=38.5.1',
         'scipy<=1.3.3',

@@ -10,7 +10,7 @@
 backend=chainer
 stage=-1       # start from -1 if you need to start from data download
 stop_stage=100
-ngpu=4         # number of gpus ("0" uses cpu, otherwise use gpu)
+ngpu=1         # number of gpus ("0" uses cpu, otherwise use gpu)
 nj=32
 debugmode=1
 dumpdir=dump   # directory to dump full features
@@ -21,11 +21,11 @@ resume=        # Resume the training from snapshot
 # feature configuration
 do_delta=false
 
-preprocess_config=conf/fbank.yaml
-train_config=conf/tuning/train_chainer_transformer.yaml # current default recipe requires 4 gpus.
+preprocess_config=conf/preprocess/fbank.yaml
+train_config=conf/train/transformer.yaml # current default recipe requires 4 gpus.
                              # if you do not have 4 gpus, please reconfigure the `batch-bins` and `accum-grad` parameters in config.
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctc0.1.yaml
+decode_config=conf/decode/ctc0.1.yaml
 
 # rnnlm related
 lm_resume= # specify a snapshot file to resume LM training
@@ -64,8 +64,8 @@ set -u
 set -o pipefail
 
 train_set=train
-train_dev=dev
-recog_set="dev" # Eval
+train_dev=dev_4k
+recog_set="Dev Eval"
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
@@ -85,8 +85,6 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     echo "stage 1: Feature Generation"
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
     for x in Train Dev Eval; do
-        # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
-        #     data/${x} exp/make_fbank/${x} ${fbankdir}
         dump_pcm.sh --nj ${nj} --cmd "${train_cmd}" --filetype "sound.hdf5" --format wav data/${x}
         utils/fix_data_dir.sh data/${x}
     done
@@ -97,7 +95,10 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     # remove utt having more than 3000 frames
     # remove utt having more than 400 characters
     remove_longshortdata.sh --no_feat true --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
-    remove_longshortdata.sh --no_feat true --maxframes 3000 --maxchars 400 data/${train_dev}_org data/${train_dev}
+    remove_longshortdata.sh --no_feat true --maxframes 3000 --maxchars 400 data/${train_dev}_org data/${train_dev}_trim
+
+    utils/subset_data_dir.sh data/${train_dev}_trim 4000 data/${train_dev}
+    rm -rf data/*_org data/${train_dev}_trim
 
     # speed-perturbed
     # utils/perturb_data_dir_speed.sh 0.9 data/train_trim data/temp1
@@ -108,21 +109,6 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 64 --write_utt2num_frames true \
     #     data/${train_set} exp/make_fbank/${train_set} ${fbankdir}
     # utils/fix_data_dir.sh data/${train_set}
-
-    # compute global CMVN
-    # compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
-
-    # dump features for training
-    # dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-    #     data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
-    # dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-    #     data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
-    # for rtask in ${recog_set}; do
-    #     feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
-    #     dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-    #         data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/recog/${rtask} \
-    #         ${feat_recog_dir}
-    # done
 fi
 
 dict=data/lang_1char/${train_set}_units.txt
@@ -145,20 +131,20 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --feat data/${train_set}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
-         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-         data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-
-    data2json.sh --feat data/${train_dev}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
-         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-         data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
-
-    # for rtask in ${recog_set}; do
-    #     feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-    #     data2json.sh --feat data/${rtask}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+    # data2json.sh --feat data/${train_set}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
     #      --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
-    #      data/${rtask} ${dict} > ${feat_recog_dir}/data.json
-    # done
+    #      data/${train_set} ${dict} > ${feat_tr_dir}/data.json
+
+    # data2json.sh --feat data/${train_dev}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+    #      --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+    #      data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
+
+    for rtask in ${recog_set}; do
+        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
+        data2json.sh --feat data/${rtask}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+         data/${rtask} ${dict} > ${feat_recog_dir}/data.json
+    done
 fi
 
 # You can skip this and remove --rnnlm option in the recognition (stage 5)

@@ -4,8 +4,8 @@ PYTHON :=
 # The python version installed in the conda setup
 # NOTE(kan-bayashi): Use 3.7.3 to avoid sentencepiece installation error
 PYTHON_VERSION := 3.7.3
-CUPY_VERSION := 7.0.0
-CUDA_VERSION := 10.0
+CUPY_VERSION := 7.4.0
+CUDA_VERSION := 10.2
 # PyTorch version: 0.4.1, 1.0.0, 1.0.1, 1.1.0, 1.2.0, 1.3.0, 1.3.1, 1.4.0
 TH_VERSION := 1.3.1
 ifeq ($(shell expr $(strip $(subst .,,$(TH_VERSION))) \< 120), 1)
