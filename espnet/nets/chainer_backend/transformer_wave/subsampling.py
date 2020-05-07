@@ -181,9 +181,11 @@ class StftConv2DLearn(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
                  initialW=None, initial_bias=None,
                  mels=80, freq_samp=16000, filter_length=512,
-                 hop_length=160):
+                 hop_length=160, max_iters=-1):
         super(StftConv2DLearn, self).__init__()
         import librosa
+        self.max_iters = max_iters
+        self._t = 0
         self.filter_length = filter_length
         self.hop_length = hop_length
         logging.info('Stft param with stft initializer')
@@ -219,6 +221,7 @@ class StftConv2DLearn(chainer.Chain):
             self.fourier_basis = chainer.Parameter(fourier_basis[:, None, None, :])
 
     def __call__(self, xs, ilens):
+        self._t += 1
         xs = F.expand_dims(self.xp.array(xs), axis=1).data
         # BS x 1 x T x NFFT
         xs = F.convolution_2d(xs, self.fourier_basis, stride=1, pad=0)
@@ -233,6 +236,9 @@ class StftConv2DLearn(chainer.Chain):
         xs = F.matmul(xs, self.melmat)
         # BS x T x MEL
         xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
+        if self.max_iters > 0 and self._t > self.max_iters:
+            # Stop Backprop
+            xs = xs.data
         # Norm
         xs = self.norm(xs)
         xs = F.expand_dims(xs, axis=1)
@@ -360,9 +366,11 @@ class StftResLearn(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
                  initialW=None, initial_bias=None,
                  mels=80, freq_samp=16000, filter_length=512,
-                 hop_length=160):
+                 hop_length=160, max_iters=-1):
         super(StftResLearn, self).__init__()
         import librosa
+        self.max_iters = max_iters
+        self._t = 0
         self.filter_length = filter_length
         self.hop_length = hop_length
         logging.info('Stft param with stft initializer')
@@ -398,6 +406,7 @@ class StftResLearn(chainer.Chain):
             self.fourier_basis = chainer.Parameter(fourier_basis[:, None, None, :])
 
     def __call__(self, xs, ilens):
+        self._t += 1
         xs = F.expand_dims(self.xp.array(xs), axis=1).data
         # BS x 1 x T x NFFT
         xs = F.convolution_2d(xs, self.fourier_basis, stride=1, pad=0)
@@ -412,6 +421,9 @@ class StftResLearn(chainer.Chain):
         xs = F.matmul(xs, self.melmat)
         # BS x T x MEL
         xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
+        if self.max_iters > 0 and self._t > self.max_iters:
+            # Stop Backprop
+            xs = xs.data
         # Norm
         xs = self.norm(xs)
         xs = F.expand_dims(xs, axis=1)

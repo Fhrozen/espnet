@@ -9,55 +9,67 @@ from sys import stdout
 
 import numpy as np
 
-import chainer
+from scipy.signal import chirp
 
-from espnet.nets.chainer_backend.transformer_wave.sincnet import SincNet
+import chainer
+from chainer import functions as F
 
 from matplotlib import pyplot as plt
 
+from espnet.transform.transformation import Transformation
 
-def get_filt(filters):
-    filt_sum = 0
-    for i in range(filters.shape[0]):
-        this_filt = filters[i]
-        filt_fft = np.fft.rfft(this_filt)
-        filt_fft = np.absolute(filt_fft)
-        filt_sum += filt_fft
-    return filt_sum / np.amax(filt_sum)
+def prepare_chirp(fs=8000):
+    secs=4
+    t = np.linspace(0, secs, secs * fs + 1)
+    x = chirp(t, f0=fs/2, f1=0, t1=secs, method='linear')
+    return x.astype(np.float32)
+
+def process_mels(xs, melmat, fourier_basis, filter_length):
+    xs = F.expand_dims(xs, axis=1).data
+    # BS x 1 x T x NFFT
+    xs = F.convolution_2d(xs, fourier_basis, stride=1, pad=0)
+    # BS x NFFT/2+1 * 2 x T x 1 
+    xs = F.squeeze(xs, axis=3)
+    cutoff = int((filter_length / 2) + 1)
+    real_xs = xs[:, :cutoff, :]
+    imag_xs = xs[:, cutoff:, :]
+    xs = real_xs ** 2 + imag_xs ** 2
+
+    xs = F.swapaxes(xs, 1, 2)
+    xs = F.matmul(xs, melmat)
+    # BS x T x MEL
+    xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
+    return xs.data
 
 
 def main():
     last = sorted(args.snapshots, key=os.path.getmtime)
     print("snapshots", len(last))
     os.makedirs(args.out, exist_ok=True)
+ 
+    xs = prepare_chirp()
+    if not args.preprocess_conf is None:
+        preprocessing = Transformation(args.preprocess_conf)
+        xs = preprocessing(xs)
+    filter_length = xs.shape[1]
+    xs = xs[None]
+    
+    for path in last:
+        states = np.load(path)
+        snap = path.split('snapshot.')[1]
 
-    with chainer.no_backprop_mode(), chainer.using_config('train', False): 
-        x = np.zeros((1, 256), dtype=np.float32)
-        x[0, 0] = 1
-        net_feats = SincNet(80, 256, stride=80, sample_rate=8000)
-        _, _ = net_feats(x, [256])
-        norm_filter = get_filt(net_feats.filters.data[:,0])
-        plt.plot(norm_filter)
-        plt.xlim(0, 129)
-        plt.savefig(os.path.join(args.out, 'filters.ep.0.png'))
+        fourier_basis = [x for x in states if (('fourier_basis' in x) and ('model' in x))][0]
+        melmat = [x for x in states if (('melmat' in x) and ('model' in x))][0]
+
+        fourier_basis = states[str(fourier_basis)]
+        melmat = states[str(melmat)]
+
+        mels = process_mels(xs, melmat, fourier_basis, filter_length)[0]
+
+        plt.imshow(mels, origin='bottom')
+        plt.savefig(os.path.join(args.out, f'chirp.{snap}.png'))
+        
         plt.close()
-        for path in last:
-            states = np.load(path)
-            snap = path.split('model.')[1]
-
-            band_freq = [x for x in states if 'band_freq' in x][0]
-            low_freq = [x for x in states if 'low_freq' in x][0]
-
-            net_feats.band_freq.data = states[str(band_freq)]
-            net_feats.band_freq.low_freq = states[str(low_freq)]
-            _, _ = net_feats(x, [256])
-            norm_filter = get_filt(net_feats.filters.data[:,0])
-            plt.plot(norm_filter)
-            plt.xlim(0, 129)
-            plt.savefig(os.path.join(args.out, f'filters.{snap}.png'))
-            
-            plt.close()
-            net_feats = SincNet(80, 256, stride=80, sample_rate=8000)
 
 
 def get_parser():
@@ -66,6 +78,7 @@ def get_parser():
     parser.add_argument("--out", required=True, type=str)
     parser.add_argument("--num", default=10, type=int)
     parser.add_argument("--log", default=None, type=str, nargs="?")
+    parser.add_argument("--preprocess-conf", default=None, type=str)
     return parser
 
 

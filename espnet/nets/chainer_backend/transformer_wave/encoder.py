@@ -77,17 +77,21 @@ class Encoder(chainer.Chain):
                                                     hop_length=args.hop_length,
                                                     steps=steps)
             elif args.transformer_input_layer == 'stft_learn':
+                steps = args.transformer_warmup_steps / 2
                 self.input_layer = S.StftConv2DLearn(channels, idim, args.adim, dropout=args.dropout_rate,
                                                      initialW=initialW, initial_bias=initial_bias,
                                                      mels=args.mels, freq_samp=args.freq_samp,
                                                      filter_length=args.filter_length,
-                                                     hop_length=args.hop_length)
+                                                     hop_length=args.hop_length,
+                                                     max_iters=steps)
             elif args.transformer_input_layer == 'res_learn':
+                steps = args.transformer_warmup_steps / 2
                 self.input_layer = S.StftResLearn(channels, idim, args.adim, dropout=args.dropout_rate,
                                                   initialW=initialW, initial_bias=initial_bias,
                                                   mels=args.mels, freq_samp=args.freq_samp,
                                                   filter_length=args.filter_length,
-                                                  hop_length=args.hop_length)
+                                                  hop_length=args.hop_length,
+                                                  max_iters=steps)
             else:
                 raise ValueError('Incorrect type of input layer')
             self.norm = LayerNorm(args.adim)
