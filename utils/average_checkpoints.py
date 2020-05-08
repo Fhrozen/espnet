@@ -30,7 +30,7 @@ def main():
     else:
         last = sorted(args.snapshots, key=os.path.getmtime)
         last = last[-args.num:]
-    print("average over", last)
+        print("average over", last)
     avg = None
 
     if args.backend == 'pytorch':
