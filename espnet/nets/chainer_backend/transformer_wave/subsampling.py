@@ -384,8 +384,8 @@ class StftResLearn(chainer.Chain):
                             fmax=None)
         self.dropout = dropout
         melmat = librosa.filters.mel(**_mel_options).T
-        self.melmat = melmat.astype(np.float32)
-        self.register_persistent('melmat')
+        self.fourier_basis = fourier_basis[:, None, None, :].astype(np.float32)
+        self.register_persistent('fourier_basis')
         with self.init_scope():
             self.norm = L.GroupNormalization(1, mels)
             n = 1 * 3 * 3
@@ -403,10 +403,10 @@ class StftResLearn(chainer.Chain):
             self.out = L.Linear(idim, dims, initialW=chainer.initializers.Uniform(scale=stvd),
                             initial_bias=chainer.initializers.Uniform(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
-            self.fourier_basis = chainer.Parameter(fourier_basis[:, None, None, :])
+            self.melmat = chainer.Parameter(melmat.astype(np.float32))
 
     def __call__(self, xs, ilens):
-        self._t += 1
+        # self._t += 1
         xs = F.expand_dims(self.xp.array(xs), axis=1).data
         # BS x 1 x T x NFFT
         xs = F.convolution_2d(xs, self.fourier_basis, stride=1, pad=0)
@@ -418,12 +418,13 @@ class StftResLearn(chainer.Chain):
         xs = real_xs ** 2 + imag_xs ** 2
 
         xs = F.swapaxes(xs, 1, 2)
+        xs = xs.data
         xs = F.matmul(xs, self.melmat)
         # BS x T x MEL
         xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
-        if self.max_iters > 0 and self._t > self.max_iters:
-            # Stop Backprop
-            xs = xs.data
+        # if self.max_iters > 0 and self._t > self.max_iters:
+        # Stop Backprop
+            
         # Norm
         xs = self.norm(xs)
         xs = F.expand_dims(xs, axis=1)
