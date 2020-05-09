@@ -407,12 +407,12 @@ class StftResLearn(chainer.Chain):
     
     def set_lr(self):
         alpha = self.conv0.W.update_rule.hyperparam.alpha
-        self.melmat.update_rule.hyperparam.alpha = alpha * 0.01
+        self.melmat.update_rule.hyperparam.alpha = alpha * 0.001
 
     def __call__(self, xs, ilens):
         self.set_lr()
         # self._t += 1
-        xs = F.expand_dims(self.xp.array(xs), axis=1).data
+        xs = F.expand_dims(self.xp.array(xs), axis=1)
         # BS x 1 x T x NFFT
         xs = F.convolution_2d(xs, self.fourier_basis, stride=1, pad=0)
         # BS x NFFT/2+1 * 2 x T x 1 
@@ -422,9 +422,7 @@ class StftResLearn(chainer.Chain):
         imag_xs = xs[:, cutoff:, :]
         xs = real_xs ** 2 + imag_xs ** 2
 
-        xs = F.swapaxes(xs, 1, 2)
-        xs = xs.data
-        xs = F.matmul(xs, self.melmat)
+        xs = F.matmul(F.swapaxes(xs, 1, 2).data, self.melmat)
         # BS x T x MEL
         xs = F.log(F.absolute(xs) + 1e-20).transpose(0, 2, 1)
         # if self.max_iters > 0 and self._t > self.max_iters:
