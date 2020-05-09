@@ -515,11 +515,11 @@ class SincConvFrames(chainer.Chain):
         self.steps = steps
 
     def __call__(self, xs, ilens):
-        self._t += 1
+        # self._t += 1
         xs = self.feats(self.xp.array(xs))
-        if self.steps > 0 and self._t > self.steps:
+        # if self.steps > 0 and self._t > self.steps:
             # Stop Backprop
-            xs = xs.data
+        xs = xs.data
 
         # Norm
         xs = self.norm(xs.transpose(0, 2, 1))
