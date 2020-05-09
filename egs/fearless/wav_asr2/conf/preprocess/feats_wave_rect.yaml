@@ -1,0 +1,8 @@
+process:
+    - type: "wave_frames"
+      frame_length: 200
+      nfft: 256
+      frame_shift: 80
+      preemphasis_coefficient: 0.97
+      window_type: "boxcar"
+      # fs: 8000

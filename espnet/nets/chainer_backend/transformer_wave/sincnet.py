@@ -51,7 +51,7 @@ class SincNet(chainer.Chain):
         y = F.sin(y) / y
         return y
 
-    def forward(self, xs):
+    def forward(self, xs, ilens=None):
         low = F.absolute(self.low_freq) + self.min_low_fq_hz / self.sample_rate
         high = low + self.min_band_fq_hz / self.sample_rate + F.absolute(self.band_freq)
         high = F.clip(high, self.min_band_fq_hz / self.sample_rate, 0.5)

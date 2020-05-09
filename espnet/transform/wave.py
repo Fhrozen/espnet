@@ -366,7 +366,7 @@ class WaveFrames(object):
         self.nfft = nfft
         self.frame_shift = frame_shift
         self.frame_length = frame_length
-        self.window_type = 'povey'
+        self.window_type = window_type
         self.preemphasis_coefficient = preemphasis_coefficient
 
     def __repr__(self):

@@ -404,8 +404,13 @@ class StftResLearn(chainer.Chain):
                             initial_bias=chainer.initializers.Uniform(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
             self.melmat = chainer.Parameter(melmat.astype(np.float32))
+    
+    def set_lr(self):
+        alpha = self.conv0.W.update_rule.hyperparam.alpha
+        self.melmat.update_rule.hyperparam.alpha = alpha * 0.01
 
     def __call__(self, xs, ilens):
+        self.set_lr()
         # self._t += 1
         xs = F.expand_dims(self.xp.array(xs), axis=1).data
         # BS x 1 x T x NFFT

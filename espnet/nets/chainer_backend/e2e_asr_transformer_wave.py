@@ -64,6 +64,8 @@ class E2E(ASRInterface, chainer.Chain):
 
         group.add_argument('--dropout-rate', default=0.0, type=float,
                            help='Dropout rate for the encoder')
+        group.add_argument('--update-rule', default='vaswani', type=str,
+                           help='')
         # Encoder
         group.add_argument('--elayers', default=4, type=int,
                            help='Number of encoder layers (for shared recognition part in multi-speaker asr mode)')
@@ -535,3 +537,12 @@ class E2E(ASRInterface, chainer.Chain):
         from espnet.nets.chainer_backend.transformer_wave.training import CustomParallelUpdater
         return CustomParallelUpdater(
             iters, optimizer, converter=converter, devices=devices, accum_grad=accum_grad)
+    
+    @staticmethod
+    def custom_rule_updater(rule_updater='vaswani'):
+        """Get custom_parallel_updater of the model."""
+        if rule_updater == 'learn':
+            from espnet.nets.chainer_backend.transformer_wave.training import VaswaniRule_1 as UpdateRule
+        else:
+            from espnet.nets.chainer_backend.transformer_wave.training import VaswaniRule as UpdateRule
+        return UpdateRule
