@@ -37,7 +37,7 @@ mels: 80
 # transformer specific setting
 backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer_wave:E2E"
-transformer-input-layer: sinc_frames     # encoder architecture type
+transformer-input-layer: sinc     # encoder architecture type
 transformer-lr: 10.0
 transformer-warmup-steps: 25000
 transformer-attn-dropout-rate: 0.0
@@ -49,5 +49,4 @@ report-cer: false
 report-wer: false
 
 freq-samp: 8000
-filter-length: 257
-hop-length: 80
+filter-length: 129

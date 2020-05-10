@@ -90,7 +90,7 @@ class E2E(ASRInterface, chainer.Chain):
                            help='')
         group.add_argument('--filter-length', default=512, type=int,
                            help='')
-        group.add_argument('--hop-length', default=160, type=int,
+        group.add_argument('--hop-length', default=1, type=int,
                            help='')
         group.add_argument('--nums-filters', default=16, type=int,
                            help='')
@@ -537,12 +537,3 @@ class E2E(ASRInterface, chainer.Chain):
         from espnet.nets.chainer_backend.transformer_wave.training import CustomParallelUpdater
         return CustomParallelUpdater(
             iters, optimizer, converter=converter, devices=devices, accum_grad=accum_grad)
-    
-    @staticmethod
-    def custom_rule_updater(rule_updater='vaswani'):
-        """Get custom_parallel_updater of the model."""
-        if rule_updater == 'learn':
-            from espnet.nets.chainer_backend.transformer_wave.training import VaswaniRule_1 as UpdateRule
-        else:
-            from espnet.nets.chainer_backend.transformer_wave.training import VaswaniRule as UpdateRule
-        return UpdateRule

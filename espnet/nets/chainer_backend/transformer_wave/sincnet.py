@@ -51,7 +51,7 @@ class SincNet(chainer.Chain):
         y = F.sin(y) / y
         return y
 
-    def forward(self, xs, ilens=None):
+    def forward(self, xs):
         low = F.absolute(self.low_freq) + self.min_low_fq_hz / self.sample_rate
         high = low + self.min_band_fq_hz / self.sample_rate + F.absolute(self.band_freq)
         high = F.clip(high, self.min_band_fq_hz / self.sample_rate, 0.5)
@@ -62,9 +62,6 @@ class SincNet(chainer.Chain):
         band_pass = high_pass - low_pass
         band_pass = (band_pass / F.max(band_pass, axis=1, keepdims=True)) * self.window
 
-        self.filters = F.expand_dims(band_pass, axis=1)
-        xs = F.convolution_1d(F.expand_dims(xs, axis=1), self.filters, stride=self.stride)
-        # xs dims = batch x filters x len
-        ilens = ((np.array(ilens, dtype=np.float32) - self.kernel_size) / self.stride).astype(np.int) + 1
-        xs = F.log(F.absolute(xs) ** 2 + 1e-20)
-        return F.elu(xs), ilens
+        self.filters = band_pass.reshape(self.out_channels, 1, self.kernel_size, 1)
+        xs = F.convolution_2d(xs, self.filters, stride=1)
+        return xs

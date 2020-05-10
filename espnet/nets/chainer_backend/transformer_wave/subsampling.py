@@ -406,8 +406,9 @@ class StftResLearn(chainer.Chain):
             self.melmat = chainer.Parameter(melmat.astype(np.float32))
     
     def set_lr(self):
-        alpha = self.conv0.W.update_rule.hyperparam.alpha
-        self.melmat.update_rule.hyperparam.alpha = alpha * 0.001
+        if chainer.config.train:
+            alpha = self.conv0.W.update_rule.hyperparam.alpha
+            self.melmat.update_rule.hyperparam.alpha = alpha * 0.001
 
     def __call__(self, xs, ilens):
         self.set_lr()
@@ -448,44 +449,46 @@ class SincConv(chainer.Chain):
     def __init__(self, channels, idim, dims, dropout=0.1,
                  initialW=None, initial_bias=None,
                  mels=80, freq_samp=16000, filter_length=512,
-                 hop_length=160):
+                 hop_length=1):
         super(SincConv, self).__init__()
         
         self.dropout = dropout
         from espnet.nets.chainer_backend.transformer_wave.sincnet import SincNet
         with self.init_scope():
-            self.feats = SincNet(mels, filter_length, stride=hop_length, sample_rate=freq_samp)
-            self.norm = L.GroupNormalization(1, mels)
+            self.feats = SincNet(mels, filter_length, stride=1, sample_rate=freq_samp)
+            self.norm0 = L.GroupNormalization(1, mels)
             n = 1 * 3 * 3
             stvd = 1. / np.sqrt(n)
-            self.conv1 = L.Convolution2D(1, channels, 3, stride=2, pad=1, 
+            self.conv1 = L.Convolution2D(mels, channels, 3, stride=(3, 2), pad=(0, 1), 
                                      initialW=initialW(scale=stvd),
                                      initial_bias=initial_bias(scale=stvd))
+            # self.norm1 = L.GroupNormalization(1, channels)
             n = channels * 3 * 3
             stvd = 1. / np.sqrt(n)
-            self.conv2 = L.Convolution2D(channels, channels, 3, stride=2, pad=1,
+            self.conv2 = L.Convolution2D(channels, channels, 3, stride=(3, 2), pad=(0, 1),
                                      initialW=initialW(scale=stvd),
                                      initial_bias=initial_bias(scale=stvd))
+            # self.norm2 = L.GroupNormalization(1, channels)
             stvd = 1. / np.sqrt(dims)
-            idim = int(np.ceil(np.ceil(mels / 2) / 2)) * channels
+            idim = 14 * channels  # Manually calculated
             self.out = L.Linear(idim, dims, initialW=chainer.initializers.Uniform(scale=stvd),
                             initial_bias=chainer.initializers.Uniform(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
 
-    def __call__(self, xs, ilens):
-        xs, ilens = self.feats(self.xp.array(xs), ilens)
-        # Norm
-        xs = self.norm(xs)
-        # Forward net
-        xs = F.expand_dims(xs, axis=1)
-        xs = self.conv1(xs)
-        xs = self.conv2(xs)
-        batch, _, _, length = xs.shape
-        xs = self.out(xs.transpose(0, 3, 1, 2).reshape(batch * length, -1))
-        xs = self.pe(xs.reshape(batch, length, -1))
+    def __call__(self, xs, ilens):        
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+
+        # Input: BS x ch (1) x Dims x Len
+        xs = (xs[:, None]).transpose(0, 1, 3, 2)
+        xs = F.relu(self.feats(self.xp.array(xs)).data)
+        xs = F.relu(self.conv1(xs))
+        xs = F.relu(self.conv2(xs))
+        xs = xs.transpose(0, 3, 1, 2)
+        bs, ls, _, _ = xs.shape
+        xs = self.out(xs.reshape(bs * ls, -1)).reshape(bs, ls, -1)
+        xs = self.pe(xs)
         # change ilens accordingly
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
         return xs, ilens
 
 class SincConvFrames(chainer.Chain):

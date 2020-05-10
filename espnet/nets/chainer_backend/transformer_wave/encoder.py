@@ -59,13 +59,14 @@ class Encoder(chainer.Chain):
                                                       mels=args.mels, freq_samp=args.freq_samp,
                                                       filter_length=args.filter_length,
                                                       hop_length=args.hop_length)
-            elif args.transformer_input_layer == 'sinc_conv':
+            elif args.transformer_input_layer == 'sinc':
                 self.input_layer = S.SincConv(channels, idim, args.adim, dropout=args.dropout_rate,
                                               initialW=initialW, initial_bias=initial_bias,
                                               mels=args.mels, freq_samp=args.freq_samp,
                                               filter_length=args.filter_length,
                                               hop_length=args.hop_length)
             elif args.transformer_input_layer == 'sinc_frames':
+                channels = 128
                 steps = args.transformer_warmup_steps * args.accum_grad / 2
                 self.input_layer = S.SincConvFrames(channels, idim, args.adim, dropout=args.dropout_rate,
                                                     initialW=initialW, initial_bias=initial_bias,
