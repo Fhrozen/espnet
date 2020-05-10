@@ -43,23 +43,25 @@ class Conv2dSubsampling(chainer.Chain):
                                 initial_bias=initial_bias(scale=stvd))
             self.pe = PositionalEncoding(dims, dropout)
 
-    def forward(self, xs, ilens):
+    def forward(self, xs, ilens, no_pe=False):
         """Subsample x.
 
         :param chainer.Variable x: input tensor
         :return: subsampled x and mask
 
         """
+        # change ilens accordingly
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
+
         xs = self.xp.array(xs[:, None])
         xs = F.relu(self.conv1(xs))
         xs = F.relu(self.conv2(xs))
         batch, _, length, _ = xs.shape
-        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1))
-        xs = self.pe(xs.reshape(batch, length, -1))
-        # change ilens accordingly
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        ilens = np.ceil(np.array(ilens, dtype=np.float32) / 2).astype(np.int)
-        return xs, ilens
+        xs = self.out(F.swapaxes(xs, 1, 2).reshape(batch * length, -1)).reshape(batch, length, -1)
+        if no_pe:
+            return xs, ilens
+        return self.pe(xs), ilens
 
 
 class LinearSampling(chainer.Chain):
