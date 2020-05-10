@@ -481,7 +481,7 @@ class SincConv(chainer.Chain):
 
         # Input: BS x ch (1) x Dims x Len
         xs = (xs[:, None]).transpose(0, 1, 3, 2)
-        xs = F.relu(self.feats(self.xp.array(xs)).data)
+        xs = F.relu(self.norm0(self.feats(self.xp.array(xs))))
         xs = F.relu(self.conv1(xs))
         xs = F.relu(self.conv2(xs))
         xs = xs.transpose(0, 3, 1, 2)
