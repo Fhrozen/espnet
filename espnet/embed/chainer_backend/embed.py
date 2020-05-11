@@ -56,6 +56,23 @@ class ClassifierWithoutState(link.Chain):
     :param function lossfun: The loss function to use
     :param int/str label_key:
     """
+    @staticmethod
+    def add_arguments(parser):
+        """Customize flags for transformer setup.
+
+        Args:
+            parser (Namespace): Training config.
+
+        """
+        group = parser.add_argument_group("X-vector model setting")
+        group.add_argument("--layers", type=int, default=2,
+                           help='')
+        group.add_argument("--dims", type=int, default=256,
+                           help='')
+        group.add_argument('--dropout-rate', default=0.0, type=float,
+                           help='')
+        return parser
+
 
     def __init__(self, predictor,
                  lossfun=softmax_cross_entropy.softmax_cross_entropy,
@@ -229,7 +246,7 @@ def train(args):
         valid_json = json.load(f)['utts']
     utts = list(valid_json.keys())
     idim = int(valid_json[utts[0]]['input'][0]['shape'][1])
-    odim = int(valid_json[utts[0]]['output'][0]['shape'][1])
+    odim = len(args.char_list)
     logging.info('#input dims : ' + str(idim))
     logging.info('#output dims: ' + str(odim))
 
@@ -278,11 +295,11 @@ def train(args):
 
     # set up training iterator and updater
     load_tr = LoadInputsAndTargets(
-        mode='asr', load_output=True, preprocess_conf=args.preprocess_conf,
+        mode='embed', load_output=False, preprocess_conf=args.preprocess_conf,
         preprocess_args={'train': True}  # Switch the mode of preprocessing
     )
     load_cv = LoadInputsAndTargets(
-        mode='asr', load_output=True, preprocess_conf=args.preprocess_conf,
+        mode='embed', load_output=False, preprocess_conf=args.preprocess_conf,
         preprocess_args={'train': False}  # Switch the mode of preprocessing
     )
 
@@ -316,7 +333,7 @@ def train(args):
             batch_size=1, shuffle=not use_sortagrad)]
 
     # set up updater
-    updater = CustomUpdater(train_iters, optimizer, schedulers, gpu_id, args.accum_grad)
+    updater = CustomUpdater(train_iters[0], optimizer, schedulers, gpu_id, args.accum_grad)
 
     # Set up a trainer
     trainer = training.Trainer(

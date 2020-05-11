@@ -86,6 +86,29 @@ def get_parser(parser=None, required=True):
                         help='Type of CTC implementation to calculate loss.')
     parser.add_argument('--mtlalpha', default=0.5, type=float,
                         help='Multitask learning coefficient, alpha: alpha*ctc_loss + (1-alpha)*att_loss ')
+    # minibatch related
+    parser.add_argument('--sortagrad', default=0, type=int, nargs='?',
+                        help="How many epochs to use sortagrad for. 0 = deactivated, -1 = all epochs")
+    parser.add_argument('--batch-count', default='auto', choices=BATCH_COUNT_CHOICES,
+                        help='How to count batch_size. The default (auto) will find how to count by args.')
+    parser.add_argument('--batch-size', '--batch-seqs', '-b', default=0, type=int,
+                        help='Maximum seqs in a minibatch (0 to disable)')
+    parser.add_argument('--batch-bins', default=0, type=int,
+                        help='Maximum bins in a minibatch (0 to disable)')
+    parser.add_argument('--batch-frames-in', default=0, type=int,
+                        help='Maximum input frames in a minibatch (0 to disable)')
+    parser.add_argument('--batch-frames-out', default=0, type=int,
+                        help='Maximum output frames in a minibatch (0 to disable)')
+    parser.add_argument('--batch-frames-inout', default=0, type=int,
+                        help='Maximum input+output frames in a minibatch (0 to disable)')
+    parser.add_argument('--maxlen-in', '--batch-seq-maxlen-in', default=800, type=int, metavar='ML',
+                        help='When --batch-count=seq, batch size is reduced if the input sequence length > ML.')
+    parser.add_argument('--maxlen-out', '--batch-seq-maxlen-out', default=150, type=int, metavar='ML',
+                        help='When --batch-count=seq, batch size is reduced if the output sequence length > ML')
+    parser.add_argument('--n-iter-processes', default=0, type=int,
+                        help='Number of processes of iterator')
+    parser.add_argument('--preprocess-conf', type=str, default=None, nargs='?',
+                        help='The configuration file for the pre-processing')
     # optimization related
     parser.add_argument('--opt', default='adadelta', type=str,
                         help='Optimizer')
@@ -139,8 +162,9 @@ def main(cmd_args):
         raise ValueError(f"--train-dtype {args.train_dtype} does not support the CPU backend.")
 
     from espnet.utils.dynamic_import import dynamic_import
+
     if args.model_module is None:
-        model_module = "espnet.nets." + args.backend + "_backend.e2e_asr:E2E"
+        model_module = "espnet.embed." + args.backend + "_backend.embed:ClassifierWithoutState"
     else:
         model_module = args.model_module
     model_class = dynamic_import(model_module)
@@ -201,8 +225,6 @@ def main(cmd_args):
             dictionary = f.readlines()
         char_list = [entry.decode('utf-8').split(' ')[0]
                      for entry in dictionary]
-        char_list.insert(0, '<blank>')
-        char_list.append('<eos>')
         args.char_list = char_list
     else:
         args.char_list = None
@@ -210,22 +232,11 @@ def main(cmd_args):
     # train
     logging.info('backend = ' + args.backend)
 
-    if args.num_spkrs == 1:
-        if args.backend == "chainer":
-            from espnet.asr.chainer_backend.asr import train
-            train(args)
-        elif args.backend == "pytorch":
-            from espnet.asr.pytorch_backend.asr import train
-            train(args)
-        else:
-            raise ValueError("Only chainer and pytorch are supported.")
+    if args.backend == "chainer":
+        from espnet.embed.chainer_backend.embed import train
+        train(args)
     else:
-        # FIXME(kamo): Support --model-module
-        if args.backend == "pytorch":
-            from espnet.asr.pytorch_backend.asr_mix import train
-            train(args)
-        else:
-            raise ValueError("Only pytorch is supported.")
+        raise ValueError("Only chainer and pytorch are supported.")
 
 
 if __name__ == '__main__':

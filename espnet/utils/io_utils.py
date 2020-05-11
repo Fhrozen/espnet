@@ -48,7 +48,7 @@ class LoadInputsAndTargets(object):
                  keep_all_data_on_mem=False,
                  ):
         self._loaders = {}
-        if mode not in ['asr', 'tts', 'mt']:
+        if mode not in ['asr', 'tts', 'mt', 'embed']:
             raise ValueError(
                 'Only asr or tts are allowed: mode={}'.format(mode))
         if preprocess_conf is not None:
@@ -148,8 +148,13 @@ class LoadInputsAndTargets(object):
                             filetype=inp.get('filetype', 'mat'))
 
                     y_feats_dict.setdefault(inp['name'], []).append(x)
+            elif self.mode == 'embed':
+                y_feats_dict.setdefault('target1', []).append(info['utt2spk'])
 
         if self.mode == 'asr':
+            return_batch, uttid_list = self._create_batch_asr(
+                x_feats_dict, y_feats_dict, uttid_list)
+        elif self.mode == 'embed':
             return_batch, uttid_list = self._create_batch_asr(
                 x_feats_dict, y_feats_dict, uttid_list)
         elif self.mode == 'tts':
