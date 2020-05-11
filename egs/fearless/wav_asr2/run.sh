@@ -77,8 +77,6 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     done
 fi
 
-feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
-feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
     ### But you can utilize Kaldi recipes in most cases
@@ -99,21 +97,16 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
 
     utils/subset_data_dir.sh data/${train_dev}_trim 4000 data/${train_dev}
     rm -rf data/*_org data/${train_dev}_trim
-
-    # speed-perturbed
-    # utils/perturb_data_dir_speed.sh 0.9 data/train_trim data/temp1
-    # utils/perturb_data_dir_speed.sh 1.0 data/train_trim data/temp2
-    # utils/perturb_data_dir_speed.sh 1.1 data/train_trim data/temp3
-    # utils/combine_data.sh --extra-files utt2uniq data/${train_set} data/temp1 data/temp2 data/temp3
-    # rm -r data/temp1 data/temp2 data/temp3
-    # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 64 --write_utt2num_frames true \
-    #     data/${train_set} exp/make_fbank/${train_set} ${fbankdir}
-    # utils/fix_data_dir.sh data/${train_set}
 fi
 
 dict=data/lang_1char/${train_set}_units.txt
 echo "dictionary: ${dict}"
 nlsyms=data/lang_1char/non_lang_syms.txt
+
+preprocess=$(basename ${preprocess_config%.*})
+
+feat_tr_dir=${dumpdir}/${train_set}_${preprocess}/delta${do_delta}; mkdir -p ${feat_tr_dir}
+feat_dt_dir=${dumpdir}/${train_dev}_${preprocess}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
@@ -140,50 +133,16 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
 
     for rtask in ${recog_set}; do
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
+        feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         data2json.sh --feat data/${rtask}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
          --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
          data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
 
-# You can skip this and remove --rnnlm option in the recognition (stage 5)
-if [ -z ${lmtag} ]; then
-    lmtag=$(basename ${lm_config%.*})
-fi
-lmexpname=train_rnnlm_${backend}_${lmtag}_${bpemode}${nbpe}_ngpu${ngpu}
-lmexpdir=exp/${lmexpname}
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
-    echo "stage 3: LM Preparation"
-    lmdatadir=data/local/lm_train_${bpemode}${nbpe}
-    # mkdir -p ${lmexpdir}
-    # use external data
-    # if [ ! -e data/local/lm_train/librispeech-lm-norm.txt.gz ]; then
-    #     wget http://www.openslr.org/resources/11/librispeech-lm-norm.txt.gz -P data/local/lm_train/
-    # fi
-    # if [ ! -e ${lmdatadir} ]; then
-    #     mkdir -p ${lmdatadir}
-    #     cut -f 2- -d" " data/${train_set}/text | gzip -c > data/local/lm_train/${train_set}_text.gz
-    #     # combine external text and transcriptions and shuffle them with seed 777
-    #     zcat data/local/lm_train/librispeech-lm-norm.txt.gz data/local/lm_train/${train_set}_text.gz |\
-    #         spm_encode --model=${bpemodel}.model --output_format=piece > ${lmdatadir}/train.txt
-    #     cut -f 2- -d" " data/${train_dev}/text | spm_encode --model=${bpemodel}.model --output_format=piece \
-    #                                                         > ${lmdatadir}/valid.txt
-    # fi
-    # ${cuda_cmd} --gpu ${ngpu} ${lmexpdir}/train.log \
-    #     lm_train.py \
-    #     --config ${lm_config} \
-    #     --ngpu ${ngpu} \
-    #     --backend ${backend} \
-    #     --verbose 1 \
-    #     --outdir ${lmexpdir} \
-    #     --tensorboard-dir tensorboard/${lmexpname} \
-    #     --train-label ${lmdatadir}/train.txt \
-    #     --valid-label ${lmdatadir}/valid.txt \
-    #     --resume ${lm_resume} \
-    #     --dict ${dict} \
-    #     --dump-hdf5-path ${lmdatadir}
+    echo "stage 3: LM Preparation (skipped)"
 fi
 
 if [ -z ${tag} ]; then
@@ -237,32 +196,13 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             --snapshots ${expdir}/results/snapshot.ep.* \
             --out ${expdir}/results/${recog_model} \
             --num ${n_average}
-
-        # Average LM models
-        if [ ${lm_n_average} -eq 0 ]; then
-            lang_model=rnnlm.model.best
-        else
-            if ${use_lm_valbest_average}; then
-                lang_model=rnnlm.val${lm_n_average}.avg.best
-                opt="--log ${lmexpdir}/log"
-            else
-                lang_model=rnnlm.last${lm_n_average}.avg.best
-                opt="--log"
-            fi
-            average_checkpoints.py \
-                ${opt} \
-                --backend ${backend} \
-                --snapshots ${lmexpdir}/snapshot.ep.* \
-                --out ${lmexpdir}/${lang_model} \
-                --num ${lm_n_average}
-        fi
     fi
 
     pids=() # initialize pids
     for rtask in ${recog_set}; do
     (
         decode_dir=decode_${rtask}_${recog_model}_$(basename ${decode_config%.*})  #_${lmtag}
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+        feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}
 
         # split data
         splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
