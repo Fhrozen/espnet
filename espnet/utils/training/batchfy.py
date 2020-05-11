@@ -261,7 +261,7 @@ def make_batchset(data, batch_size=0, max_length_in=float("inf"), max_length_out
                   num_batches=0, min_batch_size=1, shortest_first=False, batch_sort_key="input",
                   swap_io=False, mt=False, count="auto",
                   batch_bins=0, batch_frames_in=0, batch_frames_out=0, batch_frames_inout=0,
-                  iaxis=0, oaxis=0):
+                  iaxis=0, oaxis=0, xvector=False):
     """Make batch set from json dictionary
 
     if utts have "category" value,
@@ -324,6 +324,9 @@ def make_batchset(data, batch_size=0, max_length_in=float("inf"), max_length_out
         assert iaxis == 1
         assert oaxis == 0
         # NOTE: input is json['output'][1] and output is json['output'][0]
+    elif xvector:
+        ikey = "input"
+        okey = "utt2spk"
     else:
         ikey = "input"
         okey = "output"

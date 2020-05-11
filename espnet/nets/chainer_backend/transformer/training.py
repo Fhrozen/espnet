@@ -147,7 +147,7 @@ class CustomParallelUpdater(training.updaters.MultiprocessParallelUpdater):
         from cupy.cuda import nccl
         super(CustomParallelUpdater, self).__init__(
             train_iters, optimizer, converter=converter, devices=devices)
-        self.accum_grad = accum_grad  # Current setup uses accum_grad 1, Need to set to n-grads
+        self.accum_grad = 1  # Current setup uses accum_grad 1, Need to set to n-grads
         self.forward_count = 0
         self.nccl = nccl
         logging.debug('using custom parallel updater for transformer')

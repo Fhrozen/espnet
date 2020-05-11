@@ -5,6 +5,7 @@
 
 from __future__ import division
 
+import copy
 import json
 import logging
 import os
@@ -13,8 +14,12 @@ import six
 # chainer related
 import chainer
 
+from chainer.functions.loss import softmax_cross_entropy
+from chainer import link
+from chainer import reporter
 from chainer import training
 
+from chainer.dataset import convert
 from chainer.datasets import TransformDataset
 from chainer.training import extensions
 
@@ -25,7 +30,8 @@ from espnet.asr.asr_utils import chainer_load
 from espnet.asr.asr_utils import CompareValueTrigger
 from espnet.asr.asr_utils import get_model_conf
 from espnet.asr.asr_utils import restore_snapshot
-from espnet.nets.asr_interface import ASRInterface
+from espnet.scheduler.scheduler import dynamic_import_scheduler
+from espnet.scheduler.chainer import ChainerScheduler
 from espnet.utils.deterministic_utils import set_deterministic_chainer
 from espnet.utils.dynamic_import import dynamic_import
 from espnet.utils.io_utils import LoadInputsAndTargets
@@ -37,17 +43,167 @@ from espnet.utils.training.iterators import ToggleableShufflingSerialIterator
 from espnet.utils.training.train_utils import check_early_stop
 from espnet.utils.training.train_utils import set_early_stop
 
-# rnnlm
-import espnet.lm.chainer_backend.extlm as extlm_chainer
-import espnet.lm.chainer_backend.lm as lm_chainer
-
 # numpy related
 import matplotlib
 
-from espnet.utils.training.tensorboard_logger import TensorboardLogger
-from tensorboardX import SummaryWriter
-
 matplotlib.use('Agg')
+
+
+class ClassifierWithoutState(link.Chain):
+    """A wrapper for a chainer RNNLM
+
+    :param link.Chain predictor : The RNNLM
+    :param function lossfun: The loss function to use
+    :param int/str label_key:
+    """
+
+    def __init__(self, predictor,
+                 lossfun=softmax_cross_entropy.softmax_cross_entropy,
+                 label_key=-1):
+        if not (isinstance(label_key, (int, str))):
+            raise TypeError('label_key must be int or str, but is %s' %
+                            type(label_key))
+
+        super(ClassifierWithoutState, self).__init__()
+        self.lossfun = lossfun
+        self.y = None
+        self.loss = None
+        self.label_key = label_key
+
+        with self.init_scope():
+            self.predictor = predictor
+
+    def __call__(self, state, *args, **kwargs):
+        """Computes the loss value for an input and label pair.
+
+            It also computes accuracy and stores it to the attribute.
+            When ``label_key`` is ``int``, the corresponding element in ``args``
+            is treated as ground truth labels. And when it is ``str``, the
+            element in ``kwargs`` is used.
+            The all elements of ``args`` and ``kwargs`` except the groundtruth
+            labels are features.
+            It feeds features to the predictor and compare the result
+            with ground truth labels.
+
+        :param state : The LM state
+        :param list[chainer.Variable] args : Input minibatch
+        :param dict[chainer.Variable] kwargs : Input minibatch
+        :return loss value
+        :rtype chainer.Variable
+        """
+
+        if isinstance(self.label_key, int):
+            if not (-len(args) <= self.label_key < len(args)):
+                msg = 'Label key %d is out of bounds' % self.label_key
+                raise ValueError(msg)
+            t = args[self.label_key]
+            if self.label_key == -1:
+                args = args[:-1]
+            else:
+                args = args[:self.label_key] + args[self.label_key + 1:]
+        elif isinstance(self.label_key, str):
+            if self.label_key not in kwargs:
+                msg = 'Label key "%s" is not found' % self.label_key
+                raise ValueError(msg)
+            t = kwargs[self.label_key]
+            del kwargs[self.label_key]
+
+        self.y = None
+        self.loss = None
+        state, self.y = self.predictor(state, *args, **kwargs)
+        self.loss = self.lossfun(self.y, t)
+        return state, self.loss
+
+
+class CustomUpdater(training.updaters.StandardUpdater):
+    """An updater for a chainer LM
+
+    :param chainer.dataset.Iterator train_iter : The train iterator
+    :param optimizer:
+    :param schedulers:
+    :param int device : The device id
+    :param int accum_grad :
+    """
+
+    def __init__(self, train_iter, optimizer, schedulers, device, accum_grad):
+        super(CustomUpdater, self).__init__(
+            train_iter, optimizer, device=device)
+        self.scheduler = ChainerScheduler(schedulers, optimizer)
+        self.accum_grad = accum_grad
+
+    # The core part of the update routine can be customized by overriding.
+    def update_core(self):
+        # When we pass one iterator and optimizer to StandardUpdater.__init__,
+        # they are automatically named 'main'.
+        train_iter = self.get_iterator('main')
+        optimizer = self.get_optimizer('main')
+
+        count = 0
+        sum_loss = 0
+        optimizer.target.cleargrads()  # Clear the parameter gradients
+        for _ in range(self.accum_grad):
+            # Progress the dataset iterator for sentences at each iteration.
+            batch = train_iter.__next__()
+            x, t = convert.concat_examples(batch, device=self.device, padding=(0, -1))
+            # Concatenate the token IDs to matrices and send them to the device
+            # self.converter does this job
+            # (it is chainer.dataset.concat_examples by default)
+            xp = chainer.backends.cuda.get_array_module(x)
+            loss = 0
+            state = None
+            batch_size, sequence_length = x.shape
+            for i in six.moves.range(sequence_length):
+                # Compute the loss at this time step and accumulate it
+                state, loss_batch = optimizer.target(state, chainer.Variable(x[:, i]),
+                                                     chainer.Variable(t[:, i]))
+                non_zeros = xp.count_nonzero(x[:, i])
+                loss += loss_batch * non_zeros
+                count += int(non_zeros)
+            # backward
+            loss /= batch_size * self.accum_grad  # normalized by batch size
+            sum_loss += float(loss.data)
+            loss.backward()  # Backprop
+            loss.unchain_backward()  # Truncate the graph
+
+        reporter.report({'loss': sum_loss}, optimizer.target)
+        reporter.report({'count': count}, optimizer.target)
+        # update
+        optimizer.update()  # Update the parameters
+        self.scheduler.step(self.iteration)
+
+
+class CustomEvaluator(BaseEvaluator):
+    """A custom evaluator for a chainer LM
+
+    :param chainer.dataset.Iterator val_iter : The validation iterator
+    :param eval_model : The model to evaluate
+    :param int device : The device id to use
+    """
+
+    def __init__(self, val_iter, eval_model, device):
+        super(CustomEvaluator, self).__init__(
+            val_iter, eval_model, device=device)
+
+    def evaluate(self):
+        val_iter = self.get_iterator('main')
+        target = self.get_target('main')
+        loss = 0
+        count = 0
+        for batch in copy.copy(val_iter):
+            x, t = convert.concat_examples(batch, device=self.device, padding=(0, -1))
+            xp = chainer.backends.cuda.get_array_module(x)
+            state = None
+            for i in six.moves.range(len(x[0])):
+                state, loss_batch = target(state, x[:, i], t[:, i])
+                non_zeros = xp.count_nonzero(x[:, i])
+                loss += loss_batch.data * non_zeros
+                count += int(non_zeros)
+        # report validation loss
+        observation = {}
+        with reporter.report_scope(observation):
+            reporter.report({'loss': float(loss / count)}, target)
+        return observation
+
 
 
 def train(args):
@@ -77,22 +233,8 @@ def train(args):
     logging.info('#input dims : ' + str(idim))
     logging.info('#output dims: ' + str(odim))
 
-    # specify attention, CTC, hybrid mode
-    if args.mtlalpha == 1.0:
-        mtl_mode = 'ctc'
-        logging.info('Pure CTC mode')
-    elif args.mtlalpha == 0.0:
-        mtl_mode = 'att'
-        logging.info('Pure attention mode')
-    else:
-        mtl_mode = 'mtl'
-        logging.info('Multitask learning mode')
-
     # specify model architecture
-    logging.info('import model module: ' + args.model_module)
-    model_class = dynamic_import(args.model_module)
-    model = model_class(idim, odim, args, flag_return=False)
-    assert isinstance(model, ASRInterface)
+    model = ClassifierWithoutState(None)
 
     # write model config
     if not os.path.exists(args.outdir):
@@ -107,20 +249,12 @@ def train(args):
 
     # Set gpu
     ngpu = args.ngpu
-    if ngpu == 1:
+    if ngpu >= 1:
         gpu_id = 0
         # Make a specified GPU current
         chainer.cuda.get_device_from_id(gpu_id).use()
         model.to_gpu()  # Copy the model to the GPU
         logging.info('single gpu calculation.')
-    elif ngpu > 1:
-        gpu_id = 0
-        devices = {'main': gpu_id}
-        for gid in six.moves.xrange(1, ngpu):
-            devices['sub_%d' % gid] = gid
-        logging.info('multi gpu calculation (#gpus = %d).' % ngpu)
-        logging.warning('batch size is automatically increased (%d -> %d)' % (
-            args.batch_size, args.batch_size * args.ngpu))
     else:
         gpu_id = -1
         logging.info('cpu calculation')
@@ -130,18 +264,11 @@ def train(args):
         optimizer = chainer.optimizers.AdaDelta(eps=args.eps)
     elif args.opt == 'adam':
         optimizer = chainer.optimizers.Adam()
-    elif args.opt == 'noam':
-        optimizer = chainer.optimizers.Adam(alpha=0, beta1=0.9, beta2=0.98, eps=1e-9)
-    elif args.opt == 'adam_poly':
-        optimizer = chainer.optimizers.Adam(alpha=1e-3)
     else:
         raise NotImplementedError('args.opt={}'.format(args.opt))
 
     optimizer.setup(model)
     optimizer.add_hook(chainer.optimizer.GradientClipping(args.grad_clip))
-
-    # Setup a converter
-    converter = model.custom_converter(subsampling_factor=model.subsample[0])
 
     # read json data
     with open(args.train_json, 'rb') as f:
@@ -160,71 +287,36 @@ def train(args):
     )
 
     use_sortagrad = args.sortagrad == -1 or args.sortagrad > 0
-    accum_grad = args.accum_grad
-    if ngpu <= 1:
-        # make minibatch list (variable length)
-        train = make_batchset(train_json, args.batch_size,
-                              args.maxlen_in, args.maxlen_out, args.minibatches,
-                              min_batch_size=args.ngpu if args.ngpu > 1 else 1,
-                              shortest_first=use_sortagrad,
-                              count=args.batch_count,
-                              batch_bins=args.batch_bins,
-                              batch_frames_in=args.batch_frames_in,
-                              batch_frames_out=args.batch_frames_out,
-                              batch_frames_inout=args.batch_frames_inout,
-                              iaxis=0, oaxis=0)
-        # hack to make batchsize argument as 1
-        # actual batchsize is included in a list
-        if args.n_iter_processes > 0:
-            train_iters = [ToggleableShufflingMultiprocessIterator(
-                TransformDataset(train, load_tr),
-                batch_size=1, n_processes=args.n_iter_processes, n_prefetch=8, maxtasksperchild=20,
-                shuffle=not use_sortagrad)]
-        else:
-            train_iters = [ToggleableShufflingSerialIterator(
-                TransformDataset(train, load_tr),
-                batch_size=1, shuffle=not use_sortagrad)]
-
-        # set up updater
-        updater = model.custom_updater(
-            train_iters[0], optimizer, converter=converter, device=gpu_id, accum_grad=accum_grad)
+    if args.schedulers is None:
+        schedulers = []
     else:
-        if args.batch_count not in ("auto", "seq") and args.batch_size == 0:
-            raise NotImplementedError("--batch-count 'bin' and 'frame' are not implemented in chainer multi gpu")
-        # set up minibatches
-        train_subsets = []
-        for gid in six.moves.xrange(ngpu):
-            # make subset
-            train_json_subset = {k: v for i, (k, v) in enumerate(train_json.items())
-                                 if i % ngpu == gid}
-            # make minibatch list (variable length)
-            train_subsets += [make_batchset(train_json_subset, args.batch_size,
-                                            args.maxlen_in, args.maxlen_out, args.minibatches)]
+        schedulers = [dynamic_import_scheduler(v)(k, args) for k, v in args.schedulers]
 
-        # each subset must have same length for MultiprocessParallelUpdater
-        maxlen = max([len(train_subset) for train_subset in train_subsets])
-        for train_subset in train_subsets:
-            if maxlen != len(train_subset):
-                for i in six.moves.xrange(maxlen - len(train_subset)):
-                    train_subset += [train_subset[i]]
+    # make minibatch list (variable length)
+    train = make_batchset(train_json, args.batch_size,
+                            args.maxlen_in, args.maxlen_out, args.minibatches,
+                            min_batch_size=args.ngpu if args.ngpu > 1 else 1,
+                            shortest_first=use_sortagrad,
+                            count=args.batch_count,
+                            batch_bins=args.batch_bins,
+                            batch_frames_in=args.batch_frames_in,
+                            batch_frames_out=args.batch_frames_out,
+                            batch_frames_inout=args.batch_frames_inout,
+                            iaxis=0, oaxis=0)
+    # hack to make batchsize argument as 1
+    # actual batchsize is included in a list
+    if args.n_iter_processes > 0:
+        train_iters = [ToggleableShufflingMultiprocessIterator(
+            TransformDataset(train, load_tr),
+            batch_size=1, n_processes=args.n_iter_processes, n_prefetch=8, maxtasksperchild=20,
+            shuffle=not use_sortagrad)]
+    else:
+        train_iters = [ToggleableShufflingSerialIterator(
+            TransformDataset(train, load_tr),
+            batch_size=1, shuffle=not use_sortagrad)]
 
-        # hack to make batchsize argument as 1
-        # actual batchsize is included in a list
-        if args.n_iter_processes > 0:
-            train_iters = [ToggleableShufflingMultiprocessIterator(
-                TransformDataset(train_subsets[gid], load_tr),
-                batch_size=1, n_processes=args.n_iter_processes, n_prefetch=8, maxtasksperchild=20,
-                shuffle=not use_sortagrad)
-                for gid in six.moves.xrange(ngpu)]
-        else:
-            train_iters = [ToggleableShufflingSerialIterator(
-                TransformDataset(train_subsets[gid], load_tr),
-                batch_size=1, shuffle=not use_sortagrad)
-                for gid in six.moves.xrange(ngpu)]
-
-        # set up updater
-        updater = model.custom_parallel_updater(
-            train_iters, optimizer, converter=converter, devices=devices, accum_grad=accum_grad)
+    # set up updater
+    updater = CustomUpdater(train_iters, optimizer, schedulers, gpu_id, args.accum_grad)
 
     # Set up a trainer
     trainer = training.Trainer(
@@ -233,14 +325,7 @@ def train(args):
     if use_sortagrad:
         trainer.extend(ShufflingEnabler(train_iters),
                        trigger=(args.sortagrad if args.sortagrad != -1 else args.epochs, 'epoch'))
-    if args.opt == 'noam':
-        from espnet.nets.chainer_backend.transformer.training import VaswaniRule
-        trainer.extend(VaswaniRule('alpha', d=args.adim, warmup_steps=args.transformer_warmup_steps,
-                                   scale=args.transformer_lr), trigger=(1, 'iteration'))
-    elif args.opt == 'adam_poly':
-        from chainer.training.extensions import PolynomialShift
-        trainer.extend(PolynomialShift('alpha', 0.5, args.transformer_warmup_steps,
-                                       init=args.transformer_lr, target=args.transformer_lr_target), trigger=(1, 'iteration'))
+
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
@@ -267,34 +352,15 @@ def train(args):
             batch_size=1, repeat=False, shuffle=False)
 
     # Evaluate the model with the test dataset for each epoch
-    trainer.extend(BaseEvaluator(
-        valid_iter, model, converter=converter, device=gpu_id))
-
-    # Save attention weight each epoch
-    if args.num_save_attention > 0 and args.mtlalpha != 1.0:
-        data = sorted(list(valid_json.items())[:args.num_save_attention],
-                      key=lambda x: int(x[1]['input'][0]['shape'][1]), reverse=True)
-        if hasattr(model, "module"):
-            att_vis_fn = model.module.calculate_all_attentions
-            plot_class = model.module.attention_plot_class
-        else:
-            att_vis_fn = model.calculate_all_attentions
-            plot_class = model.attention_plot_class
-        logging.info('Using custom PlotAttentionReport')
-        att_reporter = plot_class(
-            att_vis_fn, data, args.outdir + "/att_ws",
-            converter=converter, transform=load_cv, device=gpu_id)
-        trainer.extend(att_reporter, trigger=(1, 'epoch'))
-    else:
-        att_reporter = None
+    trainer.extend(CustomEvaluator(valid_iter, model, device=gpu_id))
 
     # Take a snapshot for each specified epoch
     trainer.extend(extensions.snapshot(filename='snapshot.ep.{.updater.epoch}'), trigger=(1, 'epoch'))
 
     # Make a plot for training and validation values
     trainer.extend(extensions.PlotReport(['main/loss', 'validation/main/loss',
-                                          'main/loss_ctc', 'validation/main/loss_ctc',
-                                          'main/loss_att', 'validation/main/loss_att'],
+                                          'main/loss_entropy', 'validation/main/loss_entropy',
+                                          'main/loss_binary', 'validation/main/loss_binary'],
                                          'epoch', file_name='loss.png'))
     trainer.extend(extensions.PlotReport(['main/acc', 'validation/main/acc'],
                                          'epoch', file_name='acc.png'))
@@ -302,13 +368,10 @@ def train(args):
     # Save best models
     trainer.extend(extensions.snapshot_object(model, 'model.loss.best'),
                    trigger=training.triggers.MinValueTrigger('validation/main/loss'))
-    if mtl_mode != 'ctc':
-        trainer.extend(extensions.snapshot_object(model, 'model.acc.best'),
-                       trigger=training.triggers.MaxValueTrigger('validation/main/acc'))
 
     # epsilon decay in the optimizer
     if args.opt == 'adadelta':
-        if args.criterion == 'acc' and mtl_mode != 'ctc':
+        if args.criterion == 'acc':
             trainer.extend(restore_snapshot(model, args.outdir + '/model.acc.best'),
                            trigger=CompareValueTrigger(
                                'validation/main/acc',
@@ -337,7 +400,7 @@ def train(args):
             'eps', lambda trainer: trainer.updater.get_optimizer('main').eps),
             trigger=(args.report_interval_iters, 'iteration'))
         report_keys.append('eps')
-    elif args.opt in ['adam', 'adam_poly', 'noam']:
+    elif args.opt == 'adam':
         trainer.extend(extensions.observe_value(
             'alpha', lambda trainer: trainer.updater.get_optimizer('main').alpha),
             trigger=(args.report_interval_iters, 'iteration'))
@@ -353,11 +416,6 @@ def train(args):
     trainer.extend(extensions.ProgressBar(update_interval=args.report_interval_iters))
 
     set_early_stop(trainer, args)
-    if args.tensorboard_dir is not None and args.tensorboard_dir != "":
-        writer = SummaryWriter(args.tensorboard_dir)
-        trainer.extend(TensorboardLogger(writer, att_reporter),
-                       trigger=(args.report_interval_iters, 'iteration'))
-
     # Run the training
     trainer.run()
     check_early_stop(trainer, args.epochs)

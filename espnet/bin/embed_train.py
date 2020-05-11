@@ -114,6 +114,10 @@ def get_parser(parser=None, required=True):
                         help='Number of samples of attention to be saved')
     parser.add_argument('--grad-noise', type=strtobool, default=False,
                         help='The flag to switch to use noise injection to gradients during training')
+    parser.add_argument('--schedulers', default=None, action="append", type=lambda kv: kv.split("="),
+                        help='optimizer schedulers, you can configure params like:'
+                        ' <optimizer-param>-<scheduler-name>-<schduler-param>'
+                        ' e.g., "--schedulers lr=noam --lr-noam-warmup 1000".')
     # finetuning related
     parser.add_argument('--enc-init', default=None, type=str,
                         help='Pre-trained ASR model to initialize encoder.')
