@@ -1,0 +1,7 @@
+process:
+    - type: "wave"
+      frame_length: 200
+      nfft: 256
+      frame_shift: 80
+      preemphasis_coefficient: 0.97
+      # fs: 8000

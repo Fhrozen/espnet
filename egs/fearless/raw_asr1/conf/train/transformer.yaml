@@ -11,6 +11,7 @@ aheads: 4
 
 # hybrid CTC/attention
 mtlalpha: 0.3
+# ctc_type: builtin
 
 # label smoothing
 lsm-weight: 0.1
@@ -32,7 +33,7 @@ dropout-rate: 0.1
 # transformer specific setting
 backend: chainer
 model-module: "espnet.nets.chainer_backend.e2e_asr_transformer:E2E"
-transformer-input-layer: res1     # encoder architecture type
+transformer-input-layer: conv2d     # encoder architecture type
 transformer-lr: 10.0
 transformer-warmup-steps: 25000
 transformer-attn-dropout-rate: 0.0

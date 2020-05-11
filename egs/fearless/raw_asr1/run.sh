@@ -21,13 +21,13 @@ resume=        # Resume the training from snapshot
 # feature configuration
 do_delta=false
 
-preprocess_config=
-train_config=conf/tuning/train_chainer_transformer.yaml # current default recipe requires 4 gpus.
+preprocess_config=conf/preprocess/fbank.yaml
+train_config=conf/train/transformer.yaml # current default recipe requires 4 gpus.
                              # if you do not have 4 gpus, please reconfigure the `batch-bins` and `accum-grad` parameters in config.
 train_embed=conf/xvector_2layer.yaml
 lm_config=conf/lm.yaml
-decode_config=conf/decode_ctc0.1.yaml
-stream_decode_config=conf/decode_streaming.yaml
+decode_config=conf/decode/ctc0.1.yaml
+stream_decode_config=conf/decode/streaming.yaml
 
 # rnnlm related
 lm_resume= # specify a snapshot file to resume LM training
@@ -69,23 +69,19 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
-    for part in Train Dev; do
+    for part in Train Dev Eval; do
         local/prepare_data.sh ${datadir} ${part} data/${part}
     done
-    # TODO: For Eval just extract feats and save it in dump
+    local/prepare_data.sh --is_stream 1 ${datadir} Dev data/Dev_stream
 fi
 
-feat_tr_dir=${dumpdir}/${train_set}/delta${do_delta}; mkdir -p ${feat_tr_dir}
-feat_dt_dir=${dumpdir}/${train_dev}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
     ### Task dependent. You have to design training and dev sets by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 1: Feature Generation"
-    fbankdir=fbank
     # Generate the fbank features; by default 80-dimensional fbanks with pitch on each frame
-    for x in Train Dev; do
-        steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj ${nj} --write_utt2num_frames true \
-            data/${x} exp/make_fbank/${x} ${fbankdir}
+    for x in Train Dev Dev_stream Eval; do
+        dump_pcm.sh --nj 16 --cmd "${train_cmd}" --filetype "sound.hdf5" --format wav data/${x}
         utils/fix_data_dir.sh data/${x}
     done
 
@@ -94,41 +90,21 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
 
     # remove utt having more than 3000 frames
     # remove utt having more than 400 characters
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
-    remove_longshortdata.sh --maxframes 3000 --maxchars 400 data/${train_dev}_org data/train_dev_trim
+    remove_longshortdata.sh --no_feat true --maxframes 3000 --maxchars 400 data/${train_set}_org data/${train_set}
+    remove_longshortdata.sh --no_feat true --maxframes 3000 --maxchars 400 data/${train_dev}_org data/${train_dev}_trim
 
-    utils/subset_data_dir.sh data/train_dev_trim 4000 data/${train_dev}
-    rm -rf data/*_org data/train_dev_trim
-
-    # speed-perturbed
-    # utils/perturb_data_dir_speed.sh 0.9 data/train_trim data/temp1
-    # utils/perturb_data_dir_speed.sh 1.0 data/train_trim data/temp2
-    # utils/perturb_data_dir_speed.sh 1.1 data/train_trim data/temp3
-    # utils/combine_data.sh --extra-files utt2uniq data/${train_set} data/temp1 data/temp2 data/temp3
-    # rm -r data/temp1 data/temp2 data/temp3
-    # steps/make_fbank_pitch.sh --cmd "$train_cmd" --nj 64 --write_utt2num_frames true \
-    #     data/${train_set} exp/make_fbank/${train_set} ${fbankdir}
-    # utils/fix_data_dir.sh data/${train_set}
-
-    # compute global CMVN
-    compute-cmvn-stats scp:data/${train_set}/feats.scp data/${train_set}/cmvn.ark
-
-    # dump features for training
-    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-        data/${train_set}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/train ${feat_tr_dir}
-    dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-        data/${train_dev}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/dev ${feat_dt_dir}
-    for rtask in ${recog_set}; do
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}; mkdir -p ${feat_recog_dir}
-        dump.sh --cmd "$train_cmd" --nj ${nj} --do_delta ${do_delta} \
-            data/${rtask}/feats.scp data/${train_set}/cmvn.ark exp/dump_feats/recog/${rtask} \
-            ${feat_recog_dir}
-    done
+    utils/subset_data_dir.sh data/${train_dev}_trim 4000 data/${train_dev}
+    rm -rf data/*_org data/${train_dev}_trim
 fi
 
 dict=data/lang_1char/${train_set}_units.txt
 echo "dictionary: ${dict}"
 nlsyms=data/lang_1char/non_lang_syms.txt
+
+preprocess=$(basename ${preprocess_config%.*})
+
+feat_tr_dir=${dumpdir}/${train_set}_${preprocess}/delta${do_delta}; mkdir -p ${feat_tr_dir}
+feat_dt_dir=${dumpdir}/${train_dev}_${preprocess}/delta${do_delta}; mkdir -p ${feat_dt_dir}
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     ### Task dependent. You have to check non-linguistic symbols used in the corpus.
@@ -146,27 +122,25 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     wc -l ${dict}
 
     # make json labels
-    data2json.sh --feat ${feat_tr_dir}/feats.scp --nlsyms ${nlsyms} \
+    data2json.sh --feat data/${train_set}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
          data/${train_set} ${dict} > ${feat_tr_dir}/data.json
-    data2json.sh --feat ${feat_dt_dir}/feats.scp --nlsyms ${nlsyms} \
+
+    data2json.sh --feat data/${train_dev}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
-    for rtask in ${recog_set}; do
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-        data2json.sh --feat ${feat_recog_dir}/feats.scp \
-            --nlsyms ${nlsyms} data/${rtask} ${dict} > ${feat_recog_dir}/data.json
+
+    for rtask in ${recog_set} Dev_stream Eval; do
+        feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}; mkdir -p ${feat_recog_dir}
+        data2json.sh --feat data/${rtask}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
+         --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
+         data/${rtask} ${dict} > ${feat_recog_dir}/data.json
     done
 fi
 
-# You can skip this and remove --rnnlm option in the recognition (stage 5)
-# if [ -z ${lmtag} ]; then
-#     lmtag=$(basename ${lm_config%.*})
-# fi
-# lmexpname=train_rnnlm_${backend}_${lmtag}_${bpemode}${nbpe}_ngpu${ngpu}
-# lmexpdir=exp/${lmexpname}
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo "stage 3: LM Preparation (skipped)"
-    # lmdatadir=data/local/lm_train_${bpemode}${nbpe}
 fi
 
 if [ -z ${tag} ]; then
@@ -181,6 +155,7 @@ else
     expname=${train_set}_${backend}_${tag}
 fi
 expdir=exp/${expname}
+
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     echo "stage 4: Network Training"

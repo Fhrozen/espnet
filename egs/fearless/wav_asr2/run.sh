@@ -132,7 +132,7 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
          --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
          data/${train_dev} ${dict} > ${feat_dt_dir}/data.json
 
-    for rtask in ${recog_set}; do
+    for rtask in ${recog_set} Eval; do
         feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}; mkdir -p ${feat_recog_dir}
         data2json.sh --feat data/${rtask}/feats.scp --nlsyms ${nlsyms} --category "singlechannel" \
          --preprocess-conf ${preprocess_config} --filetype sound.hdf5 \
