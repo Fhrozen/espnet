@@ -1,23 +1,31 @@
+"""Wave Processing Classes."""
 # Copied from https://github.com/nttcslab-sp/kaldifeats
-from typing import Union, Callable, Optional, Tuple, List
+
+from typing import Callable
+from typing import Tuple
+from typing import Union
 
 import logging
 import numpy
 import scipy.fftpack
 import scipy.signal
-from scipy.signal._arraytools import const_ext, even_ext, odd_ext, zero_ext
+
+from scipy.signal._arraytools import const_ext
+from scipy.signal._arraytools import even_ext
+from scipy.signal._arraytools import odd_ext
+from scipy.signal._arraytools import zero_ext
 
 
 def get_window(window: Union[str, Tuple[str, Union[int, float]]],
-               Nx: int, fftbins: bool=True) -> numpy.ndarray:
+               Nx: int, fftbins: bool = True) -> numpy.ndarray:
     """Return a window.
-    
-    This function depends on scipy.signal.get_window and basically 
-    has compatible arguments exception with 
-    
-    1. 'povey', which is a window function developpend by Dan-povey 
+
+    This function depends on scipy.signal.get_window and basically
+    has compatible arguments exception with
+
+    1. 'povey', which is a window function developpend by Dan-povey
     2. Suport the optional value of coefficiency for "blackman" window
-    
+
     Parameters:
         window (string, float, or tuple):
             The type of window to create. See below for more details.
@@ -29,10 +37,10 @@ def get_window(window: Union[str, Tuple[str, Union[int, float]]],
     Returns:
         get_window (numpy.ndarray):
             Returns a window of length `Nx` and type `window`
-        
+
     Notes:
         Window types:
-            povey, 
+            povey,
             boxcar, triang, blackman, hamming, hann, bartlett, flattop,
             parzen, bohman, blackmanharris, nuttall, barthann,
             kaiser (needs beta), gaussian (needs std),
@@ -47,7 +55,7 @@ def get_window(window: Union[str, Tuple[str, Union[int, float]]],
         Each of the window types listed above is also the name of
         a function that can be called directly to create a window of
         that type.
-        
+
     Examples:
         >>> get_window('triang', 7)
         array([ 0.25,  0.5 ,  0.75,  1.  ,  0.75,  0.5 ,  0.25])
@@ -68,27 +76,28 @@ def get_window(window: Union[str, Tuple[str, Union[int, float]]],
         return scipy.signal.get_window(window, Nx=Nx, fftbins=fftbins)
 
 
-def povey(M: int, sym: bool=True) -> numpy.ndarray:
-    """
-    "povey" is a window dan-povey made to be similar to Hamming 
+def povey(M: int, sym: bool = True) -> numpy.ndarray:
+    """Povey Window.
+
+    "povey" is a window dan-povey made to be similar to Hamming
     but to go to zero at the edges, it's pow((0.5 - 0.5*cos(n/N*2*pi)), 0.85)
     He just don't think the Hamming window makes sense as a windowing function.
-     
+
     Args:
         M (int)
             Number of points in the output window. If zero or less, an empty
             array is returned.
         sym (bool):
-            When True (default), generates a symmetric window, 
+            When True (default), generates a symmetric window,
             for use in filter design.
             When False, generates a periodic window,
             for use in spectral analysis.
-        
+
     Returns:
         w (numpy.ndarray):
-            The window, with the maximum value normalized to 
+            The window, with the maximum value normalized to
             1 (though the value 1 does not appear if
-             `M` is even and `sym` is True).   
+             `M` is even and `sym` is True).
     """
     # Docstring adapted from NumPy's blackman function
     if M < 1:
@@ -106,35 +115,36 @@ def povey(M: int, sym: bool=True) -> numpy.ndarray:
     return w
 
 
-def blackman(M: int, coeff: float=0.42, sym: bool=True) -> numpy.ndarray:
-    """Originated from scipy.signal.windows.blackman 
-    with additionally parameter "coeff" for comapatibility of kaldi 
-    
-    Return a Blackman window.
+def blackman(M: int, coeff: float = 0.42, sym: bool = True) -> numpy.ndarray:
+    r"""Return a Blackman window.
+
+    Originated from scipy.signal.windows.blackman with additionally
+    parameter "coeff" for comapatibility of kaldi.
+
     The Blackman window is a taper formed by using the first three terms of
     a summation of cosines. It was designed to have close to the minimal
     leakage possible.  It is close to optimal, only slightly worse than a
     Kaiser window.
-    
+
     Args:
         M (int)
             Number of points in the output window. If zero or less, an empty
             array is returned.
         coeff (float): The coefficient value for blackman function
         sym (bool):
-            When True (default), generates a symmetric window, 
+            When True (default), generates a symmetric window,
             for use in filter design.
-            When False, generates a periodic window, 
+            When False, generates a periodic window,
             for use in spectral analysis.
-        
+
     Returns:
         w (numpy.ndarray):
-            The window, with the maximum value normalized to 
+            The window, with the maximum value normalized to
             1 (though the value 1 does not appear if
              `M` is even and `sym` is True).
     Notes:
         The Blackman window is defined as
-        .. math::  w(n) = 0.42 - 0.5 \cos(2\pi n/M) + 0.08 \cos(4\pi n/M)
+        .. math::  w(n) = 0.42 - 0.5 \\cos(2\\pi n/M) + 0.08 \\cos(4\\pi n/M)
         Most references to the Blackman window come from the signal processing
         literature, where it is used as one of many windowing functions for
         smoothing values.  It is also known as an apodization (which means
@@ -146,7 +156,7 @@ def blackman(M: int, coeff: float=0.42, sym: bool=True) -> numpy.ndarray:
         ----------
         .. [1] Blackman, R.B. and Tukey, J.W., (1958) The measurement of power
                spectra, Dover Publications, New York.
-        .. [2] Oppenheim, A.V., and R.W. Schafer. 
+        .. [2] Oppenheim, A.V., and R.W. Schafer.
                 Discrete-Time Signal Processing.
                Upper Saddle River, NJ: Prentice-Hall, 1999, pp. 468-471.
     """
@@ -167,7 +177,8 @@ def blackman(M: int, coeff: float=0.42, sym: bool=True) -> numpy.ndarray:
 
 
 def round_up_to_nearest_power_of_two(n: int) -> int:
-    """
+    """Round to Nearest 2.
+
     Args:
         n (int):
     Returns:
@@ -191,9 +202,10 @@ def round_up_to_nearest_power_of_two(n: int) -> int:
 
 
 def dithering(wave: numpy.ndarray,
-              dither_value: float=1.0,
-              state_or_seed: Union[numpy.random.RandomState, int]=None)\
+              dither_value: float = 1.0,
+              state_or_seed: Union[numpy.random.RandomState, int] = None)\
         -> None:
+    """Dithering method."""
     if dither_value == 0.0:
         return
     if state_or_seed is None:
@@ -209,19 +221,14 @@ def dithering(wave: numpy.ndarray,
 
 
 def pre_emphasis_filter(signal: numpy.ndarray, p=0.97) -> None:
-    """Apply pre-emphasis filter to the input array inplace
-    
+    """Apply pre-emphasis filter to the input array inplace.
+
     To implement pre emphasis fitler using scipy.signal.lfilter,
-    
     >>> signal = scipy.signal.lfilter([1.0, -p], 1, signal)
-        
     and this is equivalent to
-    
     >>> signal[..., 1:] -= p * signal[..., :-1]
-    
     The process only for the 0 index is different from this function.
     """
-
     signal[..., 1:] -= p * signal[..., :-1]
     signal[..., 0] -= p * signal[..., 0]
 
@@ -232,24 +239,24 @@ def pre_stft(
         frame_shift: int,
         window_type: Union[str,
                            Tuple[str, Union[float, int]],
-                           numpy.ndarray]='hann',
-        nfft: int=None,
+                           numpy.ndarray] = 'hann',
+        nfft: int = None,
         detrend: Union[str,
                        bool,
                        Callable[[numpy.ndarray], numpy.ndarray],
-                       None]='constant',
-        return_onesided: bool=True,
-        boundary: str=None,
-        padded: bool=False,
-        dither: float=None,
-        dither_seed: Union[numpy.random.RandomState, int]=None,
-        preemphasis_coefficient: float=0.,
-        return_energy: bool=False,
-        return_raw_energy: bool=False,
-        round_to_power_of_two: bool=True,
+                       None] = 'constant',
+        return_onesided: bool = True,
+        boundary: str = None,
+        padded: bool = False,
+        dither: float = None,
+        dither_seed: Union[numpy.random.RandomState, int] = None,
+        preemphasis_coefficient: float = 0.,
+        return_energy: bool = False,
+        return_raw_energy: bool = False,
+        round_to_power_of_two: bool = True,
         dtype=None,
-        deepcopy_input=False,
-        ) -> Union[numpy.ndarray, Tuple[numpy.ndarray, ...]]:
+        deepcopy_input=False) -> Union[numpy.ndarray, Tuple[numpy.ndarray, ...]]:
+    """Generate Pre STFT."""
     boundary_funcs = {'even': even_ext,
                       'odd': odd_ext,
                       'constant': const_ext,
@@ -296,8 +303,8 @@ def pre_stft(
         nfft = round_up_to_nearest_power_of_two(nfft)
 
     if return_onesided and numpy.iscomplexobj(x):
-        warnings.warn('Input data is complex, switching to '
-                      'return_onesided=False')
+        logging.warning('Input data is complex, switching to '
+                        'return_onesided=False')
         return_onesided = False
 
     if x.dtype.kind == 'i':
@@ -331,7 +338,7 @@ def pre_stft(
         result = x[..., numpy.newaxis]
     else:
         shape = x.shape[:-1] + \
-                ((x.shape[-1] - frame_length) // frame_shift + 1, frame_length)
+            ((x.shape[-1] - frame_length) // frame_shift + 1, frame_length)
         strides = x.strides[:-1] + (frame_shift * x.strides[-1], x.strides[-1])
         result = numpy.lib.stride_tricks.as_strided(x, shape=shape,
                                                     strides=strides)
@@ -348,8 +355,8 @@ def pre_stft(
             assert isinstance(detrend, str)
             result = scipy.signal.signaltools.detrend(result,
                                                       type=detrend, axis=-1)
-    if return_raw_energy:
-        raw_energy = numpy.sum(result ** 2, axis=1)
+    # if return_raw_energy:
+    #     raw_energy = numpy.sum(result ** 2, axis=1)
 
     if preemphasis_coefficient is not None \
             and preemphasis_coefficient != 0.0:
@@ -362,7 +369,10 @@ def pre_stft(
 
 
 class WaveFrames(object):
+    """Wave Frames."""
+
     def __init__(self, nfft, frame_shift, frame_length=None, window_type='povey', preemphasis_coefficient=0.):
+        """Wave Frames."""
         self.nfft = nfft
         self.frame_shift = frame_shift
         self.frame_length = frame_length
@@ -370,6 +380,7 @@ class WaveFrames(object):
         self.preemphasis_coefficient = preemphasis_coefficient
 
     def __repr__(self):
+        """Wave Frames."""
         return ('{name}(nfft={nfft}, frame_shift={frame_shift}, '
                 'frame_length={frame_length}, window_type={window_type}, '
                 'preemphasis_coefficient={preemphasis_coefficient})'
@@ -381,30 +392,34 @@ class WaveFrames(object):
                         preemphasis_coefficient=self.preemphasis_coefficient))
 
     def __call__(self, x):
+        """Wave Frames."""
         nfft = self.nfft
         if nfft is None:
             nfft = self.frame_length
         return pre_stft(x,
-                 frame_length=self.frame_length,
-                 frame_shift=self.frame_shift,
-                 window_type=self.window_type,
-                 nfft=nfft,
-                 detrend='constant',
-                 return_onesided=True,
-                 boundary=None,
-                 padded=False,
-                 dtype=numpy.float32,
-                 dither=0.,
-                 dither_seed=None,
-                 preemphasis_coefficient=self.preemphasis_coefficient,
-                 return_energy=False,
-                 return_raw_energy=False,
-                 round_to_power_of_two=True
-                 )
+                        frame_length=self.frame_length,
+                        frame_shift=self.frame_shift,
+                        window_type=self.window_type,
+                        nfft=nfft,
+                        detrend='constant',
+                        return_onesided=True,
+                        boundary=None,
+                        padded=False,
+                        dtype=numpy.float32,
+                        dither=0.,
+                        dither_seed=None,
+                        preemphasis_coefficient=self.preemphasis_coefficient,
+                        return_energy=False,
+                        return_raw_energy=False,
+                        round_to_power_of_two=True
+                        )
 
 
 class Wave(object):
+    """Wave Segments."""
+
     def __init__(self, nfft, frame_shift, frame_length=None, window_type='povey', preemphasis_coefficient=0.):
+        """Wave Segments."""
         self.nfft = nfft
         self.frame_shift = frame_shift
         self.frame_length = frame_length
@@ -412,6 +427,7 @@ class Wave(object):
         self.preemphasis_coefficient = preemphasis_coefficient
 
     def __repr__(self):
+        """Wave Segments."""
         return ('{name}(nfft={nfft}, frame_shift={frame_shift}, '
                 'frame_length={frame_length}, window_type={window_type}, '
                 'preemphasis_coefficient={preemphasis_coefficient})'
@@ -423,6 +439,7 @@ class Wave(object):
                         preemphasis_coefficient=self.preemphasis_coefficient))
 
     def __call__(self, x):
+        """Wave Segments."""
         x = numpy.asarray(x, dtype=numpy.float32)
         if x.ndim == 1:
             x_max = numpy.amax(x)

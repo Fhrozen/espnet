@@ -25,24 +25,24 @@ preprocess_config=conf/preprocess/fbank.yaml
 train_config=conf/train/transformer.yaml # current default recipe requires 4 gpus.
                              # if you do not have 4 gpus, please reconfigure the `batch-bins` and `accum-grad` parameters in config.
 train_embed=conf/xvector_2layer.yaml
-lm_config=conf/lm.yaml
+# lm_config=conf/lm.yaml
 decode_config=conf/decode/ctc0.1.yaml
 stream_decode_config=conf/decode/streaming.yaml
 
 # rnnlm related
-lm_resume= # specify a snapshot file to resume LM training
-lmtag=     # tag for managing LMs
+# lm_resume= # specify a snapshot file to resume LM training
+# lmtag=     # tag for managing LMs
 
 # decoding parameter
 recog_model=model.acc.best  # set a model to be used for decoding: 'model.acc.best' or 'model.loss.best'
-lang_model=rnnlm.model.best # set a language model to be used for decoding
+# lang_model=rnnlm.model.best # set a language model to be used for decoding
 
 # model average realted (only for transformer)
 n_average=5                  # the number of ASR models to be averaged
 use_valbest_average=true     # if true, the validation `n_average`-best ASR models will be averaged.
                              # if false, the last `n_average` ASR models will be averaged.
-lm_n_average=0               # the number of languge models to be averaged
-use_lm_valbest_average=false # if true, the validation `lm_n_average`-best language models will be averaged.
+# lm_n_average=0               # the number of languge models to be averaged
+# use_lm_valbest_average=false # if true, the validation `lm_n_average`-best language models will be averaged.
                              # if false, the last `lm_n_average` language models will be averaged.
 
 # Set this to somewhere where you want to put your data, or where
@@ -227,13 +227,13 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
         splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
 
         #### use CPU for decoding
-        ngpu=0
+        decode_ngpu=0
 
         # set batchsize 0 to disable batch decoding
         ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
             asr_recog.py \
             --config ${decode_config} \
-            --ngpu ${ngpu} \
+            --ngpu ${decode_ngpu} \
             --backend ${backend} \
             --batchsize 0 \
             --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \

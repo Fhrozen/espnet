@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # logging info
     logfmt = '%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s'
     logging.basicConfig(level=logging.INFO, format=logfmt)
-    # logging.info(get_commandline_args())
+    logging.debug(get_commandline_args())
 
     # make intersection set for utterance keys
     js = {}

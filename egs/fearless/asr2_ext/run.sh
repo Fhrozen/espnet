@@ -28,7 +28,7 @@ lm_config=conf/lm.yaml
 decode_config=conf/decode_ctc0.1.yaml
 
 # rnnlm related
-lm_resume= # specify a snapshot file to resume LM training
+# lm_resume= # specify a snapshot file to resume LM training
 lmtag=     # tag for managing LMs
 
 # decoding parameter
@@ -47,7 +47,7 @@ use_lm_valbest_average=false # if true, the validation `lm_n_average`-best langu
 # someone else has already put it.  You'll want to change this
 # if you're not on the CLSP grid.
 datadir=/export/corpus/Fearless/FS02_Challenge_Data
-librispeech_data=/export/corpus/librispeech
+# librispeech_data=/export/corpus/librispeech
 
 # bpemode (unigram or bpe)
 nbpe=5000
@@ -166,7 +166,7 @@ lmexpdir=exp/${lmexpname}
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo "stage 3: LM Preparation"
-    lmdatadir=data/local/lm_train_${bpemode}${nbpe}
+    # lmdatadir=data/local/lm_train_${bpemode}${nbpe}
     # mkdir -p ${lmexpdir}
     # use external data
     # if [ ! -e data/local/lm_train/librispeech-lm-norm.txt.gz ]; then

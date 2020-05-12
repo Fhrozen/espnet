@@ -28,7 +28,7 @@ lm_config=conf/lm.yaml
 decode_config=conf/decode_ctc0.1.yaml
 
 # rnnlm related
-lm_resume= # specify a snapshot file to resume LM training
+# lm_resume= # specify a snapshot file to resume LM training
 lmtag=     # tag for managing LMs
 
 # decoding parameter
@@ -165,7 +165,7 @@ lmexpdir=exp/${lmexpname}
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo "stage 3: LM Preparation"
-    lmdatadir=data/local/lm_train_${bpemode}${nbpe}
+    # lmdatadir=data/local/lm_train_${bpemode}${nbpe}
     # mkdir -p ${lmexpdir}
     # use external data
     # if [ ! -e data/local/lm_train/librispeech-lm-norm.txt.gz ]; then

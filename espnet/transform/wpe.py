@@ -1,4 +1,4 @@
-from nara_wpe.wpe import wpe, stft, isft
+from nara_wpe.wpe import wpe
 
 
 class WPE(object):
@@ -17,7 +17,7 @@ class WPE(object):
         return ('{name}(taps={taps}, delay={delay}'
                 'iterations={iterations}, psd_context={psd_context}, '
                 'statistics_mode={statistics_mode}, '
-                'single_channels={single_channels}, '
+                'single_channel={single_channel}, '
                 'is_raw={is_raw})'
                 .format(name=self.__class__.__name__,
                         taps=self.taps,

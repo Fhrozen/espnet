@@ -239,8 +239,10 @@ def train(args):
                                    scale=args.transformer_lr), trigger=(1, 'iteration'))
     elif args.opt == 'adam_poly':
         from chainer.training.extensions import PolynomialShift
-        trainer.extend(PolynomialShift('alpha', 0.5, args.transformer_warmup_steps,
-                                       init=args.transformer_lr, target=args.transformer_lr_target), trigger=(1, 'iteration'))
+        trainer.extend(
+            PolynomialShift(
+                'alpha', 0.5, args.transformer_warmup_steps, init=args.transformer_lr,
+                target=args.transformer_lr_target), trigger=(1, 'iteration'))
     # Resume from a snapshot
     if args.resume:
         chainer.serializers.load_npz(args.resume, trainer)
@@ -345,7 +347,7 @@ def train(args):
 
     trainer.extend(extensions.PrintReport(
         report_keys), trigger=(args.report_interval_iters, 'iteration'))
-    
+
     if 'dump_plot' in args:
         if args.dump_plot:
             trainer.extend(extensions.DumpGraph('main/loss'))

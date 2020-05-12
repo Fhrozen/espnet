@@ -38,10 +38,7 @@ def batchfy_by_seq(
     while True:
         _, info = sorted_data[start]
         ilen = int(info[ikey][iaxis]['shape'][0])
-        if okey == "utt2spk":
-            olen = ilen
-        else:
-            olen = int(info[okey][oaxis]['shape'][0]) if oaxis >= 0 else max(map(lambda x: int(x['shape'][0]), info[okey]))
+        olen = int(info[okey][oaxis]['shape'][0]) if oaxis >= 0 else max(map(lambda x: int(x['shape'][0]), info[okey]))
         factor = max(int(ilen / max_length_in), int(olen / max_length_out))
         # change batchsize depending on the input and output length
         # if ilen = 1000 and max_length_in = 800
@@ -163,7 +160,7 @@ def batchfy_by_frame(sorted_data, max_frames_in, max_frames_out, max_frames_inou
     """
     if max_frames_in <= 0 and max_frames_out <= 0 and max_frames_inout <= 0:
         raise ValueError(
-            f"At least, one of `--batch-frames-in`, `--batch-frames-out` or `--batch-frames-inout` should be > 0")
+            "At least, one of `--batch-frames-in`, `--batch-frames-out` or `--batch-frames-inout` should be > 0")
     length = len(sorted_data)
     minibatches = []
     start = 0
@@ -343,7 +340,7 @@ def make_batchset(data, batch_size=0, max_length_in=float("inf"), max_length_out
         logging.info(f"count is auto detected as {count}")
 
     if count != "seq" and batch_sort_key == "shuffle":
-        raise ValueError(f"batch_sort_key=shuffle is only available if batch_count=seq")
+        raise ValueError("batch_sort_key=shuffle is only available if batch_count=seq")
 
     category2data = {}  # Dict[str, dict]
     for k, v in data.items():

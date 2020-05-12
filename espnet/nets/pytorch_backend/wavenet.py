@@ -228,11 +228,11 @@ class WaveNet(nn.Module):
 
         # residual block
         skip_connections = []
-        for l in range(len(self.dilations)):
+        for i in range(len(self.dilations)):
             output, skip = self._residual_forward(
-                output, h, self.dil_sigmoid[l], self.dil_tanh[l],
-                self.aux_1x1_sigmoid[l], self.aux_1x1_tanh[l],
-                self.skip_1x1[l], self.res_1x1[l])
+                output, h, self.dil_sigmoid[i], self.dil_tanh[i],
+                self.aux_1x1_sigmoid[i], self.aux_1x1_tanh[i],
+                self.skip_1x1[i], self.res_1x1[i])
             skip_connections.append(skip)
 
         # skip-connection part
@@ -284,16 +284,16 @@ class WaveNet(nn.Module):
         h_ = h[:, :, :x.size(1)]
         output_buffer = []
         buffer_size = []
-        for l, d in enumerate(self.dilations):
+        for i, d in enumerate(self.dilations):
             output, _ = self._residual_forward(
-                output, h_, self.dil_sigmoid[l], self.dil_tanh[l],
-                self.aux_1x1_sigmoid[l], self.aux_1x1_tanh[l],
-                self.skip_1x1[l], self.res_1x1[l])
+                output, h_, self.dil_sigmoid[i], self.dil_tanh[i],
+                self.aux_1x1_sigmoid[i], self.aux_1x1_tanh[i],
+                self.skip_1x1[i], self.res_1x1[i])
             if d == 2 ** (self.dilation_depth - 1):
                 buffer_size.append(self.kernel_size - 1)
             else:
                 buffer_size.append(d * 2 * (self.kernel_size - 1))
-            output_buffer.append(output[:, :, -buffer_size[l] - 1: -1])
+            output_buffer.append(output[:, :, -buffer_size[i] - 1: -1])
 
         # generate
         samples = x[0]
@@ -304,13 +304,13 @@ class WaveNet(nn.Module):
             h_ = h[:, :, samples.size(0) - 1].contiguous().view(1, self.n_aux, 1)
             output_buffer_next = []
             skip_connections = []
-            for l, d in enumerate(self.dilations):
+            for i, d in enumerate(self.dilations):
                 output, skip = self._generate_residual_forward(
-                    output, h_, self.dil_sigmoid[l], self.dil_tanh[l],
-                    self.aux_1x1_sigmoid[l], self.aux_1x1_tanh[l],
-                    self.skip_1x1[l], self.res_1x1[l])
-                output = torch.cat([output_buffer[l], output], dim=2)
-                output_buffer_next.append(output[:, :, -buffer_size[l]:])
+                    output, h_, self.dil_sigmoid[i], self.dil_tanh[i],
+                    self.aux_1x1_sigmoid[i], self.aux_1x1_tanh[i],
+                    self.skip_1x1[i], self.res_1x1[i])
+                output = torch.cat([output_buffer[i], output], dim=2)
+                output_buffer_next.append(output[:, :, -buffer_size[i]:])
                 skip_connections.append(skip)
 
             # update buffer
