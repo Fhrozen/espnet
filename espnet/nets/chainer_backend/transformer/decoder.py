@@ -95,6 +95,37 @@ class Decoder(chainer.Chain):
         for i in range(self.n_layers):
             e = self['decoders.' + str(i)](e, source, xy_mask, yy_mask, batch)
         return self.output_layer(self.output_norm(e)).reshape(batch, length, -1)
+    
+    def forward_one_step(self, ys_pad, source, cache=None):
+        """Forward decoder one step.
+
+        :param xp.array e: input token ids, int64 (batch, maxlen_out)
+        :param xp.array yy_mask: input token mask, uint8  (batch, maxlen_out)
+        :param xp.array source: encoded memory, float32  (batch, maxlen_in, feat)
+        :param xp.array xy_mask: encoded memory mask, uint8  (batch, maxlen_in)
+        :return e: decoded token score before softmax (batch, maxlen_out, token)
+        :rtype: chainer.Variable
+        """
+        xp = self.xp
+        sos = np.array([self.sos], np.int32)
+        ys = [np.concatenate([sos, y], axis=0) for y in ys_pad]
+        e = F.pad_sequence(ys, padding=self.eos).data
+        e = xp.array(e)
+        # mask preparation
+        xy_mask = self.make_attention_mask(e, xp.array(x_mask))
+        yy_mask = self.make_attention_mask(e, e)
+        yy_mask *= make_history_mask(xp, e)
+
+        e = self.pe(self.embed(e))
+        batch, length, dims = e.shape
+        e = e.reshape(-1, dims)
+        source = source.reshape(-1, dims)
+        for i in range(self.n_layers):
+            e = self['decoders.' + str(i)](e, source, xy_mask, yy_mask, batch)
+        return self.output_layer(self.output_norm(e)).reshape(batch, length, -1)
+
+    def init_states(self):
+        return
 
     def recognize(self, e, yy_mask, source):
         """Process recognition function."""

@@ -41,7 +41,7 @@ class DecoderLayer(chainer.Chain):
             self.norm3 = LayerNorm(n_units)
         self.dropout = dropout
 
-    def forward(self, e, s, xy_mask, yy_mask, batch):
+    def forward(self, e, s, xy_mask, yy_mask, batch, cache=None):
         """Compute Encoder layer.
 
         Args:
