@@ -137,6 +137,18 @@ class ClassifierWithoutState(link.Chain):
         self.loss = F.softmax_cross_entropy(xs, ys)
         self.acc = F.accuracy(xs, ys)
         return self.loss, self.acc
+    
+    def recognize(self, xs, args):
+        ilens = [xs.shape[0]]
+        xs, ilens = self.feats(xs[None], ilens, no_pe=True)
+        # logging.info(ilens)
+        xs = F.relu(self.norm(self.td01(xs.transpose(0, 2, 1)))).transpose(0, 2, 1)[0]
+        for i in range(self.layers):
+            xs = F.dropout(xs, self.dropout)
+            xs = F.relu(self[f'linear{i}'](xs))
+        xs = F.sum(F.log_softmax(self.olinear(xs)), axis=0).data
+        xs = np.argsort(xs)[::-1][:5]
+        return xs[0]
 
 
 class CustomUpdater(training.updaters.StandardUpdater):
@@ -243,6 +255,18 @@ class CustomConverter(object):
         ilens = np.array([x.shape[0] for x in xs])
         xs = F.pad_sequence(xs, padding=-1).data
         return xs, ilens, ys
+
+
+def add_json(gs, pd, spks_dict, spks_list):
+    new_js = {
+            'groundtruth': {
+                'idx' : spks_dict.get(gs),
+                'label' : gs },
+            'prediction' : {
+                'idx' : pd,
+                'label' : spks_list[pd]
+            }}
+    return new_js
 
 
 def train(args):
@@ -495,55 +519,41 @@ def recog(args):
         model_module = "espnet.nets.chainer_backend.e2e_asr:E2E"
     model_class = dynamic_import(model_module)
     model = model_class(idim, odim, train_args)
-    assert isinstance(model, ASRInterface)
     chainer_load(args.model, model)
-
-    # read rnnlm
-    if args.rnnlm:
-        rnnlm_args = get_model_conf(args.rnnlm, args.rnnlm_conf)
-        rnnlm = lm_chainer.ClassifierWithState(lm_chainer.RNNLM(
-            len(train_args.char_list), rnnlm_args.layer, rnnlm_args.unit))
-        chainer_load(args.rnnlm, rnnlm)
-    else:
-        rnnlm = None
-
-    if args.word_rnnlm:
-        rnnlm_args = get_model_conf(args.word_rnnlm, args.word_rnnlm_conf)
-        word_dict = rnnlm_args.char_list_dict
-        char_dict = {x: i for i, x in enumerate(train_args.char_list)}
-        word_rnnlm = lm_chainer.ClassifierWithState(lm_chainer.RNNLM(
-            len(word_dict), rnnlm_args.layer, rnnlm_args.unit))
-        chainer_load(args.word_rnnlm, word_rnnlm)
-
-        if rnnlm is not None:
-            rnnlm = lm_chainer.ClassifierWithState(
-                extlm_chainer.MultiLevelLM(word_rnnlm.predictor,
-                                           rnnlm.predictor, word_dict, char_dict))
-        else:
-            rnnlm = lm_chainer.ClassifierWithState(
-                extlm_chainer.LookAheadWordLM(word_rnnlm.predictor,
-                                              word_dict, char_dict))
 
     # read json data
     with open(args.recog_json, 'rb') as f:
         js = json.load(f)['utts']
 
     load_inputs_and_targets = LoadInputsAndTargets(
-        mode='asr', load_output=False, sort_in_input_length=False,
+        mode='embed', load_output=False, sort_in_input_length=False,
         preprocess_conf=train_args.preprocess_conf
         if args.preprocess_conf is None else args.preprocess_conf,
         preprocess_args={'train': False}  # Switch the mode of preprocessing
     )
 
+    _spks = dict()
+    for i, spk in enumerate(train_args.char_list):
+        _spks[str(spk)] = int(i)
+    spks_dict = _spks
     # decode each utterance
     new_js = {}
+    idx_gt = list()
+    idx_pd = list()
     with chainer.no_backprop_mode():
         for idx, name in enumerate(js.keys(), 1):
             logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
             batch = [(name, js[name])]
             feat = load_inputs_and_targets(batch)[0][0]
-            nbest_hyps = model.recognize(feat, args, train_args.char_list, rnnlm)
-            new_js[name] = add_results_to_json(js[name], nbest_hyps, train_args.char_list)
+            nbest_hyps = model.recognize(feat, args)
+
+            gs = js[name]['utt2spk']
+            idx_gt.append(spks_dict.get(gs))
+            idx_pd.append(nbest_hyps)
+            logging.info(f'groundtruth: {gs}, prediction: {train_args.char_list[nbest_hyps]}')
+            new_js[name] = add_json(gs, int(nbest_hyps), spks_dict, train_args.char_list)
+    acc = np.mean(np.array(idx_gt) == np.array(idx_pd)) * 100
+    logging.info(f'SID: {acc:.02f} %')
 
     with open(args.result_label, 'wb') as f:
         f.write(json.dumps({'utts': new_js}, indent=4, ensure_ascii=False, sort_keys=True).encode('utf_8'))

@@ -307,7 +307,7 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
     echo "UNK 0" > ${xdict}
     cut -f 2- -d" " data/Train/utt2spk | sort | uniq | grep -v -e "UNK" | awk '{print $0 " " NR}' >> ${xdict}
 
-    echo "stage 6: X-Vector Trainig / Testing"
+    echo "stage 6: X-Vector Trainig "
     mkdir -p ${embed_dir}
     ${cuda_cmd} --gpu ${ngpu} ${embed_dir}/train.log \
         embed_train.py \
@@ -317,7 +317,7 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         --backend ${backend} \
         --outdir ${embed_dir}/results \
         --debugmode ${debugmode} \
-        --debugdir ${expdir} \
+        --debugdir ${embed_dir} \
         --minibatches ${N} \
         --enc-init ${expdir}/results/pretrained_input.model \
         --verbose ${verbose} \
@@ -326,34 +326,31 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         --valid-json ${feat_dt_dir}/data.json
 fi
 
-if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
-    echo "stage 5: Decoding"
+if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+    echo "stage 7: X Vector Test"
     rtask=Dev
+
     decode_dir=decode_${rtask}
     feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
-
-    # split data
-    splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
 
     #### use CPU for decoding
     decode_ngpu=0
 
     # set batchsize 0 to disable batch decoding
-    ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
-        asr_recog.py \
-        --config ${decode_config} \
+    ${decode_cmd} ${embed_dir}/${decode_dir}/log/decode.log \
+        embed_recog.py \
         --ngpu ${decode_ngpu} \
         --backend ${backend} \
         --batchsize 0 \
-        --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
-        --result-label ${expdir}/${decode_dir}/data.JOB.json \
-        --model ${expdir}/results/${recog_model}  
+        --recog-json ${feat_recog_dir}/data.json \
+        --result-label ${embed_dir}/${decode_dir}/data.json \
+        --model ${embed_dir}/results/model.acc.best
 fi
 
 
-if [ ${stage} -eq 7 ]; then
+if [ ${stage} -eq 8 ]; then
     decode_config=${stream_decode_config}
-    echo "stage 7: Decoding Streaming"
+    echo "stage 8: Decoding Streaming"
     if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]]; then
         # Average ASR models
         if ${use_valbest_average}; then
