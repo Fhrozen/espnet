@@ -172,7 +172,7 @@ class CustomUpdater(training.updaters.StandardUpdater):
         reporter.report({'acc': float(acc.data)}, optimizer.target)
         # update
         optimizer.update()  # Update the parameters
-        self.scheduler.step(self.iteration)
+        # self.scheduler.step(self.iteration)
 
 
 class CustomEvaluator(BaseEvaluator):

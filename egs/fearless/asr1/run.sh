@@ -326,6 +326,31 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         --valid-json ${feat_dt_dir}/data.json
 fi
 
+if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
+    echo "stage 5: Decoding"
+    rtask=Dev
+    decode_dir=decode_${rtask}
+    feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+
+    # split data
+    splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
+
+    #### use CPU for decoding
+    decode_ngpu=0
+
+    # set batchsize 0 to disable batch decoding
+    ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
+        asr_recog.py \
+        --config ${decode_config} \
+        --ngpu ${decode_ngpu} \
+        --backend ${backend} \
+        --batchsize 0 \
+        --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
+        --result-label ${expdir}/${decode_dir}/data.JOB.json \
+        --model ${expdir}/results/${recog_model}  
+fi
+
+
 if [ ${stage} -eq 7 ]; then
     decode_config=${stream_decode_config}
     echo "stage 7: Decoding Streaming"
