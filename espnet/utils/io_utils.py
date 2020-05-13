@@ -125,7 +125,9 @@ class LoadInputsAndTargets(object):
                             filetype=inp.get('filetype', 'mat'))
                     x_feats_dict.setdefault(inp['name'], []).append(x)
 
-            if self.load_output:
+            if self.mode == 'embed':
+                y_feats_dict.setdefault('target1', []).append(info['utt2spk'])
+            elif self.load_output:
                 if self.mode == 'mt':
                     x = np.fromiter(map(int, info['output'][1]['tokenid'].split()),
                                     dtype=np.int64)
@@ -148,8 +150,6 @@ class LoadInputsAndTargets(object):
                             filetype=inp.get('filetype', 'mat'))
 
                     y_feats_dict.setdefault(inp['name'], []).append(x)
-            elif self.mode == 'embed':
-                y_feats_dict.setdefault('target1', []).append(info['utt2spk'])
 
         if self.mode == 'asr':
             return_batch, uttid_list = self._create_batch_asr(

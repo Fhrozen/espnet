@@ -22,6 +22,7 @@ from chainer.training import extensions
 from espnet.asr.asr_utils import adadelta_eps_decay
 from espnet.asr.asr_utils import add_results_to_json
 from espnet.asr.asr_utils import chainer_load
+from espnet.asr.asr_utils import CompareValue
 from espnet.asr.asr_utils import CompareValueTrigger
 from espnet.asr.asr_utils import get_model_conf
 from espnet.asr.asr_utils import restore_snapshot
@@ -291,7 +292,11 @@ def train(args):
         att_reporter = None
 
     # Take a snapshot for each specified epoch
-    trainer.extend(extensions.snapshot(filename='snapshot.ep.{.updater.epoch}'), trigger=(1, 'epoch'))
+    trainer.extend(extensions.snapshot(
+        filename='snapshot.ep.{.updater.epoch}', n_retains=10,
+        condition=CompareValue(
+            'validation/main/acc', lambda best_value, current_value: best_value < current_value, trainer)),
+        trigger=(1, 'epoch'))
 
     # Make a plot for training and validation values
     trainer.extend(extensions.PlotReport(['main/loss', 'validation/main/loss',

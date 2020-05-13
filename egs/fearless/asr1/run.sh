@@ -275,7 +275,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
 fi
 
 embed_dir=exp/train_$(basename ${train_embed%.*})
-
 xdict=data/lang_1char/${train_set}_spk.txt
 
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
@@ -299,6 +298,11 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         fi
     fi
 
+    echo "Extract Pretrained Input Feats"
+    ./local/get_input_layer.py \
+        --snapshot ${expdir}/results/${recog_model} \
+        --out ${expdir}/results/pretrained_input.model
+
     echo "make a dictionary"
     echo "UNK 0" > ${xdict}
     cut -f 2- -d" " data/Train/utt2spk | sort | uniq | grep -v -e "UNK" | awk '{print $0 " " NR}' >> ${xdict}
@@ -315,6 +319,7 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         --debugmode ${debugmode} \
         --debugdir ${expdir} \
         --minibatches ${N} \
+        --enc-init ${expdir}/results/pretrained_input.model \
         --verbose ${verbose} \
         --resume ${resume} \
         --train-json ${feat_tr_dir}/data.json \

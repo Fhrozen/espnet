@@ -275,6 +275,11 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         fi
     fi
 
+    ./local/get_input_layer.py \
+        --snapshot ${expdir}/results/${recog_model} \
+        --out ${expdir}/results/pretrained_input.model
+    exit 1
+
     echo "make a dictionary"
     echo "UNK 0" > ${xdict}
     cut -f 2- -d" " data/Train/utt2spk | sort | uniq | grep -v -e "UNK" | awk '{print $0 " " NR}' >> ${xdict}
@@ -324,7 +329,7 @@ if [ ${stage} -eq 7 ]; then
     for rtask in ${recog_set}; do
     (
         decode_dir=decode_${rtask}_${recog_model}_$(basename ${decode_config%.*})  #_${lmtag}
-        feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+        feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}
 
         # split data
         splitjson.py --parts ${nj} ${feat_recog_dir}/data.json

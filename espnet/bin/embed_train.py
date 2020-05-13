@@ -77,13 +77,6 @@ def get_parser(parser=None, required=True):
     # network architecture
     parser.add_argument('--model-module', type=str, default=None,
                         help='model defined module (default: espnet.nets.xxx_backend.e2e_asr:E2E)')
-    # encoder
-    parser.add_argument('--num-encs', default=1, type=int,
-                        help='Number of encoders in the model.')
-    # loss related
-    parser.add_argument('--ctc_type', default='warpctc', type=str,
-                        choices=['builtin', 'warpctc'],
-                        help='Type of CTC implementation to calculate loss.')
     parser.add_argument('--mtlalpha', default=0.5, type=float,
                         help='Multitask learning coefficient, alpha: alpha*ctc_loss + (1-alpha)*att_loss ')
     # minibatch related
@@ -115,6 +108,8 @@ def get_parser(parser=None, required=True):
     parser.add_argument('--accum-grad', default=1, type=int,
                         help='Number of gradient accumuration')
     parser.add_argument('--eps', default=1e-8, type=float,
+                        help='Epsilon constant for optimizer')
+    parser.add_argument('--alpha', default=1e-4, type=float,
                         help='Epsilon constant for optimizer')
     parser.add_argument('--eps-decay', default=0.01, type=float,
                         help='Decaying ratio of epsilon')

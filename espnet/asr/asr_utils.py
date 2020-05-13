@@ -28,6 +28,48 @@ import torch
 matplotlib.use('Agg')
 
 
+class CompareValue(object):
+    """Trigger invoked when key value getting bigger or lower than before.
+
+    Args:
+        key (str) : Key of value.
+        compare_fn ((float, float) -> bool) : Function to compare the values.
+        trigger (tuple(int, str)) : Trigger that decide the comparison interval.
+
+    """
+
+    def __init__(self, key, compare_fn, trainer):
+        self._key = key
+        self._best_value = None
+        self._trainer = trainer
+        self._init_summary()
+        self._compare_fn = compare_fn
+
+    def __call__(self):
+        """Get value related to the key and compare with current value."""
+        observation = self._trainer.observation
+        summary = self._summary
+        key = self._key
+        if key in observation:
+            summary.add({key: observation[key]})
+
+        stats = summary.compute_mean()
+        value = float(stats[key])  # copy to CPU
+        self._init_summary()
+        if self._best_value is None:
+            # initialize best value
+            self._best_value = value
+            return False
+        elif self._compare_fn(self._best_value, value):
+            self._best_value = value
+            return True
+        else:
+            return False
+
+    def _init_summary(self):
+        self._summary = chainer.reporter.DictSummary()
+
+
 # * -------------------- training iterator related -------------------- *
 
 
