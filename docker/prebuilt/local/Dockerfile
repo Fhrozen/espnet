@@ -41,7 +41,7 @@ RUN if [ -z "$( nvcc -V )" ]; then \
     fi; \
     echo "Make with options ${MY_OPTS}"; \
     make KALDI=/kaldi ${MY_OPTS}
-
+RUN make chainer_ctc.done 
 RUN rm -rf ../espnet
 
 WORKDIR /

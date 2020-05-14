@@ -39,7 +39,7 @@ $(info    CUDA_DEPS is $(CUDA_DEPS))
 
 all: kaldi.done python check_install
 
-python: venv $(CUDA_DEPS) warp-ctc.done 
+python: venv warp-ctc.done chainer_ctc.done $(CUDA_DEPS)
 
 extra: nkf.done moses.done mwerSegmenter.done pesq
 
