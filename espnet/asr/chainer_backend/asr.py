@@ -13,6 +13,7 @@ import six
 # chainer related
 import chainer
 
+from chainer import configuration
 from chainer import training
 
 from chainer.datasets import TransformDataset
@@ -27,6 +28,7 @@ from espnet.asr.asr_utils import CompareValueTrigger
 from espnet.asr.asr_utils import get_model_conf
 from espnet.asr.asr_utils import restore_snapshot
 from espnet.nets.asr_interface import ASRInterface
+from espnet.nets.chainer_backend.streaming.segment import SegmentStreamingE2E
 from espnet.utils.deterministic_utils import set_deterministic_chainer
 from espnet.utils.dynamic_import import dynamic_import
 from espnet.utils.io_utils import LoadInputsAndTargets
@@ -44,6 +46,7 @@ import espnet.lm.chainer_backend.lm as lm_chainer
 
 # numpy related
 import matplotlib
+import numpy as np
 
 from espnet.utils.training.tensorboard_logger import TensorboardLogger
 from tensorboardX import SummaryWriter
@@ -439,13 +442,41 @@ def recog(args):
 
     # decode each utterance
     new_js = {}
-    with chainer.no_backprop_mode():
-        for idx, name in enumerate(js.keys(), 1):
-            logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
-            batch = [(name, js[name])]
-            feat = load_inputs_and_targets(batch)[0][0]
-            nbest_hyps = model.recognize(feat, args, train_args.char_list, rnnlm)
-            new_js[name] = add_results_to_json(js[name], nbest_hyps, train_args.char_list)
+    with configuration.using_config('train', False):
+        with chainer.using_config('enable_backprop', False):
+            if args.batchsize > 1:
+                raise NotImplementedError
+            else:
+                for idx, name in enumerate(js.keys(), 1):
+                    logging.info('(%d/%d) decoding ' + name, idx, len(js.keys()))
+                    batch = [(name, js[name])]
+                    feat = load_inputs_and_targets(batch)[0][0]
+
+                    if args.streaming_mode == 'window':
+                        assert args.num_encs == 1; f'Not Implemented for {args.num_encs} encoders'
+                        raise NotImplementedError
+                    elif args.streaming_mode == 'segment':
+                        assert args.num_encs == 1; f'Not Implemented for {args.num_encs} encoders'
+                        logging.info(
+                            "Using streaming recognizer with threshold value %d",
+                            args.streaming_min_blank_dur,
+                        )
+                        nbest_hyps = list()
+                        for _ in range(args.nbest):
+                            nbest_hyps.append({"yseq": [], "score": 0.0})
+                        se2e = SegmentStreamingE2E(e2e=model, recog_args=args, rnnlm=rnnlm)
+                        r = np.prod(model.subsample)
+                        logging.info(feat.shape)
+                        amax = int(feat.shape[0] / r)
+                        for i in range(0, feat.shape[0], r):
+                            logging.debug(f'current frame {int(i / r)} / {amax} ')
+                            hyps = se2e.accept_input(feat[i : i + r])
+                            if hyps is not None:
+                                logging.info(hyps)
+                                raise NotImplementedError
+                    else:
+                        nbest_hyps = model.recognize(feat, args, train_args.char_list, rnnlm)
+                        new_js[name] = add_results_to_json(js[name], nbest_hyps, train_args.char_list)
 
     with open(args.result_label, 'wb') as f:
         f.write(json.dumps({'utts': new_js}, indent=4, ensure_ascii=False, sort_keys=True).encode('utf_8'))

@@ -65,7 +65,7 @@ set -o pipefail
 
 train_set=train
 train_dev=dev_4k
-recog_set="Dev"
+recog_set="Eval"
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.

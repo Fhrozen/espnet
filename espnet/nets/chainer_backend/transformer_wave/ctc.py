@@ -167,11 +167,12 @@ class WarpCTC(chainer.Chain):
         y_hat = self.ctc_lo(hs, n_batch_axes=2)
         return F.log_softmax(y_hat.reshape(-1, y_hat.shape[-1])).reshape(y_hat.shape)
 
-    def argmax(self, hs_pad):
+    def argmax(self, hs):
         """Argmax of frame activations.
 
         :param chainer variable hs_pad: 3d tensor (B, Tmax, eprojs)
         :return: argmax applied 2d tensor (B, Tmax)
         :rtype: chainer.Variable.
         """
-        return F.argmax(self.ctc_lo(F.pad_sequence(hs_pad), n_batch_axes=2), axis=-1)
+        y_hat = self.ctc_lo(hs, n_batch_axes=2)
+        return F.argmax(y_hat, axis=-1)

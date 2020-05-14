@@ -251,7 +251,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
 fi
 
 embed_dir=exp/train_$(basename ${train_embed%.*})
-
 xdict=data/lang_1char/${train_set}_spk.txt
 
 if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
@@ -275,16 +274,16 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         fi
     fi
 
+    echo "Extract Pretrained Input Feats"
     ./local/get_input_layer.py \
         --snapshot ${expdir}/results/${recog_model} \
         --out ${expdir}/results/pretrained_input.model
-    exit 1
 
     echo "make a dictionary"
     echo "UNK 0" > ${xdict}
     cut -f 2- -d" " data/Train/utt2spk | sort | uniq | grep -v -e "UNK" | awk '{print $0 " " NR}' >> ${xdict}
 
-    echo "stage 6: X-Vector Trainig / Testing"
+    echo "stage 6: X-Vector Trainig "
     mkdir -p ${embed_dir}
     ${cuda_cmd} --gpu ${ngpu} ${embed_dir}/train.log \
         embed_train.py \
@@ -294,17 +293,39 @@ if [ ${stage} -le 6 ] && [ ${stop_stage} -ge 6 ]; then
         --backend ${backend} \
         --outdir ${embed_dir}/results \
         --debugmode ${debugmode} \
-        --debugdir ${expdir} \
+        --debugdir ${embed_dir} \
         --minibatches ${N} \
+        --enc-init ${expdir}/results/pretrained_input.model \
         --verbose ${verbose} \
         --resume ${resume} \
         --train-json ${feat_tr_dir}/data.json \
         --valid-json ${feat_dt_dir}/data.json
 fi
 
-if [ ${stage} -eq 7 ]; then
+if [ ${stage} -le 7 ] && [ ${stop_stage} -ge 7 ]; then
+    echo "stage 7: X Vector Test"
+    rtask=Dev
+
+    decode_dir=decode_${rtask}
+    feat_recog_dir=${dumpdir}/${rtask}/delta${do_delta}
+
+    #### use CPU for decoding
+    decode_ngpu=0
+
+    # set batchsize 0 to disable batch decoding
+    ${decode_cmd} ${embed_dir}/${decode_dir}/log/decode.log \
+        embed_recog.py \
+        --ngpu ${decode_ngpu} \
+        --backend ${backend} \
+        --batchsize 0 \
+        --recog-json ${feat_recog_dir}/data.json \
+        --result-label ${embed_dir}/${decode_dir}/data.json \
+        --model ${embed_dir}/results/model.acc.best
+fi
+
+if [ ${stage} -eq 8 ]; then
     decode_config=${stream_decode_config}
-    echo "stage 7: Decoding Streaming"
+    echo "stage 8: Streaming Decode"
     if [[ $(get_yaml.py ${train_config} model-module) = *transformer* ]]; then
         # Average ASR models
         if ${use_valbest_average}; then
@@ -315,7 +336,7 @@ if [ ${stage} -eq 7 ]; then
             opt="--log"
         fi
 
-        if [ ! -e ${recog_model} ]; then
+        if [ ! -e ${expdir}/results/${recog_model} ]; then
             average_checkpoints.py \
                 ${opt} \
                 --backend ${backend} \
@@ -324,7 +345,7 @@ if [ ${stage} -eq 7 ]; then
                 --num ${n_average}
         fi
     fi
-
+    recog_set=Dev_stream
     pids=() # initialize pids
     for rtask in ${recog_set}; do
     (
@@ -332,30 +353,31 @@ if [ ${stage} -eq 7 ]; then
         feat_recog_dir=${dumpdir}/${rtask}_${preprocess}/delta${do_delta}
 
         # split data
-        splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
+        # splitjson.py --parts ${nj} ${feat_recog_dir}/data.json
 
         #### use CPU for decoding
         ngpu=0
 
         # set batchsize 0 to disable batch decoding
-        ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
+        # ${decode_cmd} JOB=1:${nj} ${expdir}/${decode_dir}/log/decode.JOB.log \
             asr_recog.py \
             --config ${decode_config} \
             --ngpu ${ngpu} \
             --backend ${backend} \
+            --verbose 2 \
             --batchsize 0 \
-            --recog-json ${feat_recog_dir}/split${nj}utt/data.JOB.json \
-            --result-label ${expdir}/${decode_dir}/data.JOB.json \
+            --recog-json ${feat_recog_dir}/data.json \
+            --result-label ${expdir}/${decode_dir}/data.json \
             --model ${expdir}/results/${recog_model}  
             #--rnnlm ${lmexpdir}/${lang_model} \
             #--api v2
 
         score_sclite.sh --wer true --nlsyms ${nlsyms} ${expdir}/${decode_dir} ${dict}
 
-    ) &
-    pids+=($!) # store background pids
+    ) #&
+    # pids+=($!) # store background pids
     done
-    i=0; for pid in "${pids[@]}"; do wait ${pid} || ((++i)); done
-    [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
+    # i=0; for pid in "${pids[@]}"; do wait ${pid} || ((++i)); done
+    # [ ${i} -gt 0 ] && echo "$0: ${i} background jobs are failed." && false
     echo "Finished"
 fi

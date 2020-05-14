@@ -122,7 +122,7 @@ class Encoder(chainer.Chain):
             x_mask[j, ilens[j]:] = -1
         xx_mask = (x_mask[:, None, :] >= 0) * (x_mask[:, :, None] >= 0)
         xx_mask = self.xp.array(xx_mask)
-        logging.debug('encoders size: ' + str(e.shape))
+        # logging.debug('encoders size: ' + str(e.shape))
         e = e.reshape(-1, dims)
         for i in range(self.n_layers):
             e = self['encoders.' + str(i)](e, xx_mask, batch)

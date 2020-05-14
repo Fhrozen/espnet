@@ -1,0 +1,13 @@
+lm-weight: 0
+beam-size: 10
+penalty: 0.0
+
+maxlenratio: 0.9
+minlenratio: 0.1
+ctc-weight: 0.1
+
+batchsize: 1
+streaming-mode: segment
+streaming-min-blank-dur: 16
+streaming-onset-margin: 10
+streaming-offset-margin: 2
