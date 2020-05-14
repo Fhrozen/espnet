@@ -1,3 +1,5 @@
 ./run.sh --ngpu 2 --stage 4 --preprocess_config conf/fbankonly.yaml --train_config conf/tuning/train_transformer_resbnutt.yaml 
 
 ./run.sh --docker_gpu 0,1,2,3 --docker_cuda 10.1 --docker_egs fearless/wav_asr2 --ngpu 4 --stage 4 --train_config conf/train/transformer_convutt.yaml --preprocess_config conf/preprocess/fbank.yaml
+
+./run.sh --docker_gpu 0 --docker_cuda 10.1 --docker_egs fearless/wav_asr2 --ngpu 0 --stage 5 --train_config conf/train/transf_wave_res_large.yaml --preprocess_config conf/preprocess/feats_wave.yaml
