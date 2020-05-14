@@ -1,6 +1,6 @@
 ARG FROM_TAG
 # For cuda-based images, The distribution will include cuda, cudnn, nccl
-FROM espnet/espnet:${FROM_TAG}
+FROM fhrozen/espnet:${FROM_TAG}
 LABEL maintainer "Nelson Yalta <nyalta21@gmail.com>"
 
 ARG THIS_USER
