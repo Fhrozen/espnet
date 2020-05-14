@@ -190,12 +190,14 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             recog_model=model.last${n_average}.avg.best
             opt="--log"
         fi
-        average_checkpoints.py \
-            ${opt} \
-            --backend ${backend} \
-            --snapshots ${expdir}/results/snapshot.ep.* \
-            --out ${expdir}/results/${recog_model} \
-            --num ${n_average}
+        if [ ! -e ${expdir}/results/${recog_model} ]; then
+            average_checkpoints.py \
+                ${opt} \
+                --backend ${backend} \
+                --snapshots ${expdir}/results/snapshot.ep.* \
+                --out ${expdir}/results/${recog_model} \
+                --num ${n_average}
+        fi
     fi
 
     pids=() # initialize pids

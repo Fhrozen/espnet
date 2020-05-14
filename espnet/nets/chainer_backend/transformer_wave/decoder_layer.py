@@ -9,6 +9,8 @@ from espnet.nets.chainer_backend.transformer_wave.attention import MultiHeadAtte
 from espnet.nets.chainer_backend.transformer_wave.layer_norm import LayerNorm
 from espnet.nets.chainer_backend.transformer_wave.positionwise_feed_forward import PositionwiseFeedForward
 
+import logging
+
 
 class DecoderLayer(chainer.Chain):
     """Single decoder layer module.
@@ -41,7 +43,7 @@ class DecoderLayer(chainer.Chain):
             self.norm3 = LayerNorm(n_units)
         self.dropout = dropout
 
-    def forward(self, e, s, xy_mask, yy_mask, batch):
+    def forward(self, e, s, xy_mask, yy_mask, batch, cache=None):
         """Compute Encoder layer.
 
         Args:
@@ -53,8 +55,22 @@ class DecoderLayer(chainer.Chain):
 
         """
         n_e = self.norm1(e)
-        n_e = self.self_attn(n_e, mask=yy_mask, batch=batch)
-        e = e + F.dropout(n_e, self.dropout)
+        if cache is None:
+            n_e = self.self_attn(n_e, mask=yy_mask, batch=batch)
+            e = e + F.dropout(n_e, self.dropout)
+        else:
+            # TODO(nelson): Implement batched forward
+            assert batch == 1, f'Cached decoder is not implemented for {batch} samples'
+            assert cache.shape == (
+                n_e.shape[0] - 1,
+                n_e.shape[1]
+            ), f"{cache.shape} == {(n_e.shape[0] - 1, n_e.shape[1])}"
+            ne_q = n_e[-1:]
+            q_mask = None
+            if yy_mask is not None:
+                q_mask = yy_mask[:, -1:]
+            n_e = self.self_attn(ne_q, s_var=n_e, mask=q_mask, batch=batch)
+            e = e[-1:] + F.dropout(n_e, self.dropout)
 
         n_e = self.norm2(e)
         n_e = self.src_attn(n_e, s_var=s, mask=xy_mask, batch=batch)
@@ -63,4 +79,7 @@ class DecoderLayer(chainer.Chain):
         n_e = self.norm3(e)
         n_e = self.feed_forward(n_e)
         e = e + F.dropout(n_e, self.dropout)
+        
+        if cache is not None:
+            e = F.concat([cache, e], axis=0)
         return e

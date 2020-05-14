@@ -10,6 +10,7 @@ from espnet.nets.chainer_backend.transformer_wave.decoder_layer import DecoderLa
 from espnet.nets.chainer_backend.transformer_wave.embedding import PositionalEncoding
 from espnet.nets.chainer_backend.transformer_wave.layer_norm import LayerNorm
 
+import logging
 import numpy as np
 
 
@@ -110,8 +111,39 @@ class Decoder(chainer.Chain):
         for i in range(self.n_layers):
             e = self['decoders.' + str(i)](e, source, xy_mask, yy_mask, batch)
         return self.output_layer(self.output_norm(e)).reshape(batch, length, -1)
+    
+    def forward_one_step(self, e, source, cache=None):
+        """ Forward one step."""
+        if cache is None:
+            cache = [None] * self.n_layers
+        new_cache = list()
+        # mask preparation
+        yy_mask = self.make_attention_mask(e, e)
+        yy_mask *= self.make_history_mask(e)
 
-    def recognize(self, e, yy_mask, source):
+        e = self.pe(self.embed(self.xp.array(e)))
+        batch, _, dims = e.shape
+        e = e.reshape(-1, dims)
+
+        for i in range(self.n_layers):
+            e = self['decoders.' + str(i)](e, source, None, yy_mask, batch, cache=cache[i])
+            new_cache.append(e)
+        e = self.output_layer(self.output_norm(e[-1:]))
+        return F.log_softmax(e, axis=-1).data, new_cache
+
+    def recognize(self, e, source, x_mask):
         """Process recognition function."""
-        e = self.forward(e, source, yy_mask)
-        return F.log_softmax(e, axis=-1)
+        e = self.xp.array(e)
+        # mask preparation
+        # xy_mask = self.make_attention_mask(e, self.xp.array(x_mask))
+        yy_mask = self.make_attention_mask(e, e)
+        yy_mask *= self.make_history_mask(e)
+
+        e = self.pe(self.embed(e))
+        batch, length, dims = e.shape
+        e = e.reshape(-1, dims)
+        source = source.reshape(-1, dims)
+        for i in range(self.n_layers):
+            e = self['decoders.' + str(i)](e, source, None, yy_mask, batch)
+        e = self.output_layer(self.output_norm(e)).reshape(batch, length, -1)
+        return F.log_softmax(e[:, -1], axis=-1).data

@@ -312,11 +312,11 @@ class E2E(ASRInterface, chainer.Chain):
 
         return y
 
-    def recognize_beam(self, h, lpz, recog_args, char_list=None, rnnlm=None):
+    def recognize_beam(self, enc_output, lpz, recog_args, char_list=None, rnnlm=None):
         """E2E beam search.
 
         Args:
-            h (ndarray): Encoder ouput features (B, T, D) or (T, D).
+            enc_output (ndarray): Encoder ouput features (B, T, D) or (T, D).
             lpz (ndarray): Log probabilities from CTC.
             recog_args (Namespace): Argment namespace contraining options.
             char_list (List[str]): List of characters.
@@ -327,12 +327,12 @@ class E2E(ASRInterface, chainer.Chain):
             List: N-best decoding results.
 
         """
-        logging.info('input lengths: ' + str(h.shape[1]))
+        logging.info('input lengths: ' + str(enc_output.shape[1]))
 
         # initialization
-        n_len = h.shape[1]
+        n_len = enc_output.shape[1]
         xp = self.xp
-        h_mask = xp.ones((1, n_len))
+        x_mask = xp.ones((1, n_len))
 
         # search parms
         beam = recog_args.beam_size
@@ -350,10 +350,11 @@ class E2E(ASRInterface, chainer.Chain):
         logging.info('min output length: ' + str(minlen))
 
         # initialize hypothesis
+        new_cache = [None] * self.decoder.n_layers
         if rnnlm:
-            hyp = {'score': 0.0, 'yseq': [y], 'rnnlm_prev': None}
+            hyp = {'score': 0.0, 'yseq': [y], 'rnnlm_prev': None, 'cache': new_cache}
         else:
-            hyp = {'score': 0.0, 'yseq': [y]}
+            hyp = {'score': 0.0, 'yseq': [y], 'cache': new_cache}
 
         if lpz is not None:
             ctc_prefix_score = CTCPrefixScore(lpz, 0, self.eos, self.xp)
@@ -367,7 +368,8 @@ class E2E(ASRInterface, chainer.Chain):
                 ctc_beam = lpz.shape[-1]
 
         hyps = [hyp]
-        ended_hyps = []
+        ended_hyps = []        
+        enc_output = enc_output.reshape(-1, enc_output.shape[-1])
 
         for i in six.moves.range(maxlen):
             logging.debug('position ' + str(i))
@@ -375,10 +377,10 @@ class E2E(ASRInterface, chainer.Chain):
             hyps_best_kept = []
             for hyp in hyps:
                 ys = F.expand_dims(xp.array(hyp['yseq']), axis=0).data
-                out = self.decoder(ys, h, h_mask)
 
                 # get nbest local scores and their ids
-                local_att_scores = F.log_softmax(out[:, -1], axis=-1).data
+                # local_att_scores = self.decoder.recognize(ys, enc_output, x_mask)
+                local_att_scores, new_cache = self.decoder.forward_one_step(ys, enc_output, hyp['cache'])
                 if rnnlm:
                     rnnlm_state, local_lm_scores = rnnlm.predict(hyp['rnnlm_prev'], hyp['yseq'][i])
                     local_scores = local_att_scores + recog_args.lm_weight * local_lm_scores
@@ -407,6 +409,7 @@ class E2E(ASRInterface, chainer.Chain):
                     new_hyp['yseq'] = [0] * (1 + len(hyp['yseq']))
                     new_hyp['yseq'][:len(hyp['yseq'])] = hyp['yseq']
                     new_hyp['yseq'][len(hyp['yseq'])] = int(local_best_ids[j])
+                    new_hyp['cache'] = new_cache
                     if rnnlm:
                         new_hyp['rnnlm_prev'] = rnnlm_state
                     if lpz is not None:
@@ -469,7 +472,7 @@ class E2E(ASRInterface, chainer.Chain):
         nbest_hyps = sorted(
             ended_hyps, key=lambda x: x['score'], reverse=True)  # [:min(len(ended_hyps), recog_args.nbest)]
 
-        logging.debug(nbest_hyps)
+        logging.debug(nbest_hyps[0])
         # check number of hypotheis
         if len(nbest_hyps) == 0:
             logging.warn('there is no N-best results, perform recognition again with smaller minlenratio.')
