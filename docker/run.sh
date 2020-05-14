@@ -3,7 +3,7 @@
 docker_gpu=0
 docker_egs=
 docker_folders=
-docker_cuda=10.0
+docker_cuda=10.1
 docker_user=true
 docker_env=
 docker_cmd=
@@ -66,10 +66,11 @@ if [ ! -z "${docker_os}" ]; then
     from_tag="${from_tag}-${docker_os}"
 fi
 
+root_img=fhrozen/espnet
 # Check if image exists in the system and download if required
-docker_image=$( docker images -q espnet/espnet:${from_tag} )
+docker_image=$( docker images -q ${root_img}:${from_tag} )
 if ! [[ -n ${docker_image}  ]]; then
-    docker pull espnet/espnet:${from_tag}
+    docker pull ${root_img}:${from_tag}
 fi
 
 if [ ${UID} -eq 0 ] && [ ${docker_user} = true ]; then
@@ -81,21 +82,21 @@ fi
 if [ ${docker_user} = true ]; then
     # Build a container with the user account
     container_tag="${from_tag}-user-${HOME##*/}"
-    docker_image=$( docker images -q espnet/espnet:${container_tag} ) 
+    docker_image=$( docker images -q ${root_img}:${container_tag} ) 
     if ! [[ -n ${docker_image}  ]]; then
         echo "Building docker image..."
         build_args="--build-arg FROM_TAG=${from_tag}"
         build_args="${build_args} --build-arg THIS_USER=${HOME##*/}"
         build_args="${build_args} --build-arg THIS_UID=${UID}"
 
-        echo "Now running docker build ${build_args} -f prebuilt/Dockerfile -t espnet/espnet:${container_tag} ."
-        (docker build ${build_args} -f prebuilt/Dockerfile -t  espnet/espnet:${container_tag} .) || exit 1
+        echo "Now running docker build ${build_args} -f prebuilt/Dockerfile -t ${root_img}:${container_tag} ."
+        (docker build ${build_args} -f prebuilt/Dockerfile -t  ${root_img}:${container_tag} .) || exit 1
     fi
 else
     container_tag=${from_tag}
 fi
 
-echo "Using image espnet/espnet:${container_tag}."
+echo "Using image ${root_img}:${container_tag}."
 
 this_time="$(date '+%Y%m%dT%H%M')"
 if [ "${docker_gpu}" == "-1" ]; then
@@ -153,7 +154,7 @@ if [ ! -z "${http_proxy}" ]; then
     this_env="${this_env} -e 'http_proxy=${http_proxy}'"
 fi
 
-cmd="${cmd0} -i --rm ${this_env} --name ${container_name} ${vols} espnet/espnet:${container_tag} /bin/bash -c '${cmd}'"
+cmd="${cmd0} -i --rm ${this_env} --name ${container_name} ${vols} ${root_img}:${container_tag} /bin/bash -c '${cmd}'"
 
 trap ctrl_c INT
 
