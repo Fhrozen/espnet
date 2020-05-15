@@ -18,7 +18,7 @@ if ${USE_CONDA}; then
     if [[ ${TH_VERSION} == nightly ]]; then
         conda install -q -y pytorch-nightly-cpu -c pytorch
     else
-        conda install -q -y pytorch-cpu="${TH_VERSION}" -c pytorch
+        conda install -q -y pytorch="${TH_VERSION}" cpuonly -c pytorch
     fi
     conda install -c conda-forge ffmpeg
 else
@@ -29,14 +29,18 @@ else
 
     if [[ ${TH_VERSION} == nightly ]]; then
         pip install torch_nightly -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-    else
+    elif [[ ${TH_VERSION} == 1.0.1 ]] || [[ ${TH_VERSION} == 1.1.0 ]]; then
         pip install --quiet torch=="${TH_VERSION}" -f https://download.pytorch.org/whl/cpu/stable
+    else
+        pip install --quiet torch=="${TH_VERSION}+cpu" -f https://download.pytorch.org/whl/torch_stable.html
     fi
 fi
 
 python --version
 
-pip install -U pip wheel
+pip install -U wheel
+# Fix pip version to avoid this error https://github.com/ethereum/eth-abi/issues/131#issuecomment-620981271
+pip install pip==20.0.2
 pip install chainer=="${CHAINER_VERSION}"
 
 # install espnet
