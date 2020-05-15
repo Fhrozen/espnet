@@ -22,11 +22,11 @@ from espnet.nets.pytorch_backend.tacotron2.cbhg import CBHGLoss
 from espnet.nets.pytorch_backend.tacotron2.decoder import Decoder
 from espnet.nets.pytorch_backend.tacotron2.encoder import Encoder
 from espnet2.torch_utils.device_funcs import force_gatherable
-from espnet2.tts.abs_model import AbsTTS
+from espnet2.tts.abs_tts import AbsTTS
 
 
 class Tacotron2(AbsTTS):
-    """Tacotron2 module for end-to-end text-to-speech (E2E-TTS).
+    """Tacotron2 module for end-to-end text-to-speech.
 
     This is a module of Spectrogram prediction network in Tacotron2 described
     in `Natural TTS Synthesis

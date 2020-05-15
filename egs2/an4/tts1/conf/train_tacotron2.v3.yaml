@@ -4,7 +4,7 @@
 # only a single GPU and it takes ~3 days to finish the training.
 
 ##########################################################
-#                 E2E-TTS MODEL SETTING                  #
+#                 TTS MODEL SETTING                  #
 ##########################################################
 tts: tacotron2                   # model architecture
 tts_conf:                        # keyword arguments for the selected model
@@ -57,12 +57,16 @@ grad_clip: 5.0              # gradient clipping norm
 grad_noise: false           # whether to use gradient noise injection
 accum_grad: 1               # gradient accumulation
 batch_size: 32              # batch size
-batch_type: seq             # how to make batch
+batch_type: folded          # how to make batch
 sort_in_batch: descending   # how to sort data in making batch
 sort_batch: descending      # how to sort created batches
 num_workers: 1              # number of workers of data loader
 train_dtype: float32        # dtype in training
 log_interval: null          # log interval in iterations
-keep_n_best_checkpoints: 10 # number of checkpoints to keep
+keep_nbest_models: 10       # number of models to keep
 num_att_plot: 3             # number of attention figures to be saved in every check
 seed: 0                     # random seed number
+best_model_criterion:
+-   - valid
+    - acc
+    - max

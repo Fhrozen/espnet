@@ -81,7 +81,7 @@ decode_lm=valid.loss.best.pth       # Language modle path for decoding.
 decode_asr_model=valid.acc.best.pth # ASR model path for decoding.
                                     # e.g.
                                     # decode_asr_model=train.loss.best.pth
-                                    # decode_asr_model=3epoch/model.pth
+                                    # decode_asr_model=3epoch.pth
                                     # decode_asr_model=valid.acc.best.pth
                                     # decode_asr_model=valid.loss.ave.pth
 
@@ -93,6 +93,9 @@ srctexts=      # Used for the training of BPE and LM and the creation of a vocab
 lm_dev_text=   # Text file path of language model development set.
 lm_test_text=  # Text file path of language model evaluation set.
 nlsyms_txt=none # Non-linguistic symbol list if existing.
+asr_speech_fold_length=800 # fold_length for speech data during ASR training
+asr_text_fold_length=150   # fold_length for text data during ASR training
+lm_fold_length=150         # fold_length for LM training
 
 help_message=$(cat << EOF
 Usage: $0 --train-set <train_set_name> --dev-set <dev_set_name> --eval_sets <eval_set_names> --srctexts <srctexts >
@@ -161,6 +164,9 @@ Options:
     --lm_dev_text   # Text file path of language model development set (default="${lm_dev_text}").
     --lm_test_text  # Text file path of language model evaluation set (default="${lm_test_text}").
     --nlsyms_txt    # Non-linguistic symbol list if existing (default="${nlsyms_txt}").
+    --asr_speech_fold_length # fold_length for speech data during ASR training  (default="${asr_speech_fold_length}").
+    --asr_text_fold_length   # fold_length for text data during ASR training  (default="${asr_text_fold_length}").
+    --lm_fold_length         # fold_length for LM training  (default="${lm_fold_length}").
 EOF
 )
 
@@ -269,7 +275,7 @@ if [ -z "${decode_tag}" ]; then
         decode_tag+="$(echo "${decode_args}" | sed -e "s/--/\_/g" -e "s/[ |=]//g")"
     fi
     if "${use_lm}"; then
-        decode_tag+="_lm_$(echo "${decode_lm}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
+        decode_tag+="_lm_${lm_tag}_$(echo "${decode_lm}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
     fi
     decode_tag+="_asr_model_$(echo "${decode_asr_model}" | sed -e "s/\//_/g" -e "s/\.[^.]*$//g")"
 fi
@@ -293,10 +299,15 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     if [ -n "${speed_perturb_factors}" ]; then
        log "Stage 2: Speed perturbation: data/${train_set} -> data/${train_set}_sp"
        for factor in ${speed_perturb_factors}; do
-           scripts/utils/perturb_data_dir_speed.sh "${factor}" "data/${train_set}" "data/${train_set}_sp${factor}"
-           _dirs+="data/${train_set}_sp${factor} "
+           if [[ $(bc <<<"${factor} != 1.0") == 1 ]]; then
+               scripts/utils/perturb_data_dir_speed.sh "${factor}" "data/${train_set}" "data/${train_set}_sp${factor}"
+               _dirs+="data/${train_set}_sp${factor} "
+           else
+               # If speed factor is 1, same as the original
+               _dirs+="data/${train_set} "
+           fi
        done
-       utils/combine_data.sh "data/${train_set}" ${_dirs}
+       utils/combine_data.sh "data/${train_set}_sp" ${_dirs}
     else
        log "Skip stage 2: Speed perturbation"
     fi
@@ -391,6 +402,7 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     log "Stage 4: Remove short data: ${data_feats}/org -> ${data_feats}"
 
     for dset in "${train_set}" "${dev_set}" ${eval_sets}; do
+
         # Copy data dir
         utils/copy_data_dir.sh "${data_feats}/org/${dset}" "${data_feats}/${dset}"
         cp "${data_feats}/org/${dset}/feats_type" "${data_feats}/${dset}/feats_type"
@@ -470,7 +482,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     # 0 is reserved for CTC-blank for ASR and also used as ignore-index in the other task
 
     python3 -m espnet2.bin.tokenize_text  \
-        --token_type "${token_type}" -f 2- \
+        --token_type "${token_type}" \
         --input "${data_feats}/srctexts" --output "${token_list}" ${_opts} \
         --field 2- \
         --write_vocabulary true \
@@ -482,7 +494,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
     if ${use_word_lm}; then
         log "Generate word level token_list from ${data_feats}/srctexts"
         python3 -m espnet2.bin.tokenize_text \
-            --token_type word -f 2- \
+            --token_type word \
             --input "${data_feats}/srctexts" --output "${lm_token_list}" \
             --field 2- \
             --write_vocabulary true \
@@ -533,7 +545,9 @@ if "${use_lm}"; then
 
       # 2. Submit jobs
       log "LM collect-stats started... log: '${_logdir}/stats.*.log'"
-      # NOTE: --*_shape_file doesn't require length information if --batch_type=const --sort_in_batch=none
+      # NOTE: --*_shape_file doesn't require length information if --batch_type=unsorted,
+      #       but it's used only for deciding the sample ids.
+
       # shellcheck disable=SC2086
       ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
           python3 -m espnet2.bin.lm_train \
@@ -545,11 +559,11 @@ if "${use_lm}"; then
               --non_linguistic_symbols "${nlsyms_txt}" \
               --train_data_path_and_name_and_type "${data_feats}/srctexts,text,text" \
               --valid_data_path_and_name_and_type "${lm_dev_text},text,text" \
-              --batch_type const_no_sort \
               --train_shape_file "${_logdir}/train.JOB.scp" \
               --valid_shape_file "${_logdir}/dev.JOB.scp" \
               --output_dir "${_logdir}/stats.JOB" \
-              ${_opts} ${lm_args}
+              ${_opts} ${lm_args} \
+              --batch_type unsorted
 
       # 3. Aggregate shape files
       _opts=
@@ -558,6 +572,15 @@ if "${use_lm}"; then
       done
       # shellcheck disable=SC2086
       python3 -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${lm_stats_dir}"
+
+      # Append the num-tokens at the last dimensions. This is used for batch-bins count
+      <"${lm_stats_dir}/train/text_shape" \
+          awk -v N="$(<${lm_token_list} wc -l)" '{ print $0 "," N }' \
+          >"${lm_stats_dir}/train/text_shape.${lm_token_type}"
+
+      <"${lm_stats_dir}/valid/text_shape" \
+          awk -v N="$(<${lm_token_list} wc -l)" '{ print $0 "," N }' \
+          >"${lm_stats_dir}/valid/text_shape.${lm_token_type}"
   fi
 
 
@@ -571,10 +594,12 @@ if "${use_lm}"; then
           _opts+="--config ${lm_config} "
       fi
 
+      # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case 
+
       log "LM training started... log: '${lm_exp}/train.log'"
       # shellcheck disable=SC2086
       python3 -m espnet2.bin.launch \
-          --cmd "${cuda_cmd}" \
+          --cmd "${cuda_cmd} --name ${lm_exp}/train.log" \
           --log "${lm_exp}"/train.log \
           --ngpu "${ngpu}" \
           --num_nodes "${num_nodes}" \
@@ -589,9 +614,9 @@ if "${use_lm}"; then
               --non_linguistic_symbols "${nlsyms_txt}" \
               --train_data_path_and_name_and_type "${data_feats}/srctexts,text,text" \
               --valid_data_path_and_name_and_type "${lm_dev_text},text,text" \
-              --train_shape_file "${lm_stats_dir}/train/text_shape" \
-              --valid_shape_file "${lm_stats_dir}/valid/text_shape" \
-              --max_length 150 \
+              --train_shape_file "${lm_stats_dir}/train/text_shape.${lm_token_type}" \
+              --valid_shape_file "${lm_stats_dir}/valid/text_shape.${lm_token_type}" \
+              --fold_length "${lm_fold_length}" \
               --resume true \
               --output_dir "${lm_exp}" \
               ${_opts} ${lm_args}
@@ -670,12 +695,11 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     # shellcheck disable=SC2086
     utils/split_scp.pl "${key_file}" ${split_scps}
 
-    # FIXME(kamo): max_length is confusing name. How about fold_length?
-
     # 2. Submit jobs
     log "ASR collect-stats started... log: '${_logdir}/stats.*.log'"
 
-    # NOTE: --*_shape_file doesn't require length information if --batch_type=const --sort_in_batch=none
+    # NOTE: --*_shape_file doesn't require length information if --batch_type=unsorted,
+    #       but it's used only for deciding the sample ids.
 
     # shellcheck disable=SC2086
     ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
@@ -686,7 +710,6 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
             --token_type "${token_type}" \
             --token_list "${token_list}" \
             --non_linguistic_symbols "${nlsyms_txt}" \
-            --batch_type const_no_sort \
             --train_data_path_and_name_and_type "${_asr_train_dir}/${_scp},speech,${_type}" \
             --train_data_path_and_name_and_type "${_asr_train_dir}/text,text,text" \
             --valid_data_path_and_name_and_type "${_asr_dev_dir}/${_scp},speech,${_type}" \
@@ -694,7 +717,8 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
             --train_shape_file "${_logdir}/train.JOB.scp" \
             --valid_shape_file "${_logdir}/dev.JOB.scp" \
             --output_dir "${_logdir}/stats.JOB" \
-            ${_opts} ${asr_args}
+            ${_opts} ${asr_args} \
+            --batch_type unsorted
 
     # 3. Aggregate shape files
     _opts=
@@ -703,6 +727,15 @@ if [ ${stage} -le 9 ] && [ ${stop_stage} -ge 9 ]; then
     done
     # shellcheck disable=SC2086
     python3 -m espnet2.bin.aggregate_stats_dirs ${_opts} --output_dir "${asr_stats_dir}"
+
+    # Append the num-tokens at the last dimensions. This is used for batch-bins count
+    <"${asr_stats_dir}/train/text_shape" \
+        awk -v N="$(<${token_list} wc -l)" '{ print $0 "," N }' \
+        >"${asr_stats_dir}/train/text_shape.${token_type}"
+
+    <"${asr_stats_dir}/valid/text_shape" \
+        awk -v N="$(<${token_list} wc -l)" '{ print $0 "," N }' \
+        >"${asr_stats_dir}/valid/text_shape.${token_type}"
 fi
 
 
@@ -723,12 +756,12 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         _scp=wav.scp
         # "sound" supports "wav", "flac", etc.
         _type=sound
-        _max_length=80000
+        _fold_length="$((asr_speech_fold_length * 100))"
         _opts+="--frontend_conf fs=${fs} "
     else
         _scp=feats.scp
         _type=kaldi_ark
-        _max_length=800
+        _fold_length="${asr_speech_fold_length}"
         _input_size="$(<${_asr_train_dir}/feats_dim)"
         _opts+="--input_size=${_input_size} "
 
@@ -738,12 +771,12 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
         _opts+="--normalize=global_mvn --normalize_conf stats_file=${asr_stats_dir}/train/feats_stats.npz"
     fi
 
-    # FIXME(kamo): max_length is confusing name. How about fold_length?
+    # NOTE(kamo): --fold_length is used only if --batch_type=folded and it's ignored in the other case 
 
     log "ASR training started... log: '${asr_exp}/train.log'"
     # shellcheck disable=SC2086
     python3 -m espnet2.bin.launch \
-        --cmd "${cuda_cmd}" \
+        --cmd "${cuda_cmd} --name ${asr_exp}/train.log" \
         --log "${asr_exp}"/train.log \
         --ngpu "${ngpu}" \
         --num_nodes "${num_nodes}" \
@@ -760,12 +793,12 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
             --valid_data_path_and_name_and_type "${_asr_dev_dir}/${_scp},speech,${_type}" \
             --valid_data_path_and_name_and_type "${_asr_dev_dir}/text,text,text" \
             --train_shape_file "${asr_stats_dir}/train/speech_shape" \
-            --train_shape_file "${asr_stats_dir}/train/text_shape" \
+            --train_shape_file "${asr_stats_dir}/train/text_shape.${token_type}" \
             --valid_shape_file "${asr_stats_dir}/valid/speech_shape" \
-            --valid_shape_file "${asr_stats_dir}/valid/text_shape" \
+            --valid_shape_file "${asr_stats_dir}/valid/text_shape.${token_type}" \
             --resume true \
-            --max_length "${_max_length}" \
-            --max_length 150 \
+            --fold_length "${_fold_length}" \
+            --fold_length "${asr_text_fold_length}" \
             --output_dir "${asr_exp}" \
             ${_opts} ${asr_args}
 
@@ -799,7 +832,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
 
     for dset in "${dev_set}" ${eval_sets}; do
         _data="${data_feats}/${dset}"
-        _dir="${asr_exp}/decode_${dset}${decode_tag}"
+        _dir="${asr_exp}/decode_${dset}_${decode_tag}"
         _logdir="${_dir}/logdir"
         mkdir -p "${_logdir}"
 
@@ -823,10 +856,10 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ]; then
         utils/split_scp.pl "${key_file}" ${split_scps}
 
         # 2. Submit decoding jobs
-        log "Decoding started... log: '${_logdir}/asr_recog.*.log'"
+        log "Decoding started... log: '${_logdir}/asr_inference.*.log'"
         # shellcheck disable=SC2086
-        ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/asr_recog.JOB.log \
-            python3 -m espnet2.bin.asr_decode \
+        ${_cmd} --gpu "${_ngpu}" JOB=1:"${_nj}" "${_logdir}"/asr_inference.JOB.log \
+            python3 -m espnet2.bin.asr_inference \
                 --ngpu "${_ngpu}" \
                 --data_path_and_name_and_type "${_data}/${_scp},speech,${_type}" \
                 --key_file "${_logdir}"/keys.JOB.scp \
@@ -850,7 +883,7 @@ if [ ${stage} -le 12 ] && [ ${stop_stage} -ge 12 ]; then
 
     for dset in "${dev_set}" ${eval_sets}; do
         _data="${data_feats}/${dset}"
-        _dir="${asr_exp}/decode_${dset}${decode_tag}"
+        _dir="${asr_exp}/decode_${dset}_${decode_tag}"
 
         for _type in cer wer ter; do
             [ "${_type}" = ter ] && [ ! -f "${bpemodel}" ] && continue

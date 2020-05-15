@@ -34,15 +34,17 @@ from espnet2.iterators.sequence_iter_factory import SequenceIterFactory
 from espnet2.main_funcs.average_nbest_models import average_nbest_models
 from espnet2.main_funcs.collect_stats import collect_stats
 from espnet2.optimizers.sgd import SGD
+from espnet2.samplers.build_batch_sampler import BATCH_TYPES
+from espnet2.samplers.build_batch_sampler import build_batch_sampler
+from espnet2.samplers.unsorted_batch_sampler import UnsortedBatchSampler
 from espnet2.schedulers.noam_lr import NoamLR
 from espnet2.schedulers.warmup_lr import WarmupLR
 from espnet2.torch_utils.load_pretrained_model import load_pretrained_model
 from espnet2.torch_utils.pytorch_version import pytorch_cudnn_version
 from espnet2.torch_utils.set_all_random_seed import set_all_random_seed
-from espnet2.train.abs_e2e import AbsE2E
-from espnet2.train.batch_sampler import build_batch_sampler
-from espnet2.train.batch_sampler import ConstantBatchSampler
+from espnet2.train.abs_espnet_model import AbsESPnetModel
 from espnet2.train.class_choices import ClassChoices
+from espnet2.train.dataset import DATA_TYPES
 from espnet2.train.dataset import ESPnetDataset
 from espnet2.train.distributed_utils import DistributedOption
 from espnet2.train.distributed_utils import free_port
@@ -59,6 +61,7 @@ from espnet2.utils.types import humanfriendly_parse_size_or_none
 from espnet2.utils.types import int_or_none
 from espnet2.utils.types import str2bool
 from espnet2.utils.types import str2triple_str
+from espnet2.utils.types import str_or_int
 from espnet2.utils.types import str_or_none
 from espnet2.utils.yaml_no_alias_safe_dump import yaml_no_alias_safe_dump
 
@@ -81,6 +84,40 @@ optim_classes = dict(
 )
 if LooseVersion(torch.__version__) >= LooseVersion("1.2.0"):
     optim_classes["adamw"] = torch.optim.AdamW
+try:
+    import torch_optimizer
+
+    optim_classes.update(
+        accagd=torch_optimizer.AccSGD,
+        adabound=torch_optimizer.AdaBound,
+        adamod=torch_optimizer.AdaMod,
+        diffgrad=torch_optimizer.DiffGrad,
+        lamb=torch_optimizer.Lamb,
+        novograd=torch_optimizer.NovoGrad,
+        pid=torch_optimizer.PID,
+        # torch_optimizer<=0.0.1a10 doesn't support
+        # qhadam=torch_optimizer.QHAdam,
+        qhm=torch_optimizer.QHM,
+        radam=torch_optimizer.RAdam,
+        sgdw=torch_optimizer.SGDW,
+        yogi=torch_optimizer.Yogi,
+    )
+    del torch_optimizer
+except ImportError:
+    pass
+try:
+    import apex
+
+    optim_classes.update(
+        fusedadam=apex.optimizers.FusedAdam,
+        fusedlamb=apex.optimizers.FusedLAMB,
+        fusednovograd=apex.optimizers.FusedNovoGrad,
+        fusedsgd=apex.optimizers.FusedSGD,
+    )
+    del apex
+except ImportError:
+    pass
+
 scheduler_classes = dict(
     ReduceLROnPlateau=torch.optim.lr_scheduler.ReduceLROnPlateau,
     lambdalr=torch.optim.lr_scheduler.LambdaLR,
@@ -152,8 +189,8 @@ class AbsTask(ABC):
         >>> cls.check_task_requirements()
         If your model is defined as following,
 
-        >>> from espnet2.train.abs_e2e import AbsE2E
-        >>> class Model(AbsE2E):
+        >>> from espnet2.train.abs_espnet_model import AbsESPnetModel
+        >>> class Model(AbsESPnetModel):
         ...     def forward(self, input, output, opt=None):  pass
 
         then "required_data_names" should be as
@@ -171,8 +208,8 @@ class AbsTask(ABC):
         >>> cls.check_task_requirements()
         If your model is defined as following,
 
-        >>> from espnet2.train.abs_e2e import AbsE2E
-        >>> class Model(AbsE2E):
+        >>> from espnet2.train.abs_espnet_model import AbsESPnetModel
+        >>> class Model(AbsESPnetModel):
         ...     def forward(self, input, output, opt=None):  pass
 
         then "optional_data_names" should be as
@@ -183,16 +220,23 @@ class AbsTask(ABC):
 
     @classmethod
     @abstractmethod
-    def build_model(cls, args: argparse.Namespace) -> AbsE2E:
+    def build_model(cls, args: argparse.Namespace) -> AbsESPnetModel:
         raise NotImplementedError
 
     @classmethod
     def get_parser(cls) -> configargparse.ArgumentParser:
         assert check_argument_types()
+
+        class ArgumentDefaultsRawTextHelpFormatter(
+            configargparse.RawTextHelpFormatter,
+            configargparse.ArgumentDefaultsHelpFormatter,
+        ):
+            pass
+
         parser = configargparse.ArgumentParser(
             description="base parser",
             config_file_parser_class=configargparse.YAMLConfigFileParser,
-            formatter_class=configargparse.ArgumentDefaultsHelpFormatter,
+            formatter_class=ArgumentDefaultsRawTextHelpFormatter,
         )
 
         # NOTE(kamo): Use '_' instead of '-' to avoid confusion.
@@ -331,7 +375,7 @@ class AbsTask(ABC):
         group.add_argument(
             "--cudnn_deterministic",
             type=str2bool,
-            default=torch.backends.cudnn.deterministic,
+            default=True,
             help="Enable cudnn-deterministic mode",
         )
 
@@ -385,7 +429,7 @@ class AbsTask(ABC):
         group.add_argument(
             "--best_model_criterion",
             type=str2triple_str,
-            action="append",
+            nargs="+",
             default=[
                 ("train", "loss", "min"),
                 ("valid", "loss", "min"),
@@ -397,7 +441,7 @@ class AbsTask(ABC):
             'the criterion name, and the mode, "min" or "max", e.g. "acc,max".',
         )
         group.add_argument(
-            "--keep_n_best_checkpoints",
+            "--keep_nbest_models",
             type=int,
             default=10,
             help="Remove previous snapshots excluding the n-best scored epochs",
@@ -465,7 +509,8 @@ class AbsTask(ABC):
             "--batch_size",
             type=int,
             default=20,
-            help="The mini-batch size used for training",
+            help="The mini-batch size used for training. Used if batch_type='unsorted',"
+            " 'sorted', or 'folded'.",
         )
         group.add_argument(
             "--valid_batch_size",
@@ -473,23 +518,41 @@ class AbsTask(ABC):
             default=None,
             help="If not given, the value of --batch_size is used",
         )
+        group.add_argument(
+            "--batch_bins",
+            type=int,
+            default=1000000,
+            help="The number of batch bins. Used if batch_type='length' or 'numel'",
+        )
+        group.add_argument(
+            "--valid_batch_bins",
+            type=int_or_none,
+            default=None,
+            help="If not given, the value of --batch_bins is used",
+        )
 
         group.add_argument("--train_shape_file", type=str, action="append", default=[])
         group.add_argument("--valid_shape_file", type=str, action="append", default=[])
 
         group = parser.add_argument_group("Sequence iterator related")
-        _batch_type_choices = ("const_no_sort", "const", "seq", "bin", "frame")
+        _batch_type_help = ""
+        for key, value in BATCH_TYPES.items():
+            _batch_type_help += f'"{key}":\n{value}\n'
         group.add_argument(
-            "--batch_type", type=str, default="seq", choices=_batch_type_choices,
+            "--batch_type",
+            type=str,
+            default="folded",
+            choices=list(BATCH_TYPES),
+            help=_batch_type_help,
         )
         group.add_argument(
             "--valid_batch_type",
             type=str_or_none,
             default=None,
-            choices=_batch_type_choices + (None,),
+            choices=list(BATCH_TYPES) + [None],
             help="If not given, the value of --batch_type is used",
         )
-        group.add_argument("--max_length", type=int, action="append", default=[])
+        group.add_argument("--fold_length", type=int, action="append", default=[])
         group.add_argument(
             "--sort_in_batch",
             type=str,
@@ -507,21 +570,52 @@ class AbsTask(ABC):
         )
 
         group = parser.add_argument_group("Chunk iterator related")
-        group.add_argument("--chunk_length", type=int, default=500)
-        group.add_argument("--chunk_shift_ratio", type=float, default=0.5)
+        group.add_argument(
+            "--chunk_length",
+            type=str_or_int,
+            default=500,
+            help="Specify chunk length. e.g. '300', '300,400,500', or '300-400'."
+            "If multiple numbers separated by command are given, "
+            "one of them is selected randomly for each samples. "
+            "If two numbers are given with '-', it indicates the range of the choices. "
+            "Note that if the sequence length is shorter than the all chunk_lengths, "
+            "the sample is discarded. ",
+        )
+        group.add_argument(
+            "--chunk_shift_ratio",
+            type=float,
+            default=0.5,
+            help="Specify the shift width of chunks. If it's less than 1, "
+            "allows the overlapping and if bigger than 1, there are some gaps "
+            "between each chunk.",
+        )
         group.add_argument(
             "--num_cache_chunks",
             type=int,
             default=1024,
-            help="Shuffle in the specified number of chunks and generate mini-batches",
+            help="Shuffle in the specified number of chunks and generate mini-batches "
+            "More larger this value, more randomness can be obtained.",
         )
 
         group = parser.add_argument_group("Dataset related")
+        _data_path_and_name_and_type_help = (
+            "Give three words splitted by comma. It's used for the training data. "
+            "e.g. '--train_data_path_and_name_and_type some/path/a.scp,foo,sound'. "
+            "The first value, some/path/a.scp, indicates the file path, "
+            "and the second, foo, is the key name used for the mini-batch data, "
+            "and the last, sound, decides the file type. "
+            "This option is repeatable, so you can input any number of features "
+            "for your task. Supported file types are as follows:\n\n"
+        )
+        for key, dic in DATA_TYPES.items():
+            _data_path_and_name_and_type_help += f'"{key}":\n{dic["help"]}\n\n'
+
         group.add_argument(
             "--train_data_path_and_name_and_type",
             type=str2triple_str,
             action="append",
             default=[],
+            help=_data_path_and_name_and_type_help,
         )
         group.add_argument(
             "--valid_data_path_and_name_and_type",
@@ -547,7 +641,7 @@ class AbsTask(ABC):
             type=humanfriendly_parse_size_or_none,
             default=None,
             help="The maximum cache size for validation data loader. e.g. 10MB, 20GB. "
-            "If None, the 5% size of --max_cache_size",
+            "If None, the 5 percent size of --max_cache_size",
         )
 
         group = parser.add_argument_group("Optimizer related")
@@ -558,26 +652,26 @@ class AbsTask(ABC):
                 type=lambda x: x.lower(),
                 default="adadelta",
                 choices=list(optim_classes),
-                help=f"The optimizer type",
+                help="The optimizer type",
             )
             group.add_argument(
                 f"--optim{suf}_conf",
                 action=NestedDictAction,
                 default=dict(),
-                help=f"The keyword arguments for optimizer",
+                help="The keyword arguments for optimizer",
             )
             group.add_argument(
                 f"--scheduler{suf}",
                 type=lambda x: str_or_none(x.lower()),
                 default=None,
                 choices=list(scheduler_classes) + [None],
-                help=f"The lr scheduler type",
+                help="The lr scheduler type",
             )
             group.add_argument(
                 f"--scheduler{suf}_conf",
                 action=NestedDictAction,
                 default=dict(),
-                help=f"The keyword arguments for lr scheduler",
+                help="The keyword arguments for lr scheduler",
             )
 
         cls.trainer.add_arguments(parser)
@@ -732,7 +826,6 @@ class AbsTask(ABC):
                 f"Task.num_optimizers != Task.trainer.num_optimizers: "
                 f"{cls.num_optimizers} != {cls.trainer.num_optimizers}"
             )
-
         assert check_argument_types()
         print(get_commandline_args(), file=sys.stderr)
         if args is None:
@@ -846,7 +939,7 @@ class AbsTask(ABC):
             seed=args.seed,
             allow_variable_data_keys=args.allow_variable_data_keys,
             ngpu=args.ngpu,
-            max_length=args.max_length,
+            fold_length=args.fold_length,
             sort_in_batch=args.sort_in_batch,
             sort_batch=args.sort_batch,
             chunk_length=args.chunk_length,
@@ -859,6 +952,7 @@ class AbsTask(ABC):
             data_path_and_name_and_type=args.train_data_path_and_name_and_type,
             shape_files=args.train_shape_file,
             batch_size=args.batch_size,
+            batch_bins=args.batch_bins,
             batch_type=args.batch_type,
             train=not args.collect_stats,
             preprocess_fn=cls.build_preprocess_fn(args, train=True),
@@ -873,6 +967,8 @@ class AbsTask(ABC):
             args.valid_batch_type = args.batch_type
         if args.valid_batch_size is None:
             args.valid_batch_size = args.batch_size
+        if args.valid_batch_bins is None:
+            args.valid_batch_bins = args.batch_bins
         if args.valid_max_cache_size is None:
             # Cache 5% of maximum size for validation loader
             args.valid_max_cache_size = 0.05 * args.max_cache_size
@@ -880,6 +976,7 @@ class AbsTask(ABC):
             data_path_and_name_and_type=args.valid_data_path_and_name_and_type,
             shape_files=args.valid_shape_file,
             batch_size=args.valid_batch_size,
+            batch_bins=args.valid_batch_bins,
             batch_type=args.batch_type,
             train=False,
             preprocess_fn=cls.build_preprocess_fn(args, train=False),
@@ -894,8 +991,9 @@ class AbsTask(ABC):
             plot_attention_iter_factory, _, _ = cls.build_iter_factory(
                 data_path_and_name_and_type=args.valid_data_path_and_name_and_type,
                 shape_files=args.valid_shape_file,
-                batch_type="const_no_sort",
+                batch_type="unsorted",
                 batch_size=1,
+                batch_bins=0,
                 train=False,
                 preprocess_fn=cls.build_preprocess_fn(args, train=False),
                 collate_fn=cls.build_collate_fn(args),
@@ -913,9 +1011,9 @@ class AbsTask(ABC):
 
         # 3. Build model
         model = cls.build_model(args=args)
-        if not isinstance(model, AbsE2E):
+        if not isinstance(model, AbsESPnetModel):
             raise RuntimeError(
-                f"model must inherit {AbsE2E.__name__}, but got {type(model)}"
+                f"model must inherit {AbsESPnetModel.__name__}, but got {type(model)}"
             )
         if args.train_dtype in ("float16", "float32", "float64"):
             dtype = getattr(torch, args.train_dtype)
@@ -933,8 +1031,8 @@ class AbsTask(ABC):
                 from apex import amp
             except ImportError:
                 logging.error(
-                    f"You need to install apex. "
-                    f"See https://github.com/NVIDIA/apex#linux"
+                    "You need to install apex. "
+                    "See https://github.com/NVIDIA/apex#linux"
                 )
                 raise
             model, optimizers = amp.initialize(
@@ -984,7 +1082,11 @@ class AbsTask(ABC):
                 # if pretrain_key is None -> model
                 # elif pretrain_key is str e.g. "encoder" -> model.encoder
                 pretrain_key=k,
-                map_location="cuda" if args.ngpu > 0 else "cpu",
+                # NOTE(kamo): "cuda" for torch.load always indicates cuda:0
+                #   in PyTorch<=1.4
+                map_location=f"cuda:{torch.cuda.current_device()}"
+                if args.ngpu > 0
+                else "cpu",
             )
 
         # 8. Resume the training state from the previous epoch
@@ -992,7 +1094,9 @@ class AbsTask(ABC):
         if args.resume and (output_dir / "checkpoint.pth").exists():
             states = torch.load(
                 output_dir / "checkpoint.pth",
-                map_location="cuda" if args.ngpu > 0 else "cpu",
+                map_location=f"cuda:{torch.cuda.current_device()}"
+                if args.ngpu > 0
+                else "cpu",
             )
             model.load_state_dict(states["model"])
             reporter.load_state_dict(states["reporter"])
@@ -1001,6 +1105,15 @@ class AbsTask(ABC):
             for scheduler, state in zip(schedulers, states["schedulers"]):
                 if scheduler is not None:
                     scheduler.load_state_dict(state)
+            if use_apex and states["amp"] is not None:
+                try:
+                    from apex import amp
+                except ImportError:
+                    logging.error(
+                        "You need to install apex. "
+                        "See https://github.com/NVIDIA/apex#linux"
+                    )
+                amp.load_state_dict(states["amp"])
 
             logging.info(
                 f"The training was resumed using {output_dir / 'checkpoint.pth'}"
@@ -1040,7 +1153,7 @@ class AbsTask(ABC):
                 max_epoch=args.max_epoch,
                 seed=args.seed,
                 patience=args.patience,
-                keep_n_best_checkpoints=args.keep_n_best_checkpoints,
+                keep_nbest_models=args.keep_nbest_models,
                 early_stopping_criterion=args.early_stopping_criterion,
                 best_model_criterion=args.best_model_criterion,
                 val_scheduler_criterion=args.val_scheduler_criterion,
@@ -1054,7 +1167,7 @@ class AbsTask(ABC):
                     reporter=reporter,
                     output_dir=output_dir,
                     best_model_criterion=args.best_model_criterion,
-                    nbest=args.keep_n_best_checkpoints,
+                    nbest=args.keep_nbest_models,
                 )
 
     @classmethod
@@ -1062,6 +1175,7 @@ class AbsTask(ABC):
         cls,
         iterator_type: str,
         batch_size: int,
+        batch_bins: int,
         preprocess_fn,
         collate_fn,
         train_dtype: str,
@@ -1077,7 +1191,7 @@ class AbsTask(ABC):
         max_cache_size: float,
         distributed: bool,
         name: str,
-        max_length: Sequence[int],
+        fold_length: Sequence[int],
         sort_in_batch: str,
         sort_batch: str,
         chunk_length: Union[int, str],
@@ -1137,7 +1251,8 @@ class AbsTask(ABC):
             return cls.build_sequence_iter_factory(
                 **kwargs,
                 batch_type=batch_type,
-                max_length=max_length,
+                batch_bins=batch_bins,
+                fold_length=fold_length,
                 sort_in_batch=sort_in_batch,
                 sort_batch=sort_batch,
             )
@@ -1163,9 +1278,10 @@ class AbsTask(ABC):
         train: bool,
         preprocess_fn,
         batch_size: int,
+        batch_bins: int,
         collate_fn,
         train_dtype: str,
-        max_length: Sequence[int],
+        fold_length: Sequence[int],
         num_workers: int,
         sort_in_batch: str,
         sort_batch: str,
@@ -1193,8 +1309,9 @@ class AbsTask(ABC):
         batch_sampler = build_batch_sampler(
             type=batch_type,
             shape_files=shape_files,
-            max_lengths=max_length,
+            fold_lengths=fold_length,
             batch_size=batch_size,
+            batch_bins=batch_bins,
             sort_in_batch=sort_in_batch,
             sort_batch=sort_batch,
             drop_last=False,
@@ -1214,6 +1331,17 @@ class AbsTask(ABC):
             f"mean={np.mean(bs_list):.1f}, min={np.min(bs_list)}, max={np.max(bs_list)}"
         )
 
+        if distributed:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            for batch in batches:
+                if len(batch) < world_size:
+                    raise RuntimeError(
+                        f"The batch-size must be equal or more than world_size: "
+                        f"{len(batch)} < {world_size}"
+                    )
+            batches = [batch[rank::world_size] for batch in batches]
+
         return (
             SequenceIterFactory(
                 dataset=dataset,
@@ -1224,7 +1352,6 @@ class AbsTask(ABC):
                 num_workers=num_workers,
                 collate_fn=collate_fn,
                 pin_memory=ngpu > 0,
-                distributed=distributed,
             ),
             dataset,
             batches,
@@ -1270,11 +1397,31 @@ class AbsTask(ABC):
         else:
             key_file = shape_files[0]
 
-        batch_sampler = ConstantBatchSampler(batch_size=1, key_file=key_file)
+        batch_sampler = UnsortedBatchSampler(batch_size=1, key_file=key_file)
         batches = list(batch_sampler)
         if num_batches is not None:
             batches = batches[:num_batches]
         logging.info(f"[{name}] dataset:\n{dataset}")
+
+        if distributed:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            if len(batches) < world_size:
+                raise RuntimeError("Number of samples is smaller than world_size")
+            if batch_size < world_size:
+                raise RuntimeError("batch_size must be equal or more than world_size")
+
+            if rank < batch_size % world_size:
+                batch_size = batch_size // world_size + 1
+            else:
+                batch_size = batch_size // world_size
+            num_cache_chunks = num_cache_chunks // world_size
+            # NOTE(kamo): Split whole corpus by sample numbers without considering
+            #   each of the lengths, therefore the number of iteration counts are not
+            #   always equal to each other and the iterations are limitted
+            #   by the fewest iterations.
+            #   i.e. the samples over the counts are discarded.
+            batches = batches[rank::world_size]
 
         return (
             ChunkIterFactory(
@@ -1293,7 +1440,6 @@ class AbsTask(ABC):
                 chunk_length=chunk_length,
                 chunk_shift_ratio=chunk_shift_ratio,
                 num_cache_chunks=num_cache_chunks,
-                distributed=distributed,
             ),
             dataset,
             batches,
@@ -1306,7 +1452,7 @@ class AbsTask(ABC):
         config_file: Union[Path, str],
         model_file: Union[Path, str] = None,
         device: str = "cpu",
-    ) -> Tuple[AbsE2E, argparse.Namespace]:
+    ) -> Tuple[AbsESPnetModel, argparse.Namespace]:
         """This method is used for inference or fine-tuning.
 
         Args:
@@ -1322,12 +1468,16 @@ class AbsTask(ABC):
             args = yaml.safe_load(f)
         args = argparse.Namespace(**args)
         model = cls.build_model(args)
-        if not isinstance(model, AbsE2E):
+        if not isinstance(model, AbsESPnetModel):
             raise RuntimeError(
-                f"model must inherit {AbsE2E.__name__}, but got {type(model)}"
+                f"model must inherit {AbsESPnetModel.__name__}, but got {type(model)}"
             )
         model.to(device)
         if model_file is not None:
+            if device == "cuda":
+                # NOTE(kamo): "cuda" for torch.load always indicates cuda:0
+                #   in PyTorch<=1.4
+                device = f"cuda:{torch.cuda.current_device()}"
             model.load_state_dict(torch.load(model_file, map_location=device))
 
         return model, args
@@ -1345,7 +1495,7 @@ class AbsTask(ABC):
         collate_fn=None,
         inference: bool = True,
         allow_variable_data_keys: bool = False,
-    ) -> Tuple[DataLoader, ESPnetDataset, ConstantBatchSampler]:
+    ) -> Tuple[DataLoader, ESPnetDataset, UnsortedBatchSampler]:
         """Create mini-batch iterator w/o shuffling and sorting by sequence lengths.
 
         Note that unlike the iterator for training, the shape files are not required
@@ -1363,7 +1513,7 @@ class AbsTask(ABC):
 
         if key_file is None:
             key_file, _, _ = data_path_and_name_and_type[0]
-        batch_sampler = ConstantBatchSampler(batch_size=batch_size, key_file=key_file)
+        batch_sampler = UnsortedBatchSampler(batch_size=batch_size, key_file=key_file)
 
         logging.info(f"dataset:\n{dataset}")
         logging.info(f"Batch sampler: {batch_sampler}")

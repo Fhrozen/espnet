@@ -23,7 +23,7 @@ decoder_conf:
         aconv_filts: 100
 
 # hybrid CTC/attention
-e2e_conf:
+model_conf:
     ctc_weight: 0.5
 
 # optimization related
@@ -35,4 +35,11 @@ optim_conf:
     weight_decay: 0
 init: xavier_uniform
 max_epoch: 50
+batch_type: folded
 batch_size: 35
+
+best_model_criterion:
+-   - valid
+    - acc
+    - max
+keep_nbest_models: 1
