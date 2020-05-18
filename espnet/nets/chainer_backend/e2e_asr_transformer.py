@@ -98,7 +98,7 @@ class E2E(ChainerASRInterface):
         self.scale_emb = args.adim ** 0.5
         self.sos = odim - 1
         self.eos = odim - 1
-        self.subsample = get_subsample(args, mode='asr', arch='transformer')
+        self.subsample = [2, 2]
         self.ignore_id = ignore_id
         self.reset_parameters(args)
         with self.init_scope():
@@ -267,6 +267,10 @@ class E2E(ChainerASRInterface):
             return self.loss, loss_ctc, loss_att, acc
         else:
             return self.loss
+    
+    def subsample_frames(self, x):
+        ilens = [x.shape[0]]
+        return x[None], ilens
 
     def calculate_attentions(self, xs, x_mask, ys_pad):
         """Calculate Attentions."""

@@ -468,7 +468,7 @@ def recog(args):
                         r = np.prod(model.subsample)
                         logging.info(feat.shape)
                         amax = int(feat.shape[0] / r)
-                        for i in range(0, feat.shape[0], r):
+                        for i in range(20000, feat.shape[0], r):
                             logging.debug(f'current frame {int(i / r)} / {amax} ')
                             hyps = se2e.accept_input(feat[i : i + r])
                             if hyps is not None:

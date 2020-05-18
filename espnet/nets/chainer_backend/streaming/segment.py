@@ -96,7 +96,7 @@ class SegmentStreamingE2E(object):
                     if self._recog_args.batchsize > 1:
                         raise NotImplementedError
                     else:
-                        hyp = self._e2e.dec.recognize_beam(
+                        hyp = self._e2e.decoder.recognize_beam(
                             h, lpz, self._recog_args, self._char_list, self._rnnlm)
 
                     self._activates = 0

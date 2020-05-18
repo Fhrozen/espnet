@@ -174,4 +174,4 @@ class WarpCTC(chainer.Chain):
         :return: argmax applied 2d tensor (B, Tmax)
         :rtype: chainer.Variable.
         """
-        return F.argmax(self.ctc_lo(F.pad_sequence(hs_pad), n_batch_axes=2), axis=-1)
+        return F.argmax(self.ctc_lo(hs_pad, n_batch_axes=2), axis=-1)
