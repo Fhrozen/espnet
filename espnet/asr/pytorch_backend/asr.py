@@ -168,7 +168,7 @@ class CustomUpdater(StandardUpdater):
         super(CustomUpdater, self).__init__(train_iter, optimizer)
         self.model = model
         self.grad_clip_threshold = grad_clip_threshold
-        self.device = device
+        self._device = device
         self.ngpu = ngpu
         self.accum_grad = accum_grad
         self.forward_count = 0
@@ -189,7 +189,7 @@ class CustomUpdater(StandardUpdater):
         batch = train_iter.next()
         # self.iteration += 1 # Increase may result in early report,
         # which is done in other place automatically.
-        x = _recursive_to(batch, self.device)
+        x = _recursive_to(batch, self._device)
         is_new_epoch = train_iter.epoch != epoch
         # When the last minibatch in the current epoch is given,
         # gradient accumulation is turned off in order to evaluate the model

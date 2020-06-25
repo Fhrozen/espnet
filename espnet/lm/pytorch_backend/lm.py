@@ -116,7 +116,7 @@ class BPTTUpdater(training.StandardUpdater):
         """
         super(BPTTUpdater, self).__init__(train_iter, optimizer)
         self.model = model
-        self.device = device
+        self._device = device
         self.gradclip = gradclip
         self.use_apex = use_apex
         self.scheduler = PyTorchScheduler(schedulers, optimizer)
@@ -137,12 +137,12 @@ class BPTTUpdater(training.StandardUpdater):
             # Concatenate the token IDs to matrices and send them to the device
             # self.converter does this job
             # (it is chainer.dataset.concat_examples by default)
-            x, t = concat_examples(batch, device=self.device[0], padding=(0, -100))
-            if self.device[0] == -1:
+            x, t = concat_examples(batch, device=self._device[0], padding=(0, -100))
+            if self._device[0] == -1:
                 loss, nll, count = self.model(x, t)
             else:
                 # apex does not support torch.nn.DataParallel
-                loss, nll, count = data_parallel(self.model, (x, t), self.device)
+                loss, nll, count = data_parallel(self.model, (x, t), self._device)
 
             # backward
             loss = loss.mean() / self.accum_grad

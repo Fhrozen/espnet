@@ -18,7 +18,7 @@ requirements = {
         "editdistance==0.5.2",
         # DNN related
         # 'torch==1.0.1',  # Installation from anaconda is recommended for PyTorch
-        "chainer==6.0.0",
+        "chainer==7.4.0",
         # 'cupy==6.0.0',  # Do not install cupy as default
         "tensorboard>=1.14",  # For pytorch>=1.1.0
         "tensorboardX>=1.8",  # For pytorch<1.1.0

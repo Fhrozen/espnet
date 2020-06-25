@@ -32,13 +32,13 @@ def main(args):
                    "1.3.0", 
                    "1.3.1",
                    "1.4.0")),
-        ('chainer', ("6.0.0")),
+        ('chainer', ("7.4.0")),
         ('chainer_ctc', None),
         ('warprnnt_pytorch', ("0.1"))
     ]
 
     if not args.no_cupy:
-        MANUALLY_INSTALLED_LIBRARIES.append(('cupy', ("6.0.0")))
+        MANUALLY_INSTALLED_LIBRARIES.append(('cupy', ("7.4.0")))
     
     if LooseVersion(args.torch_version) < LooseVersion('1.2.0'):
         MANUALLY_INSTALLED_LIBRARIES.append(('warpctc_pytorch', ("0.1.1", "0.1.3")))
