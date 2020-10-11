@@ -1,13 +1,21 @@
 #!/bin/bash
 #  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-. ./path.sh || exit 1;
-. ./cmd.sh || exit 1;
-. ./db.sh || exit 1;
+# Set bash to 'debug' mode, it will exit on :
+# -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
+set -e
+set -u
+set -o pipefail
+
+log() {
+    local fname=${BASH_SOURCE[1]##*/}
+    echo -e "$(date '+%Y-%m-%dT%H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
+}
+SECONDS=0
 
 stage=0
 stop_stage=10
-SECONDS=0
+
 
 # You may set 'mic' to:
 #  ihm [individual headset mic- the default which gives best results]
@@ -20,21 +28,17 @@ SECONDS=0
 # ./run.sh --mic mdm8
 mic=ihm
 
-log() {
-    local fname=${BASH_SOURCE[1]##*/}
-    echo -e "$(date '+%Y-%m-%dT%H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
-}
+log "$0 $*"
+. utils/parse_options.sh
+
+. ./path.sh || exit 1;
+. ./cmd.sh || exit 1;
+. ./db.sh || exit 1;
 
 if [ ! -e "${AMI}" ]; then
     log "Fill the value of 'AMI' of db.sh"
     exit 1
 fi
-
-# Set bash to 'debug' mode, it will exit on :
-# -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
-set -e
-set -u
-set -o pipefail
 
 base_mic=${mic//[0-9]/} # sdm, ihm or mdm
 nmics=${mic//[a-z]/} # e.g. 8 for mdm8.

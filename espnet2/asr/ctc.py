@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 from typeguard import check_argument_types
 
+import logging
+
 
 class CTC(torch.nn.Module):
     """CTC module.
@@ -47,6 +49,9 @@ class CTC(torch.nn.Module):
         if self.ctc_type == "builtin":
             th_pred = th_pred.log_softmax(2)
             loss = self.ctc_loss(th_pred, th_target, th_ilen, th_olen)
+            if not self.reduce:
+                mask = ~torch.isinf(loss)
+                loss = loss[mask].sum()
             # Batch-size average
             loss = loss / th_pred.size(1)
             return loss

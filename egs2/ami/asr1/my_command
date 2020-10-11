@@ -1,0 +1,1 @@
+./run.sh --asr-config conf/tuning/train_asr_transformer_onnx.yaml --skip-eval true --local-data-opts "--stage 2"

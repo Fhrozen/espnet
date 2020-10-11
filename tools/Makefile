@@ -53,6 +53,8 @@ PIP_CHAINER := chainer==$(CHAINER_VERSION)
 
 all: kaldi showenv python conda_packages.done sctk.done sph2pipe.done check_install
 
+onnx: kaldi activate_python.sh espnet.done pytorch.done
+
 ifneq ($(strip $(CHAINER_VERSION)),)
 python: activate_python.sh warp-ctc.done warp-transducer.done espnet.done pytorch.done chainer_ctc.done chainer.done
 else
