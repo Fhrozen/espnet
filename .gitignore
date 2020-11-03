@@ -65,3 +65,8 @@ tools/pyopenjtalk*
 tools/activate_python.sh
 tools/sctk*
 tools/sph2pipe*
+
+onnx/samples/**/.vs*
+onnx/samples/**/obj*
+onnx/samples/**/bin*
+onnx/samples/**/Properties*
