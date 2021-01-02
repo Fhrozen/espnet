@@ -28,17 +28,25 @@ stop_stage=10
 # ./run.sh --mic mdm8
 mic=ihm
 
-log "$0 $*"
 . utils/parse_options.sh
 
-. ./path.sh || exit 1;
-. ./cmd.sh || exit 1;
-. ./db.sh || exit 1;
+log() {
+    local fname=${BASH_SOURCE[1]##*/}
+    echo -e "$(date '+%Y-%m-%dT%H:%M:%S') (${fname}:${BASH_LINENO[0]}:${FUNCNAME[1]}) $*"
+}
 
 if [ ! -e "${AMI}" ]; then
     log "Fill the value of 'AMI' of db.sh"
     exit 1
 fi
+
+# Set bash to 'debug' mode, it will exit on :
+# -e 'error', -u 'undefined variable', -o ... 'error in pipeline', -x 'print commands',
+set -e
+set -u
+set -o pipefail
+
+. utils/parse_options.sh
 
 base_mic=${mic//[0-9]/} # sdm, ihm or mdm
 nmics=${mic//[a-z]/} # e.g. 8 for mdm8.
