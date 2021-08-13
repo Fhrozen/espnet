@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <title>Index &mdash; ESPnet 0.10.0 documentation</title>
+  <title>Index &mdash; ESPnet 0.10.2a1 documentation</title>
   
 
   
@@ -36,7 +36,7 @@
         <script type="text/javascript" src="_static/language_data.js"></script>
         <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
         <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
-        <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
+        <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "tex2jax_ignore|mathjax_ignore|document", "processClass": "tex2jax_process|mathjax_process|math|output_area"}})</script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -66,7 +66,7 @@
             
             
               <div class="version">
-                0.10.0
+                0.10.2a1
               </div>
             
           
@@ -2414,6 +2414,8 @@
 </li>
       <li><a href="_gen/espnet2.tts.html#module-espnet2.tts.feats_extract.energy">espnet2.tts.feats_extract.energy (module)</a>
 </li>
+      <li><a href="_gen/espnet2.tts.html#module-espnet2.tts.feats_extract.linear_spectrogram">espnet2.tts.feats_extract.linear_spectrogram (module)</a>
+</li>
       <li><a href="_gen/espnet2.tts.html#module-espnet2.tts.feats_extract.log_mel_fbank">espnet2.tts.feats_extract.log_mel_fbank (module)</a>
 </li>
       <li><a href="_gen/espnet2.tts.html#module-espnet2.tts.feats_extract.log_spectrogram">espnet2.tts.feats_extract.log_spectrogram (module)</a>
@@ -3053,6 +3055,8 @@
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.energy.Energy.forward">(espnet2.tts.feats_extract.energy.Energy method)</a>
 </li>
+        <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram.forward">(espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram method)</a>
+</li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank.forward">(espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank method)</a>
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.log_spectrogram.LogSpectrogram.forward">(espnet2.tts.feats_extract.log_spectrogram.LogSpectrogram method)</a>
@@ -3270,6 +3274,8 @@
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.dio.Dio.get_parameters">(espnet2.tts.feats_extract.dio.Dio method)</a>
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.energy.Energy.get_parameters">(espnet2.tts.feats_extract.energy.Energy method)</a>
+</li>
+        <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram.get_parameters">(espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram method)</a>
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank.get_parameters">(espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank method)</a>
 </li>
@@ -3558,6 +3564,8 @@
 </li>
       <li><a href="_gen/espnet2.train.html#espnet2.train.distributed_utils.DistributedOption.init_options">init_options() (espnet2.train.distributed_utils.DistributedOption method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="_gen/espnet.nets.html#espnet.nets.pytorch_backend.lm.seq_rnn.SequentialRNNLM.init_state">init_state() (espnet.nets.pytorch_backend.lm.seq_rnn.SequentialRNNLM method)</a>
 
       <ul>
@@ -3578,8 +3586,6 @@
         <li><a href="_gen/espnet2.asr.html#espnet2.asr.decoder.rnn_decoder.RNNDecoder.init_state">(espnet2.asr.decoder.rnn_decoder.RNNDecoder method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="_gen/espnet2.train.html#espnet2.train.distributed_utils.DistributedOption.init_torch_distributed">init_torch_distributed() (espnet2.train.distributed_utils.DistributedOption method)</a>
 </li>
       <li><a href="_gen/espnet.nets.html#espnet.nets.pytorch_backend.rnn.attentions.initial_att">initial_att() (in module espnet.nets.pytorch_backend.rnn.attentions)</a>
@@ -3624,8 +3630,6 @@
         <li><a href="_gen/espnet2.layers.html#espnet2.layers.sinc_conv.MelScale.invert">(espnet2.layers.sinc_conv.MelScale static method)</a>
 </li>
       </ul></li>
-      <li><a href="_gen/espnet2.bin.html#espnet2.bin.k2_asr_inference.invert_permutation">invert_permutation() (in module espnet2.bin.k2_asr_inference)</a>
-</li>
       <li><a href="_gen/espnet2.train.html#espnet2.train.distributed_utils.is_in_slurm_job">is_in_slurm_job() (in module espnet2.train.distributed_utils)</a>
 </li>
       <li><a href="_gen/espnet2.train.html#espnet2.train.distributed_utils.is_in_slurm_step">is_in_slurm_step() (in module espnet2.train.distributed_utils)</a>
@@ -3733,6 +3737,8 @@
       <li><a href="_gen/espnet2.asr.html#espnet2.asr.preencoder.linear.LinearProjection">LinearProjection (class in espnet2.asr.preencoder.linear)</a>
 </li>
       <li><a href="_gen/espnet.nets.html#espnet.nets.chainer_backend.transformer.subsampling.LinearSampling">LinearSampling (class in espnet.nets.chainer_backend.transformer.subsampling)</a>
+</li>
+      <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram">LinearSpectrogram (class in espnet2.tts.feats_extract.linear_spectrogram)</a>
 </li>
       <li><a href="_gen/espnet.nets.html#espnet.nets.transducer_decoder_interface.NSCHypothesis.lm_scores">lm_scores (espnet.nets.transducer_decoder_interface.NSCHypothesis attribute)</a>
 </li>
@@ -4194,6 +4200,8 @@
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.dio.Dio.output_size">(espnet2.tts.feats_extract.dio.Dio method)</a>
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.energy.Energy.output_size">(espnet2.tts.feats_extract.energy.Energy method)</a>
+</li>
+        <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram.output_size">(espnet2.tts.feats_extract.linear_spectrogram.LinearSpectrogram method)</a>
 </li>
         <li><a href="_gen/espnet2.tts.html#espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank.output_size">(espnet2.tts.feats_extract.log_mel_fbank.LogMelFbank method)</a>
 </li>
