@@ -7,7 +7,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
-  <title>espnet2.tts.variance_predictor &mdash; ESPnet 0.10.2a1 documentation</title>
+  <title>espnet2.train.abs_gan_espnet_model &mdash; ESPnet 0.10.2a1 documentation</title>
   
 
   
@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -195,7 +196,7 @@
         
           <li><a href="../../index.html">Module code</a> &raquo;</li>
         
-      <li>espnet2.tts.variance_predictor</li>
+      <li>espnet2.train.abs_gan_espnet_model</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -210,95 +211,79 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for espnet2.tts.variance_predictor</h1><div class="highlight"><pre>
-<span></span><span class="ch">#!/usr/bin/env python3</span>
-
-<span class="c1"># Copyright 2020 Tomoki Hayashi</span>
+  <h1>Source code for espnet2.train.abs_gan_espnet_model</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright 2021 Tomoki Hayashi</span>
 <span class="c1">#  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)</span>
 
-<span class="sd">&quot;&quot;&quot;Variance predictor related modules.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;ESPnetModel abstract class for GAN-based training.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
 
-<span class="kn">from</span> <span class="nn">typeguard</span> <span class="kn">import</span> <span class="n">check_argument_types</span>
-
-<span class="kn">from</span> <span class="nn">espnet.nets.pytorch_backend.transformer.layer_norm</span> <span class="kn">import</span> <span class="n">LayerNorm</span>
+<span class="kn">from</span> <span class="nn">espnet2.train.abs_espnet_model</span> <span class="kn">import</span> <span class="n">AbsESPnetModel</span>
 
 
-<div class="viewcode-block" id="VariancePredictor"><a class="viewcode-back" href="../../../_gen/espnet2.tts.html#espnet2.tts.variance_predictor.VariancePredictor">[docs]</a><span class="k">class</span> <span class="nc">VariancePredictor</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Variance predictor module.</span>
+<div class="viewcode-block" id="AbsGANESPnetModel"><a class="viewcode-back" href="../../../_gen/espnet2.train.html#espnet2.train.abs_gan_espnet_model.AbsGANESPnetModel">[docs]</a><span class="k">class</span> <span class="nc">AbsGANESPnetModel</span><span class="p">(</span><span class="n">AbsESPnetModel</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">ABC</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The common abstract class among each GAN-based task.</span>
 
-<span class="sd">    This is a module of variacne predictor described in `FastSpeech 2:</span>
-<span class="sd">    Fast and High-Quality End-to-End Text to Speech`_.</span>
+<span class="sd">    &quot;ESPnetModel&quot; is referred to a class which inherits torch.nn.Module,</span>
+<span class="sd">    and makes the dnn-models &quot;forward&quot; as its member field, a.k.a delegate</span>
+<span class="sd">    pattern. And &quot;forward&quot; must accept the argument &quot;forward_generator&quot; and</span>
+<span class="sd">    Return the dict of &quot;loss&quot;, &quot;stats&quot;, &quot;weight&quot;, and &quot;optim_idx&quot;.</span>
+<span class="sd">    &quot;optim_idx&quot; for generator must be 0 and that for discriminator must be 1.</span>
 
-<span class="sd">    .. _`FastSpeech 2: Fast and High-Quality End-to-End Text to Speech`:</span>
-<span class="sd">        https://arxiv.org/abs/2006.04558</span>
-
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from espnet2.tasks.abs_task import AbsTask</span>
+<span class="sd">        &gt;&gt;&gt; class YourESPnetModel(AbsGANESPnetModel):</span>
+<span class="sd">        ...     def forward(self, input, input_lengths, forward_generator=True):</span>
+<span class="sd">        ...         ...</span>
+<span class="sd">        ...         if forward_generator:</span>
+<span class="sd">        ...             # return loss for the generator</span>
+<span class="sd">        ...             # optim idx 0 indicates generator optimizer</span>
+<span class="sd">        ...             return dict(loss=loss, stats=stats, weight=weight, optim_idx=0)</span>
+<span class="sd">        ...         else:</span>
+<span class="sd">        ...             # return loss for the discriminator</span>
+<span class="sd">        ...             # optim idx 1 indicates discriminator optimizer</span>
+<span class="sd">        ...             return dict(loss=loss, stats=stats, weight=weight, optim_idx=1)</span>
+<span class="sd">        &gt;&gt;&gt; class YourTask(AbsTask):</span>
+<span class="sd">        ...     @classmethod</span>
+<span class="sd">        ...     def build_model(cls, args: argparse.Namespace) -&gt; YourESPnetModel:</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+<div class="viewcode-block" id="AbsGANESPnetModel.forward"><a class="viewcode-back" href="../../../_gen/espnet2.train.html#espnet2.train.abs_gan_espnet_model.AbsGANESPnetModel.forward">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">idim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-        <span class="n">n_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="n">n_chans</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">384</span><span class="p">,</span>
-        <span class="n">kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
-        <span class="n">bias</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="n">dropout_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
-    <span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Initilize duration predictor module.</span>
+        <span class="n">forward_generator</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">batch</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="nb">int</span><span class="p">]]:</span>
+        <span class="sd">&quot;&quot;&quot;Return the generator loss or the discrimiantor loss.</span>
+
+<span class="sd">        This method must have an argument &quot;forward_generator&quot; to switch the generator</span>
+<span class="sd">        loss calculation and the discrimiantor loss calculation. If forward_generator</span>
+<span class="sd">        is true, return the generator loss with optim_idx 0. If forward_generator is</span>
+<span class="sd">        false, return the discrimiantor loss with optim_idx 1.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            idim (int): Input dimension.</span>
-<span class="sd">            n_layers (int, optional): Number of convolutional layers.</span>
-<span class="sd">            n_chans (int, optional): Number of channels of convolutional layers.</span>
-<span class="sd">            kernel_size (int, optional): Kernel size of convolutional layers.</span>
-<span class="sd">            dropout_rate (float, optional): Dropout rate.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">assert</span> <span class="n">check_argument_types</span><span class="p">()</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">conv</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_layers</span><span class="p">):</span>
-            <span class="n">in_chans</span> <span class="o">=</span> <span class="n">idim</span> <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">n_chans</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">conv</span> <span class="o">+=</span> <span class="p">[</span>
-                <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
-                    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span>
-                        <span class="n">in_chans</span><span class="p">,</span>
-                        <span class="n">n_chans</span><span class="p">,</span>
-                        <span class="n">kernel_size</span><span class="p">,</span>
-                        <span class="n">stride</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                        <span class="n">padding</span><span class="o">=</span><span class="p">(</span><span class="n">kernel_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
-                        <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span>
-                    <span class="p">),</span>
-                    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
-                    <span class="n">LayerNorm</span><span class="p">(</span><span class="n">n_chans</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-                    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">dropout_rate</span><span class="p">),</span>
-                <span class="p">)</span>
-            <span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">linear</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">n_chans</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-
-<div class="viewcode-block" id="VariancePredictor.forward"><a class="viewcode-back" href="../../../_gen/espnet2.tts.html#espnet2.tts.variance_predictor.VariancePredictor.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">x_masks</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-        <span class="sd">&quot;&quot;&quot;Calculate forward propagation.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            xs (Tensor): Batch of input sequences (B, Tmax, idim).</span>
-<span class="sd">            x_masks (ByteTensor, optional):</span>
-<span class="sd">                Batch of masks indicating padded part (B, Tmax).</span>
+<span class="sd">            forward_generator (bool): Whether to return the generator loss or the</span>
+<span class="sd">                discrimiantor loss. This must have the default value.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            Tensor: Batch of predicted sequences (B, Tmax, 1).</span>
+<span class="sd">            Dict[str, Any]:</span>
+<span class="sd">                * loss (Tensor): Loss scalar tensor.</span>
+<span class="sd">                * stats (Dict[str, float]): Statistics to be monitored.</span>
+<span class="sd">                * weight (Tensor): Weight tensor to summarize losses.</span>
+<span class="sd">                * optim_idx (int): Optimizer index (0 for G and 1 for D).</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">xs</span> <span class="o">=</span> <span class="n">xs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (B, idim, Tmax)</span>
-        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">conv</span><span class="p">:</span>
-            <span class="n">xs</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">xs</span><span class="p">)</span>  <span class="c1"># (B, C, Tmax)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
-        <span class="n">xs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">xs</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>  <span class="c1"># (B, Tmax, 1)</span>
-
-        <span class="k">if</span> <span class="n">x_masks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">xs</span> <span class="o">=</span> <span class="n">xs</span><span class="o">.</span><span class="n">masked_fill</span><span class="p">(</span><span class="n">x_masks</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">xs</span></div></div>
+<div class="viewcode-block" id="AbsGANESPnetModel.collect_feats"><a class="viewcode-back" href="../../../_gen/espnet2.train.html#espnet2.train.abs_gan_espnet_model.AbsGANESPnetModel.collect_feats">[docs]</a>    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">collect_feats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">batch</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
 </pre></div>
 
            </div>

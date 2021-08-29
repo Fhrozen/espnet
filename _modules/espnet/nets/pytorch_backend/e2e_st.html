@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -503,7 +504,7 @@
         <span class="c1"># 0. Extract target language ID</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">multilingual</span><span class="p">:</span>
             <span class="n">tgt_lang_ids</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span>
-            <span class="n">ys_pad</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># remove target language ID in the beggining</span>
+            <span class="n">ys_pad</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># remove target language ID in the beginning</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">tgt_lang_ids</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -831,7 +832,7 @@
             <span class="c1"># 1. Encoder</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">multilingual</span><span class="p">:</span>
                 <span class="n">tgt_lang_ids</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span>
-                <span class="n">ys_pad</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># remove target language ID in the beggining</span>
+                <span class="n">ys_pad</span> <span class="o">=</span> <span class="n">ys_pad</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># remove target language ID in the beginning</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">tgt_lang_ids</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="n">hpad</span><span class="p">,</span> <span class="n">hlens</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">enc</span><span class="p">(</span><span class="n">xs_pad</span><span class="p">,</span> <span class="n">ilens</span><span class="p">)</span>

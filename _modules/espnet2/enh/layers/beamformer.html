@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -457,7 +458,7 @@
 <span class="sd">        matrix of the framed signal.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        Y : Complext STFT signal with shape (B, F, C, T)</span>
+<span class="sd">        Y : Complex STFT signal with shape (B, F, C, T)</span>
 <span class="sd">        inverse_power : Weighting factor with shape (B, F, T)</span>
 
 <span class="sd">    Returns:</span>
@@ -564,7 +565,7 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComplexTensor</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Return the WPD vector (v2).</span>
 
-<span class="sd">       This implementaion is more efficient than `get_WPD_filter` as</span>
+<span class="sd">       This implementation is more efficient than `get_WPD_filter` as</span>
 <span class="sd">        it skips unnecessary computation with zeros.</span>
 
 <span class="sd">    Args:</span>

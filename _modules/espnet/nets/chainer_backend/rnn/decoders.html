@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -245,7 +246,7 @@
 <span class="sd">        att (Module): Attention module defined at</span>
 <span class="sd">            `espnet.espnet.nets.chainer_backend.attentions`.</span>
 <span class="sd">        verbose (int): Verbosity level.</span>
-<span class="sd">        char_list (List[str]): List of all charactors.</span>
+<span class="sd">        char_list (List[str]): List of all characters.</span>
 <span class="sd">        labeldist (numpy.array): Distributed array of counted transcript length.</span>
 <span class="sd">        lsm_weight (float): Weight to use when calculating the training loss.</span>
 <span class="sd">        sampling_probability (float): Threshold for scheduled sampling.</span>
@@ -438,7 +439,7 @@
 <span class="sd">            h (chainer.Variable): One of the output from the encoder.</span>
 <span class="sd">            lpz (chainer.Variable | None): Result of net propagation.</span>
 <span class="sd">            recog_args (Namespace): The argument.</span>
-<span class="sd">            char_list (List[str]): List of all charactors.</span>
+<span class="sd">            char_list (List[str]): List of all characters.</span>
 <span class="sd">            rnnlm (Module): RNNLM module. Defined at `espnet.lm.chainer_backend.lm`</span>
 
 <span class="sd">        Returns:</span>

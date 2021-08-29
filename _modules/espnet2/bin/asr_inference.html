@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -235,8 +236,6 @@
 <span class="kn">from</span> <span class="nn">espnet.nets.scorer_interface</span> <span class="kn">import</span> <span class="n">BatchScorerInterface</span>
 <span class="kn">from</span> <span class="nn">espnet.nets.scorers.ctc</span> <span class="kn">import</span> <span class="n">CTCPrefixScorer</span>
 <span class="kn">from</span> <span class="nn">espnet.nets.scorers.length_bonus</span> <span class="kn">import</span> <span class="n">LengthBonus</span>
-<span class="kn">from</span> <span class="nn">espnet.nets.scorers.ngram</span> <span class="kn">import</span> <span class="n">NgramFullScorer</span>
-<span class="kn">from</span> <span class="nn">espnet.nets.scorers.ngram</span> <span class="kn">import</span> <span class="n">NgramPartScorer</span>
 <span class="kn">from</span> <span class="nn">espnet.utils.cli_utils</span> <span class="kn">import</span> <span class="n">get_commandline_args</span>
 <span class="kn">from</span> <span class="nn">espnet2.fileio.datadir_writer</span> <span class="kn">import</span> <span class="n">DatadirWriter</span>
 <span class="kn">from</span> <span class="nn">espnet2.tasks.asr</span> <span class="kn">import</span> <span class="n">ASRTask</span>
@@ -314,8 +313,12 @@
         <span class="c1"># 3. Build ngram model</span>
         <span class="k">if</span> <span class="n">ngram_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">ngram_scorer</span> <span class="o">==</span> <span class="s2">&quot;full&quot;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">espnet.nets.scorers.ngram</span> <span class="kn">import</span> <span class="n">NgramFullScorer</span>
+
                 <span class="n">ngram</span> <span class="o">=</span> <span class="n">NgramFullScorer</span><span class="p">(</span><span class="n">ngram_file</span><span class="p">,</span> <span class="n">token_list</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">espnet.nets.scorers.ngram</span> <span class="kn">import</span> <span class="n">NgramPartScorer</span>
+
                 <span class="n">ngram</span> <span class="o">=</span> <span class="n">NgramPartScorer</span><span class="p">(</span><span class="n">ngram_file</span><span class="p">,</span> <span class="n">token_list</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">ngram</span> <span class="o">=</span> <span class="kc">None</span>
@@ -415,7 +418,7 @@
 
         <span class="c1"># data: (Nsamples,) -&gt; (1, Nsamples)</span>
         <span class="n">speech</span> <span class="o">=</span> <span class="n">speech</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">torch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
-        <span class="c1"># lenghts: (1,)</span>
+        <span class="c1"># lengths: (1,)</span>
         <span class="n">lengths</span> <span class="o">=</span> <span class="n">speech</span><span class="o">.</span><span class="n">new_full</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="n">speech</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
         <span class="n">batch</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;speech&quot;</span><span class="p">:</span> <span class="n">speech</span><span class="p">,</span> <span class="s2">&quot;speech_lengths&quot;</span><span class="p">:</span> <span class="n">lengths</span><span class="p">}</span>
 
@@ -647,7 +650,9 @@
         <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Input length ratio to obtain max output length. &quot;</span>
         <span class="s2">&quot;If maxlenratio=0.0 (default), it uses a end-detect &quot;</span>
         <span class="s2">&quot;function &quot;</span>
-        <span class="s2">&quot;to automatically find maximum hypothesis lengths&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;to automatically find maximum hypothesis lengths.&quot;</span>
+        <span class="s2">&quot;If maxlenratio&lt;0.0, its absolute value is interpreted&quot;</span>
+        <span class="s2">&quot;as a constant max output length&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--minlenratio&quot;</span><span class="p">,</span>

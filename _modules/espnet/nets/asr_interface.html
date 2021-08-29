@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -290,7 +291,7 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Batch decoding is not supported yet.&quot;</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="ASRInterface.calculate_all_attentions"><a class="viewcode-back" href="../../../_gen/espnet.nets.html#espnet.nets.asr_interface.ASRInterface.calculate_all_attentions">[docs]</a>    <span class="k">def</span> <span class="nf">calculate_all_attentions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">ilens</span><span class="p">,</span> <span class="n">ys</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Caluculate attention.</span>
+        <span class="sd">&quot;&quot;&quot;Calculate attention.</span>
 
 <span class="sd">        :param list xs: list of padded input sequences [(T1, idim), (T2, idim), ...]</span>
 <span class="sd">        :param ndarray ilens: batch of lengths of input sequences (B)</span>
@@ -301,7 +302,7 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;calculate_all_attentions method is not implemented&quot;</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="ASRInterface.calculate_all_ctc_probs"><a class="viewcode-back" href="../../../_gen/espnet.nets.html#espnet.nets.asr_interface.ASRInterface.calculate_all_ctc_probs">[docs]</a>    <span class="k">def</span> <span class="nf">calculate_all_ctc_probs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">ilens</span><span class="p">,</span> <span class="n">ys</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Caluculate CTC probability.</span>
+        <span class="sd">&quot;&quot;&quot;Calculate CTC probability.</span>
 
 <span class="sd">        :param list xs_pad: list of padded input sequences [(T1, idim), (T2, idim), ...]</span>
 <span class="sd">        :param ndarray ilens: batch of lengths of input sequences (B)</span>

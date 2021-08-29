@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -306,7 +307,11 @@
         <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">&quot;frontend&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span>
             <span class="n">model</span><span class="o">.</span><span class="n">frontend</span><span class="p">,</span> <span class="s2">&quot;reload_pretrained_parameters&quot;</span><span class="p">,</span> <span class="kc">None</span>
         <span class="p">):</span>
-            <span class="n">model</span><span class="o">.</span><span class="n">frontend</span><span class="o">.</span><span class="n">reload_pretrained_parameters</span><span class="p">()</span></div>
+            <span class="n">model</span><span class="o">.</span><span class="n">frontend</span><span class="o">.</span><span class="n">reload_pretrained_parameters</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s2">&quot;postencoder&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">postencoder</span><span class="p">,</span> <span class="s2">&quot;reload_pretrained_parameters&quot;</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="p">):</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">postencoder</span><span class="o">.</span><span class="n">reload_pretrained_parameters</span><span class="p">()</span></div>
 </pre></div>
 
            </div>

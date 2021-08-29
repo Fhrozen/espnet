@@ -134,6 +134,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.iterators.html">espnet2.iterators package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.schedulers.html">espnet2.schedulers package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.gan_tts.html">espnet2.gan_tts package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.torch_utils.html">espnet2.torch_utils package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.enh.html">espnet2.enh package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../_gen/espnet2.optimizers.html">espnet2.optimizers package</a></li>
@@ -272,7 +273,7 @@
         <span class="sd">&quot;&quot;&quot;RNNP forward.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            xs (chainer.Variable): Batch of padded charactor ids. (B, Tmax)</span>
+<span class="sd">            xs (chainer.Variable): Batch of padded character ids. (B, Tmax)</span>
 <span class="sd">            ilens (chainer.Variable): Batch of length of each input batch. (B,)</span>
 
 <span class="sd">        Returns:</span>
@@ -335,7 +336,7 @@
         <span class="sd">&quot;&quot;&quot;BRNN forward propagation.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            xs (chainer.Variable): Batch of padded charactor ids. (B, Tmax)</span>
+<span class="sd">            xs (chainer.Variable): Batch of padded character ids. (B, Tmax)</span>
 <span class="sd">            ilens (chainer.Variable): Batch of length of each input batch. (B,)</span>
 
 <span class="sd">        Returns:</span>
@@ -388,7 +389,7 @@
         <span class="sd">&quot;&quot;&quot;VGG2L forward propagation.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            xs (chainer.Variable): Batch of padded charactor ids. (B, Tmax)</span>
+<span class="sd">            xs (chainer.Variable): Batch of padded character ids. (B, Tmax)</span>
 <span class="sd">            ilens (chainer.Variable): Batch of length of each features. (B,)</span>
 
 <span class="sd">        Returns:</span>
@@ -507,7 +508,7 @@
         <span class="sd">&quot;&quot;&quot;Encoder forward.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            xs (chainer.Variable): Batch of padded charactor ids. (B, Tmax)</span>
+<span class="sd">            xs (chainer.Variable): Batch of padded character ids. (B, Tmax)</span>
 <span class="sd">            ilens (chainer.variable): Batch of length of each features. (B,)</span>
 
 <span class="sd">        Returns:</span>
