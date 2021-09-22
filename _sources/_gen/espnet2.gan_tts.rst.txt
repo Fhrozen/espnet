@@ -37,6 +37,39 @@ espnet2.gan_tts.abs_gan_tts
     :show-inheritance:
 
 
+.. _espnet2.gan_tts.parallel_wavegan.upsample:
+
+espnet2.gan_tts.parallel_wavegan.upsample
+-----------------------------------------
+
+.. automodule:: espnet2.gan_tts.parallel_wavegan.upsample
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.parallel_wavegan.__init__:
+
+espnet2.gan_tts.parallel_wavegan.__init__
+-----------------------------------------
+
+.. automodule:: espnet2.gan_tts.parallel_wavegan.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.parallel_wavegan.parallel_wavegan:
+
+espnet2.gan_tts.parallel_wavegan.parallel_wavegan
+-------------------------------------------------
+
+.. automodule:: espnet2.gan_tts.parallel_wavegan.parallel_wavegan
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. _espnet2.gan_tts.hifigan.loss:
 
 espnet2.gan_tts.hifigan.loss
@@ -81,6 +114,72 @@ espnet2.gan_tts.hifigan.hifigan
     :show-inheritance:
 
 
+.. _espnet2.gan_tts.utils.get_random_segments:
+
+espnet2.gan_tts.utils.get_random_segments
+-----------------------------------------
+
+.. automodule:: espnet2.gan_tts.utils.get_random_segments
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.utils.__init__:
+
+espnet2.gan_tts.utils.__init__
+------------------------------
+
+.. automodule:: espnet2.gan_tts.utils.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.melgan.melgan:
+
+espnet2.gan_tts.melgan.melgan
+-----------------------------
+
+.. automodule:: espnet2.gan_tts.melgan.melgan
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.melgan.__init__:
+
+espnet2.gan_tts.melgan.__init__
+-------------------------------
+
+.. automodule:: espnet2.gan_tts.melgan.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.melgan.pqmf:
+
+espnet2.gan_tts.melgan.pqmf
+---------------------------
+
+.. automodule:: espnet2.gan_tts.melgan.pqmf
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.melgan.residual_stack:
+
+espnet2.gan_tts.melgan.residual_stack
+-------------------------------------
+
+.. automodule:: espnet2.gan_tts.melgan.residual_stack
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. _espnet2.gan_tts.wavenet.__init__:
 
 espnet2.gan_tts.wavenet.__init__
@@ -109,6 +208,39 @@ espnet2.gan_tts.wavenet.wavenet
 -------------------------------
 
 .. automodule:: espnet2.gan_tts.wavenet.wavenet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.style_melgan.style_melgan:
+
+espnet2.gan_tts.style_melgan.style_melgan
+-----------------------------------------
+
+.. automodule:: espnet2.gan_tts.style_melgan.style_melgan
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.style_melgan.__init__:
+
+espnet2.gan_tts.style_melgan.__init__
+-------------------------------------
+
+.. automodule:: espnet2.gan_tts.style_melgan.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.style_melgan.tade_res_block:
+
+espnet2.gan_tts.style_melgan.tade_res_block
+-------------------------------------------
+
+.. automodule:: espnet2.gan_tts.style_melgan.tade_res_block
     :members:
     :undoc-members:
     :show-inheritance:
@@ -241,6 +373,28 @@ espnet2.gan_tts.vits.monotonic_align.setup
 ------------------------------------------
 
 .. automodule:: espnet2.gan_tts.vits.monotonic_align.setup
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.joint.__init__:
+
+espnet2.gan_tts.joint.__init__
+------------------------------
+
+.. automodule:: espnet2.gan_tts.joint.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet2.gan_tts.joint.joint_text2wav:
+
+espnet2.gan_tts.joint.joint_text2wav
+------------------------------------
+
+.. automodule:: espnet2.gan_tts.joint.joint_text2wav
     :members:
     :undoc-members:
     :show-inheritance:
