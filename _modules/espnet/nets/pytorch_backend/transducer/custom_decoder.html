@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets.pytorch_backend.transducer.custom_decoder &mdash; ESPnet 0.10.3a3 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets.pytorch_backend.transducer.custom_decoder &mdash; ESPnet 0.10.3a4 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../../../_static/js/html5shiv.min.js"></script>
@@ -29,7 +29,7 @@
             <a href="../../../../../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                0.10.3a3
+                0.10.3a4
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../../search.html" method="get">
@@ -123,7 +123,7 @@
            <div itemprop="articleBody">
              
   <h1>Source code for espnet.nets.pytorch_backend.transducer.custom_decoder</h1><div class="highlight"><pre>
-<span></span><span class="sd">&quot;&quot;&quot;Custom decoder definition for transducer model.&quot;&quot;&quot;</span>
+<span></span><span class="sd">&quot;&quot;&quot;Custom decoder definition for Transducer model.&quot;&quot;&quot;</span>
 
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span>
@@ -146,13 +146,14 @@
 
 
 <div class="viewcode-block" id="CustomDecoder"><a class="viewcode-back" href="../../../../../_gen/espnet.nets.html#espnet.nets.pytorch_backend.transducer.custom_decoder.CustomDecoder">[docs]</a><span class="k">class</span> <span class="nc">CustomDecoder</span><span class="p">(</span><span class="n">TransducerDecoderInterface</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Custom decoder module for transducer model.</span>
+    <span class="sd">&quot;&quot;&quot;Custom decoder module for Transducer model.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        odim: Output dimension.</span>
 <span class="sd">        dec_arch: Decoder block architecture (type and parameters).</span>
 <span class="sd">        input_layer: Input layer type.</span>
 <span class="sd">        repeat_block: Number of times dec_arch is repeated.</span>
+<span class="sd">        joint_activation_type: Type of activation for joint network.</span>
 <span class="sd">        positional_encoding_type: Positional encoding type.</span>
 <span class="sd">        positionwise_layer_type: Positionwise layer type.</span>
 <span class="sd">        positionwise_activation_type: Positionwise activation type.</span>

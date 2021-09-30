@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets.pytorch_backend.transducer.arguments &mdash; ESPnet 0.10.3a3 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets.pytorch_backend.transducer.arguments &mdash; ESPnet 0.10.3a4 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../../../_static/js/html5shiv.min.js"></script>
@@ -29,7 +29,7 @@
             <a href="../../../../../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                0.10.3a3
+                0.10.3a4
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../../search.html" method="get">
@@ -373,12 +373,12 @@
 
 
 <div class="viewcode-block" id="add_transducer_arguments"><a class="viewcode-back" href="../../../../../_gen/espnet.nets.html#espnet.nets.pytorch_backend.transducer.arguments.add_transducer_arguments">[docs]</a><span class="k">def</span> <span class="nf">add_transducer_arguments</span><span class="p">(</span><span class="n">group</span><span class="p">:</span> <span class="n">_ArgumentGroup</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_ArgumentGroup</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Define general arguments for transducer model.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;Define general arguments for Transducer model.&quot;&quot;&quot;</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--transducer-weight&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Weight of transducer loss when auxiliary task is used.&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Weight of main Transducer loss.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--joint-dim&quot;</span><span class="p">,</span>
@@ -398,7 +398,7 @@
         <span class="nb">type</span><span class="o">=</span><span class="n">strtobool</span><span class="p">,</span>
         <span class="n">nargs</span><span class="o">=</span><span class="s2">&quot;?&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Normalize transducer scores by length&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Normalize Transducer scores by length&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--fastemit-lambda&quot;</span><span class="p">,</span>
@@ -455,14 +455,13 @@
         <span class="nb">type</span><span class="o">=</span><span class="n">strtobool</span><span class="p">,</span>
         <span class="n">nargs</span><span class="o">=</span><span class="s2">&quot;?&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Whether to compute auxiliary transducer loss with &quot;</span>
-        <span class="s2">&quot;intermediate encoder layers.&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Whether to compute auxiliary Transducer loss.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--aux-transducer-loss-weight&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Weight of auxiliary transducer loss.&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Weight of auxiliary Transducer loss.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--aux-transducer-loss-enc-output-layers&quot;</span><span class="p">,</span>
@@ -475,13 +474,13 @@
         <span class="s2">&quot;--aux-transducer-loss-mlp-dim&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="mi">320</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Multi-layer perceptron hidden dimension for auxiliary transducer loss.&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Multilayer perceptron hidden dimension for auxiliary Transducer loss.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--aux-transducer-loss-mlp-dropout-rate&quot;</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Multi-layer perceptron dropout rate for auxiliary transducer loss.&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Multilayer perceptron dropout rate for auxiliary Transducer loss.&quot;</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s2">&quot;--use-symm-kl-div-loss&quot;</span><span class="p">,</span>

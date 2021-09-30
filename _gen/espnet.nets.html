@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets package &mdash; ESPnet 0.10.3a3 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets package &mdash; ESPnet 0.10.3a4 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
@@ -32,7 +32,7 @@
             <a href="../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                0.10.3a3
+                0.10.3a4
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
@@ -669,13 +669,13 @@ For chainer, list of source sequences chainer.Variable</p></li>
 </section>
 <section id="espnet-nets-beam-search-transducer">
 <span id="id3"></span><h2>espnet.nets.beam_search_transducer<a class="headerlink" href="#espnet-nets-beam-search-transducer" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.beam_search_transducer"></span><p>Search algorithms for transducer models.</p>
+<span class="target" id="module-espnet.nets.beam_search_transducer"></span><p>Search algorithms for Transducer models.</p>
 <dl class="class">
 <dt id="espnet.nets.beam_search_transducer.BeamSearchTransducer">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.beam_search_transducer.</code><code class="sig-name descname">BeamSearchTransducer</code><span class="sig-paren">(</span><em class="sig-param">decoder: Union[espnet.nets.pytorch_backend.transducer.rnn_decoder.RNNDecoder, espnet.nets.pytorch_backend.transducer.custom_decoder.CustomDecoder], joint_network: espnet.nets.pytorch_backend.transducer.joint_network.JointNetwork, beam_size: int, lm: torch.nn.modules.module.Module = None, lm_weight: float = 0.1, search_type: str = 'default', max_sym_exp: int = 2, u_max: int = 50, nstep: int = 1, prefix_alpha: int = 1, expansion_gamma: int = 2.3, expansion_beta: int = 2, score_norm: bool = True, softmax_temperature: float = 1.0, nbest: int = 1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/beam_search_transducer.html#BeamSearchTransducer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.beam_search_transducer.BeamSearchTransducer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Beam search implementation for transducer.</p>
-<p>Initialize transducer beam search.</p>
+<p>Beam search implementation for Transducer.</p>
+<p>Initialize Transducer search module.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -754,7 +754,7 @@ For chainer, list of source sequences chainer.Variable</p></li>
 <dt id="espnet.nets.beam_search_transducer.BeamSearchTransducer.modified_adaptive_expansion_search">
 <code class="sig-name descname">modified_adaptive_expansion_search</code><span class="sig-paren">(</span><em class="sig-param">enc_out: torch.Tensor</em><span class="sig-paren">)</span> &#x2192; List[espnet.nets.transducer_decoder_interface.ExtendedHypothesis]<a class="reference internal" href="../_modules/espnet/nets/beam_search_transducer.html#BeamSearchTransducer.modified_adaptive_expansion_search"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.beam_search_transducer.BeamSearchTransducer.modified_adaptive_expansion_search" title="Permalink to this definition">¶</a></dt>
 <dd><p>It’s the modified Adaptive Expansion Search (mAES) implementation.</p>
-<p>Based on/modified from <a class="reference external" href="https://ieeexplore.ieee.org/document/9250505">https://ieeexplore.ieee.org/document/9250505</a></p>
+<p>Based on/modified from <a class="reference external" href="https://ieeexplore.ieee.org/document/9250505">https://ieeexplore.ieee.org/document/9250505</a> and NSC.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><p><strong>enc_out</strong> – Encoder output sequence. (T, D_enc)</p>
@@ -2331,7 +2331,7 @@ Tensor: The sequence of attention weights (L, T).</p>
 <dt id="espnet.nets.transducer_decoder_interface.Hypothesis">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.transducer_decoder_interface.</code><code class="sig-name descname">Hypothesis</code><span class="sig-paren">(</span><em class="sig-param">score: float, yseq: List[int], dec_state: Union[Tuple[torch.Tensor, Optional[torch.Tensor]], List[Optional[torch.Tensor]], torch.Tensor], lm_state: Union[Dict[str, Any], List[Any]] = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/transducer_decoder_interface.html#Hypothesis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.transducer_decoder_interface.Hypothesis" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Default hypothesis definition for transducer search algorithms.</p>
+<p>Default hypothesis definition for Transducer search algorithms.</p>
 <dl class="attribute">
 <dt id="espnet.nets.transducer_decoder_interface.Hypothesis.lm_state">
 <code class="sig-name descname">lm_state</code><em class="property"> = None</em><a class="headerlink" href="#espnet.nets.transducer_decoder_interface.Hypothesis.lm_state" title="Permalink to this definition">¶</a></dt>
@@ -2343,7 +2343,7 @@ Tensor: The sequence of attention weights (L, T).</p>
 <dt id="espnet.nets.transducer_decoder_interface.TransducerDecoderInterface">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.transducer_decoder_interface.</code><code class="sig-name descname">TransducerDecoderInterface</code><a class="reference internal" href="../_modules/espnet/nets/transducer_decoder_interface.html#TransducerDecoderInterface"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.transducer_decoder_interface.TransducerDecoderInterface" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Decoder interface for transducer models.</p>
+<p>Decoder interface for Transducer models.</p>
 <dl class="method">
 <dt id="espnet.nets.transducer_decoder_interface.TransducerDecoderInterface.batch_score">
 <code class="sig-name descname">batch_score</code><span class="sig-paren">(</span><em class="sig-param">hyps: Union[List[espnet.nets.transducer_decoder_interface.Hypothesis], List[espnet.nets.transducer_decoder_interface.ExtendedHypothesis]], dec_states: Union[Tuple[torch.Tensor, Optional[torch.Tensor]], List[Optional[torch.Tensor]]], cache: Dict[str, Any], use_lm: bool</em><span class="sig-paren">)</span> &#x2192; Tuple[torch.Tensor, Union[Tuple[torch.Tensor, Optional[torch.Tensor]], List[Optional[torch.Tensor]]], torch.Tensor]<a class="reference internal" href="../_modules/espnet/nets/transducer_decoder_interface.html#TransducerDecoderInterface.batch_score"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.transducer_decoder_interface.TransducerDecoderInterface.batch_score" title="Permalink to this definition">¶</a></dt>
@@ -2857,7 +2857,7 @@ Tensor: Encoder-decoder (source) attention weights (#layers, #heads, L, T).</p>
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.E2E">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.e2e_asr_transducer.</code><code class="sig-name descname">E2E</code><span class="sig-paren">(</span><em class="sig-param">idim: int</em>, <em class="sig-param">odim: int</em>, <em class="sig-param">args: argparse.Namespace</em>, <em class="sig-param">ignore_id: int = -1</em>, <em class="sig-param">blank_id: int = 0</em>, <em class="sig-param">training: bool = True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#E2E"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.E2E" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#espnet.nets.asr_interface.ASRInterface" title="espnet.nets.asr_interface.ASRInterface"><code class="xref py py-class docutils literal notranslate"><span class="pre">espnet.nets.asr_interface.ASRInterface</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
-<p>E2E module for transducer models.</p>
+<p>E2E module for Transducer models.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -2866,14 +2866,15 @@ Tensor: Encoder-decoder (source) attention weights (#layers, #heads, L, T).</p>
 <li><p><strong>args</strong> – Namespace containing model options.</p></li>
 <li><p><strong>ignore_id</strong> – Padding symbol ID.</p></li>
 <li><p><strong>blank_id</strong> – Blank symbol ID.</p></li>
+<li><p><strong>training</strong> – Whether the model is initialized in training or inference mode.</p></li>
 </ul>
 </dd>
 </dl>
-<p>Construct an E2E object for transducer model.</p>
+<p>Construct an E2E object for Transducer model.</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.add_arguments">
 <em class="property">static </em><code class="sig-name descname">add_arguments</code><span class="sig-paren">(</span><em class="sig-param">parser: argparse.ArgumentParser</em><span class="sig-paren">)</span> &#x2192; argparse.ArgumentParser<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#E2E.add_arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.add_arguments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Add arguments for transducer model.</p>
+<dd><p>Add arguments for Transducer model.</p>
 </dd></dl>
 
 <dl class="method">
@@ -2937,7 +2938,7 @@ Tensor: Encoder-decoder (source) attention weights (#layers, #heads, L, T).</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.default_parameters">
 <code class="sig-name descname">default_parameters</code><span class="sig-paren">(</span><em class="sig-param">args: argparse.Namespace</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#E2E.default_parameters"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.default_parameters" title="Permalink to this definition">¶</a></dt>
-<dd><p>Initialize/reset parameters for transducer.</p>
+<dd><p>Initialize/reset parameters for Transducer.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><p><strong>args</strong> – Namespace containing model options.</p>
@@ -3053,7 +3054,7 @@ Tensor: Encoder-decoder (source) attention weights (#layers, #heads, L, T).</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.transducer_add_arguments">
 <em class="property">static </em><code class="sig-name descname">transducer_add_arguments</code><span class="sig-paren">(</span><em class="sig-param">parser: argparse.ArgumentParser</em><span class="sig-paren">)</span> &#x2192; argparse.ArgumentParser<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#E2E.transducer_add_arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.E2E.transducer_add_arguments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Add arguments for transducer model.</p>
+<dd><p>Add arguments for Transducer model.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3062,11 +3063,25 @@ Tensor: Encoder-decoder (source) attention weights (#layers, #heads, L, T).</p>
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.Reporter">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.e2e_asr_transducer.</code><code class="sig-name descname">Reporter</code><span class="sig-paren">(</span><em class="sig-param">**links</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#Reporter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.Reporter" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">chainer.link.Chain</span></code></p>
-<p>A chainer reporter wrapper for transducer models.</p>
+<p>A chainer reporter wrapper for Transducer models.</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.e2e_asr_transducer.Reporter.report">
 <code class="sig-name descname">report</code><span class="sig-paren">(</span><em class="sig-param">loss: float</em>, <em class="sig-param">loss_trans: float</em>, <em class="sig-param">loss_ctc: float</em>, <em class="sig-param">loss_aux_trans: float</em>, <em class="sig-param">loss_symm_kl_div: float</em>, <em class="sig-param">loss_lm: float</em>, <em class="sig-param">cer: float</em>, <em class="sig-param">wer: float</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/e2e_asr_transducer.html#Reporter.report"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.e2e_asr_transducer.Reporter.report" title="Permalink to this definition">¶</a></dt>
 <dd><p>Instantiate reporter attributes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>loss</strong> – Model loss.</p></li>
+<li><p><strong>loss_trans</strong> – Main Transducer loss.</p></li>
+<li><p><strong>loss_ctc</strong> – CTC loss.</p></li>
+<li><p><strong>loss_aux_trans</strong> – Auxiliary Transducer loss.</p></li>
+<li><p><strong>loss_symm_kl_div</strong> – Symmetric KL-divergence loss.</p></li>
+<li><p><strong>loss_lm</strong> – Label smoothing loss.</p></li>
+<li><p><strong>cer</strong> – Character Error Rate.</p></li>
+<li><p><strong>wer</strong> – Word Error Rate.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
@@ -8105,12 +8120,12 @@ Tensor: Mean square error loss value.</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-custom-decoder">
 <span id="id61"></span><h2>espnet.nets.pytorch_backend.transducer.custom_decoder<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-custom-decoder" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.custom_decoder"></span><p>Custom decoder definition for transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.custom_decoder"></span><p>Custom decoder definition for Transducer model.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.custom_decoder.CustomDecoder">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.custom_decoder.</code><code class="sig-name descname">CustomDecoder</code><span class="sig-paren">(</span><em class="sig-param">odim: int</em>, <em class="sig-param">dec_arch: List</em>, <em class="sig-param">input_layer: str = 'embed'</em>, <em class="sig-param">repeat_block: int = 0</em>, <em class="sig-param">joint_activation_type: str = 'tanh'</em>, <em class="sig-param">positional_encoding_type: str = 'abs_pos'</em>, <em class="sig-param">positionwise_layer_type: str = 'linear'</em>, <em class="sig-param">positionwise_activation_type: str = 'relu'</em>, <em class="sig-param">dropout_rate_embed: float = 0.0</em>, <em class="sig-param">blank_id: int = 0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/custom_decoder.html#CustomDecoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.custom_decoder.CustomDecoder" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#espnet.nets.transducer_decoder_interface.TransducerDecoderInterface" title="espnet.nets.transducer_decoder_interface.TransducerDecoderInterface"><code class="xref py py-class docutils literal notranslate"><span class="pre">espnet.nets.transducer_decoder_interface.TransducerDecoderInterface</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
-<p>Custom decoder module for transducer model.</p>
+<p>Custom decoder module for Transducer model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8118,6 +8133,7 @@ Tensor: Mean square error loss value.</p>
 <li><p><strong>dec_arch</strong> – Decoder block architecture (type and parameters).</p></li>
 <li><p><strong>input_layer</strong> – Input layer type.</p></li>
 <li><p><strong>repeat_block</strong> – Number of times dec_arch is repeated.</p></li>
+<li><p><strong>joint_activation_type</strong> – Type of activation for joint network.</p></li>
 <li><p><strong>positional_encoding_type</strong> – Positional encoding type.</p></li>
 <li><p><strong>positionwise_layer_type</strong> – Positionwise layer type.</p></li>
 <li><p><strong>positionwise_activation_type</strong> – Positionwise activation type.</p></li>
@@ -8531,12 +8547,12 @@ self_attn_class: Self-attention class.</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-rnn-decoder">
 <span id="id65"></span><h2>espnet.nets.pytorch_backend.transducer.rnn_decoder<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-rnn-decoder" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.rnn_decoder"></span><p>RNN decoder definition for transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.rnn_decoder"></span><p>RNN decoder definition for Transducer model.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.rnn_decoder.RNNDecoder">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.rnn_decoder.</code><code class="sig-name descname">RNNDecoder</code><span class="sig-paren">(</span><em class="sig-param">odim: int</em>, <em class="sig-param">dtype: str</em>, <em class="sig-param">dlayers: int</em>, <em class="sig-param">dunits: int</em>, <em class="sig-param">embed_dim: int</em>, <em class="sig-param">dropout_rate: float = 0.0</em>, <em class="sig-param">dropout_rate_embed: float = 0.0</em>, <em class="sig-param">blank_id: int = 0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/rnn_decoder.html#RNNDecoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.rnn_decoder.RNNDecoder" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#espnet.nets.transducer_decoder_interface.TransducerDecoderInterface" title="espnet.nets.transducer_decoder_interface.TransducerDecoderInterface"><code class="xref py py-class docutils literal notranslate"><span class="pre">espnet.nets.transducer_decoder_interface.TransducerDecoderInterface</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
-<p>RNN decoder module for transducer model.</p>
+<p>RNN decoder module for Transducer model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8707,45 +8723,45 @@ label: Label ID for LM. (1,)</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-transducer-tasks">
 <span id="id66"></span><h2>espnet.nets.pytorch_backend.transducer.transducer_tasks<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-transducer-tasks" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.transducer_tasks"></span><p>Module implementing transducer main and auxiliary tasks.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.transducer_tasks"></span><p>Module implementing Transducer main and auxiliary tasks.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.transducer_tasks.</code><code class="sig-name descname">TransducerTasks</code><span class="sig-paren">(</span><em class="sig-param">encoder_dim: int</em>, <em class="sig-param">decoder_dim: int</em>, <em class="sig-param">joint_dim: int</em>, <em class="sig-param">output_dim: int</em>, <em class="sig-param">joint_activation_type: str = 'tanh'</em>, <em class="sig-param">transducer_loss_weight: float = 1.0</em>, <em class="sig-param">ctc_loss: bool = False</em>, <em class="sig-param">ctc_loss_weight: float = 0.5</em>, <em class="sig-param">ctc_loss_dropout_rate: float = 0.0</em>, <em class="sig-param">lm_loss: bool = False</em>, <em class="sig-param">lm_loss_weight: float = 1.0</em>, <em class="sig-param">lm_loss_smoothing_rate: float = 0.0</em>, <em class="sig-param">aux_transducer_loss: bool = False</em>, <em class="sig-param">aux_transducer_loss_weight: float = 0.2</em>, <em class="sig-param">aux_transducer_loss_mlp_dim: int = 320</em>, <em class="sig-param">aux_trans_loss_mlp_dropout_rate: float = 0.0</em>, <em class="sig-param">symm_kl_div_loss: bool = False</em>, <em class="sig-param">symm_kl_div_loss_weight: float = 0.2</em>, <em class="sig-param">fastemit_lambda: float = 0.0</em>, <em class="sig-param">blank_id: int = 0</em>, <em class="sig-param">ignore_id: int = -1</em>, <em class="sig-param">training: bool = False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/transducer_tasks.html#TransducerTasks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
 <p>Transducer tasks module.</p>
-<p>Initialize module for transducer tasks.</p>
+<p>Initialize module for Transducer tasks.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>joint_network</strong> – Joint network module.</p></li>
 <li><p><strong>encoder_dim</strong> – Encoder outputs dimension.</p></li>
 <li><p><strong>decoder_dim</strong> – Decoder outputs dimension.</p></li>
 <li><p><strong>joint_dim</strong> – Joint space dimension.</p></li>
 <li><p><strong>output_dim</strong> – Output dimension.</p></li>
 <li><p><strong>joint_activation_type</strong> – Type of activation for joint network.</p></li>
-<li><p><strong>ctc_loss</strong> – Compute CTC loss.</p></li>
-<li><p><strong>lm_loss</strong> – Compute LM loss.</p></li>
-<li><p><strong>aux_transducer_loss</strong> – Compute auxiliary transducer loss.</p></li>
-<li><p><strong>symm_kl_div_loss</strong> – Compute KL divergence loss.</p></li>
 <li><p><strong>transducer_loss_weight</strong> – Weight for main transducer loss.</p></li>
+<li><p><strong>ctc_loss</strong> – Compute CTC loss.</p></li>
 <li><p><strong>ctc_loss_weight</strong> – Weight of CTC loss.</p></li>
-<li><p><strong>lm_loss_weight</strong> – Weight of LM loss.</p></li>
-<li><p><strong>aux_transducer_loss_weight</strong> – Weight of auxiliary transducer loss.</p></li>
-<li><p><strong>symm_kl_div_loss_weight</strong> – Weight of KL divergence loss.</p></li>
 <li><p><strong>ctc_loss_dropout_rate</strong> – Dropout rate for CTC loss inputs.</p></li>
+<li><p><strong>lm_loss</strong> – Compute LM loss.</p></li>
+<li><p><strong>lm_loss_weight</strong> – Weight of LM loss.</p></li>
 <li><p><strong>lm_loss_smoothing_rate</strong> – Smoothing rate for LM loss’ label smoothing.</p></li>
+<li><p><strong>aux_transducer_loss</strong> – Compute auxiliary transducer loss.</p></li>
+<li><p><strong>aux_transducer_loss_weight</strong> – Weight of auxiliary transducer loss.</p></li>
 <li><p><strong>aux_transducer_loss_mlp_dim</strong> – Hidden dimension for aux. transducer MLP.</p></li>
 <li><p><strong>aux_trans_loss_mlp_dropout_rate</strong> – Dropout rate for aux. transducer MLP.</p></li>
+<li><p><strong>symm_kl_div_loss</strong> – Compute KL divergence loss.</p></li>
+<li><p><strong>symm_kl_div_loss_weight</strong> – Weight of KL divergence loss.</p></li>
 <li><p><strong>fastemit_lambda</strong> – Regularization parameter for FastEmit.</p></li>
 <li><p><strong>blank_id</strong> – Blank symbol ID.</p></li>
 <li><p><strong>ignore_id</strong> – Padding symbol ID.</p></li>
+<li><p><strong>training</strong> – Whether the model was initializated in training or inference mode.</p></li>
 </ul>
 </dd>
 </dl>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.compute_aux_transducer_and_symm_kl_div_losses">
 <code class="sig-name descname">compute_aux_transducer_and_symm_kl_div_losses</code><span class="sig-paren">(</span><em class="sig-param">aux_enc_out: torch.Tensor</em>, <em class="sig-param">dec_out: torch.Tensor</em>, <em class="sig-param">joint_out: torch.Tensor</em>, <em class="sig-param">target: torch.Tensor</em>, <em class="sig-param">aux_t_len: torch.Tensor</em>, <em class="sig-param">u_len: torch.Tensor</em><span class="sig-paren">)</span> &#x2192; Tuple[torch.Tensor, torch.Tensor]<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/transducer_tasks.html#TransducerTasks.compute_aux_transducer_and_symm_kl_div_losses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.compute_aux_transducer_and_symm_kl_div_losses" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute auxiliary transducer loss and Jensen-Shannon divergence loss.</p>
+<dd><p>Compute auxiliary Transducer loss and Jensen-Shannon divergence loss.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8758,7 +8774,7 @@ label: Label ID for LM. (1,)</p>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Auxiliary transducer loss and KL divergence loss values.</p>
+<dd class="field-even"><p>Auxiliary Transducer loss and KL divergence loss values.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -8802,7 +8818,7 @@ label: Label ID for LM. (1,)</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.compute_transducer_loss">
 <code class="sig-name descname">compute_transducer_loss</code><span class="sig-paren">(</span><em class="sig-param">enc_out: torch.Tensor</em>, <em class="sig-param">dec_out: None._VariableFunctionsClass.tensor</em>, <em class="sig-param">target: torch.Tensor</em>, <em class="sig-param">t_len: torch.Tensor</em>, <em class="sig-param">u_len: torch.Tensor</em><span class="sig-paren">)</span> &#x2192; Tuple[torch.Tensor, torch.Tensor]<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/transducer_tasks.html#TransducerTasks.compute_transducer_loss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.compute_transducer_loss" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute transducer loss.</p>
+<dd><p>Compute Transducer loss.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8841,7 +8857,7 @@ Transducer loss value.</p>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p><dl class="simple">
-<dt>Weighted losses.</dt><dd><p>(transducer loss, ctc loss, aux transducer loss, KL div loss, LM loss)</p>
+<dt>Weighted losses.</dt><dd><p>(transducer loss, ctc loss, aux Transducer loss, KL div loss, LM loss)</p>
 </dd>
 </dl>
 <p>cer: Sentence-level CER score.
@@ -8869,7 +8885,7 @@ wer: Sentence-level WER score.</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.get_transducer_tasks_io">
 <code class="sig-name descname">get_transducer_tasks_io</code><span class="sig-paren">(</span><em class="sig-param">labels: torch.Tensor, enc_out_len: torch.Tensor, aux_enc_out_len: Optional[List]</em><span class="sig-paren">)</span> &#x2192; Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/transducer_tasks.html#TransducerTasks.get_transducer_tasks_io"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.transducer_tasks.TransducerTasks.get_transducer_tasks_io" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get transducer tasks inputs and outputs.</p>
+<dd><p>Get Transducer tasks inputs and outputs.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8907,12 +8923,12 @@ u_len: Label lengths. (B,)</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-error-calculator">
 <span id="id67"></span><h2>espnet.nets.pytorch_backend.transducer.error_calculator<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-error-calculator" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.error_calculator"></span><p>CER/WER computation for transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.error_calculator"></span><p>CER/WER computation for Transducer model.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.error_calculator.ErrorCalculator">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.error_calculator.</code><code class="sig-name descname">ErrorCalculator</code><span class="sig-paren">(</span><em class="sig-param">decoder: Union[espnet.nets.pytorch_backend.transducer.rnn_decoder.RNNDecoder, espnet.nets.pytorch_backend.transducer.custom_decoder.CustomDecoder], joint_network: espnet.nets.pytorch_backend.transducer.joint_network.JointNetwork, token_list: List[int], sym_space: str, sym_blank: str, report_cer: bool = False, report_wer: bool = False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/error_calculator.html#ErrorCalculator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.error_calculator.ErrorCalculator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>CER and WER computation for transducer model.</p>
+<p>CER and WER computation for Transducer model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -8926,7 +8942,7 @@ u_len: Label lengths. (B,)</p>
 </ul>
 </dd>
 </dl>
-<p>Construct an ErrorCalculator object for transducer model.</p>
+<p>Construct an ErrorCalculator object for Transducer model.</p>
 <dl class="method">
 <dt id="espnet.nets.pytorch_backend.transducer.error_calculator.ErrorCalculator.calculate_cer">
 <code class="sig-name descname">calculate_cer</code><span class="sig-paren">(</span><em class="sig-param">hyps: torch.Tensor</em>, <em class="sig-param">refs: torch.Tensor</em><span class="sig-paren">)</span> &#x2192; float<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/error_calculator.html#ErrorCalculator.calculate_cer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.error_calculator.ErrorCalculator.calculate_cer" title="Permalink to this definition">¶</a></dt>
@@ -9094,13 +9110,13 @@ char_hyps: Character list of references.</p>
 <dl class="function">
 <dt id="espnet.nets.pytorch_backend.transducer.arguments.add_transducer_arguments">
 <code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.arguments.</code><code class="sig-name descname">add_transducer_arguments</code><span class="sig-paren">(</span><em class="sig-param">group: argparse._ArgumentGroup</em><span class="sig-paren">)</span> &#x2192; argparse._ArgumentGroup<a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/arguments.html#add_transducer_arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.arguments.add_transducer_arguments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Define general arguments for transducer model.</p>
+<dd><p>Define general arguments for Transducer model.</p>
 </dd></dl>
 
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-utils">
 <span id="id70"></span><h2>espnet.nets.pytorch_backend.transducer.utils<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-utils" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.utils"></span><p>Utility functions for transducer models.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.utils"></span><p>Utility functions for Transducer models.</p>
 <dl class="function">
 <dt id="espnet.nets.pytorch_backend.transducer.utils.check_batch_states">
 <code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.utils.</code><code class="sig-name descname">check_batch_states</code><span class="sig-paren">(</span><em class="sig-param">states</em>, <em class="sig-param">max_len</em>, <em class="sig-param">pad_id</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/utils.html#check_batch_states"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.utils.check_batch_states" title="Permalink to this definition">¶</a></dt>
@@ -9167,7 +9183,7 @@ char_hyps: Character list of references.</p>
 <dl class="function">
 <dt id="espnet.nets.pytorch_backend.transducer.utils.custom_torch_load">
 <code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.utils.</code><code class="sig-name descname">custom_torch_load</code><span class="sig-paren">(</span><em class="sig-param">model_path: str</em>, <em class="sig-param">model: torch.nn.modules.module.Module</em>, <em class="sig-param">training: bool = True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/utils.html#custom_torch_load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.utils.custom_torch_load" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load transducer model with training-only modules and parameters removed.</p>
+<dd><p>Load Transducer model with training-only modules and parameters removed.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -9482,24 +9498,29 @@ pos_emb: Output positional embedding.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>sequence</strong> – TDNN input sequences.
-(B, T, D_in) or ((B, T, D_in), (B, T, D_att))
-or ((B, T, D_in), (B, 2 * (T - 1), D_att))</p></li>
+<li><p><strong>sequence</strong> – <p>TDNN input sequences.
+(B, T, D_in) or ((B, T, D_in), (B, T, D_att))</p>
+<blockquote>
+<div><p>or ((B, T, D_in), (B, 2 * (T - 1), D_att))</p>
+</div></blockquote>
+</p></li>
 <li><p><strong>mask</strong> – Mask of TDNN input sequences. (B, 1, T)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p><dl class="simple">
-<dt>TDNN output sequences.</dt><dd><p>(B, sub(T), D_out)
-or ((B, sub(T), D_out), (B, sub(T), att_dim))
+<dt>TDNN output sequences.</dt><dd><dl class="simple">
+<dt>(B, sub(T), D_out)</dt><dd><p>or ((B, sub(T), D_out), (B, sub(T), att_dim))
 or ((B, T, D_out), (B, 2 * (sub(T) - 1), D_att)</p>
+</dd>
+</dl>
 </dd>
 </dl>
 <p>mask: Mask of TDNN output sequences. (B, 1, sub(T))</p>
 </p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>sequenceput</p>
+<dd class="field-odd"><p>sequence</p>
 </dd>
 </dl>
 </dd></dl>
@@ -9509,11 +9530,11 @@ or ((B, T, D_out), (B, 2 * (sub(T) - 1), D_att)</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-initializer">
 <span id="id74"></span><h2>espnet.nets.pytorch_backend.transducer.initializer<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-initializer" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.initializer"></span><p>Parameter initialization for transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.initializer"></span><p>Parameter initialization for Transducer model.</p>
 <dl class="function">
 <dt id="espnet.nets.pytorch_backend.transducer.initializer.initializer">
 <code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.initializer.</code><code class="sig-name descname">initializer</code><span class="sig-paren">(</span><em class="sig-param">model: torch.nn.modules.module.Module</em>, <em class="sig-param">args: argparse.Namespace</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/initializer.html#initializer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.initializer.initializer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Initialize transducer model.</p>
+<dd><p>Initialize Transducer model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
@@ -9527,11 +9548,11 @@ or ((B, T, D_out), (B, 2 * (sub(T) - 1), D_att)</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-rnn-encoder">
 <span id="id75"></span><h2>espnet.nets.pytorch_backend.transducer.rnn_encoder<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-rnn-encoder" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.rnn_encoder"></span><p>RNN encoder implementation for transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.rnn_encoder"></span><p>RNN encoder implementation for Transducer model.</p>
 <p>These classes are based on the ones in espnet.nets.pytorch_backend.rnn.encoders,
 and modified to output intermediate representation based given list of layers as input.
 To do so, RNN class rely on a stack of 1-layer LSTM instead of a multi-layer LSTM.
-The additional outputs are intended to be used with transducer auxiliary tasks.</p>
+The additional outputs are intended to be used with Transducer auxiliary tasks.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.rnn_encoder.Encoder">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.rnn_encoder.</code><code class="sig-name descname">Encoder</code><span class="sig-paren">(</span><em class="sig-param">idim: int</em>, <em class="sig-param">etype: str</em>, <em class="sig-param">elayers: int</em>, <em class="sig-param">eunits: int</em>, <em class="sig-param">eprojs: int</em>, <em class="sig-param">subsample: numpy.ndarray</em>, <em class="sig-param">dropout_rate: float = 0.0</em>, <em class="sig-param">aux_enc_output_layers: List = []</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/rnn_encoder.html#Encoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.rnn_encoder.Encoder" title="Permalink to this definition">¶</a></dt>
@@ -9754,12 +9775,12 @@ vgg_out_len: VGG2L output sequences lengths. (B,)</p>
 </section>
 <section id="espnet-nets-pytorch-backend-transducer-transformer-decoder-layer">
 <span id="id76"></span><h2>espnet.nets.pytorch_backend.transducer.transformer_decoder_layer<a class="headerlink" href="#espnet-nets-pytorch-backend-transducer-transformer-decoder-layer" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-espnet.nets.pytorch_backend.transducer.transformer_decoder_layer"></span><p>Transformer decoder layer definition for custom transducer model.</p>
+<span class="target" id="module-espnet.nets.pytorch_backend.transducer.transformer_decoder_layer"></span><p>Transformer decoder layer definition for custom Transducer model.</p>
 <dl class="class">
 <dt id="espnet.nets.pytorch_backend.transducer.transformer_decoder_layer.TransformerDecoderLayer">
 <em class="property">class </em><code class="sig-prename descclassname">espnet.nets.pytorch_backend.transducer.transformer_decoder_layer.</code><code class="sig-name descname">TransformerDecoderLayer</code><span class="sig-paren">(</span><em class="sig-param">hdim: int</em>, <em class="sig-param">self_attention: espnet.nets.pytorch_backend.transformer.attention.MultiHeadedAttention</em>, <em class="sig-param">feed_forward: espnet.nets.pytorch_backend.transformer.positionwise_feed_forward.PositionwiseFeedForward</em>, <em class="sig-param">dropout_rate: float</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet/nets/pytorch_backend/transducer/transformer_decoder_layer.html#TransformerDecoderLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet.nets.pytorch_backend.transducer.transformer_decoder_layer.TransformerDecoderLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
-<p>Transformer decoder layer module for custom transducer model.</p>
+<p>Transformer decoder layer module for custom Transducer model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">

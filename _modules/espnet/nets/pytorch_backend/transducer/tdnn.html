@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets.pytorch_backend.transducer.tdnn &mdash; ESPnet 0.10.3a3 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets.pytorch_backend.transducer.tdnn &mdash; ESPnet 0.10.3a4 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../../../_static/js/html5shiv.min.js"></script>
@@ -29,7 +29,7 @@
             <a href="../../../../../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                0.10.3a3
+                0.10.3a4
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../../search.html" method="get">
@@ -191,14 +191,14 @@
 <span class="sd">        Args:</span>
 <span class="sd">            sequence: TDNN input sequences.</span>
 <span class="sd">                        (B, T, D_in) or ((B, T, D_in), (B, T, D_att))</span>
-<span class="sd">                        or ((B, T, D_in), (B, 2 * (T - 1), D_att))</span>
+<span class="sd">                          or ((B, T, D_in), (B, 2 * (T - 1), D_att))</span>
 <span class="sd">            mask: Mask of TDNN input sequences. (B, 1, T)</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            sequenceput: TDNN output sequences.</span>
-<span class="sd">                         (B, sub(T), D_out)</span>
-<span class="sd">                         or ((B, sub(T), D_out), (B, sub(T), att_dim))</span>
-<span class="sd">                         or ((B, T, D_out), (B, 2 * (sub(T) - 1), D_att)</span>
+<span class="sd">            sequence: TDNN output sequences.</span>
+<span class="sd">                        (B, sub(T), D_out)</span>
+<span class="sd">                          or ((B, sub(T), D_out), (B, sub(T), att_dim))</span>
+<span class="sd">                          or ((B, T, D_out), (B, 2 * (sub(T) - 1), D_att)</span>
 <span class="sd">            mask: Mask of TDNN output sequences. (B, 1, sub(T))</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
