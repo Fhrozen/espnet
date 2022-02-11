@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets.pytorch_backend.transformer.contextual_block_encoder_layer &mdash; ESPnet 0.10.6a1 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets.pytorch_backend.transformer.contextual_block_encoder_layer &mdash; ESPnet 0.10.7a1 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../../../_static/js/html5shiv.min.js"></script>
@@ -29,7 +29,7 @@
             <a href="../../../../../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                0.10.6a1
+                0.10.7a1
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../../search.html" method="get">
@@ -283,7 +283,7 @@
             <span class="n">next_ctx</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
             <span class="n">next_ctx</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
 
-        <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">next_ctx</span><span class="p">,</span> <span class="n">next_ctx</span><span class="p">,</span> <span class="n">layer_idx</span></div>
+        <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">next_ctx</span><span class="p">,</span> <span class="n">next_ctx</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">layer_idx</span></div>
 
 <div class="viewcode-block" id="ContextualBlockEncoderLayer.forward_infer"><a class="viewcode-back" href="../../../../../_gen/espnet.nets.html#espnet.nets.pytorch_backend.transformer.contextual_block_encoder_layer.ContextualBlockEncoderLayer.forward_infer">[docs]</a>    <span class="k">def</span> <span class="nf">forward_infer</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
