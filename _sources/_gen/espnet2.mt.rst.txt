@@ -15,6 +15,17 @@ espnet2.mt.espnet_model
     :show-inheritance:
 
 
+.. _espnet2.mt.__init__:
+
+espnet2.mt.__init__
+-------------------
+
+.. automodule:: espnet2.mt.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. _espnet2.mt.frontend.embedding:
 
 espnet2.mt.frontend.embedding
