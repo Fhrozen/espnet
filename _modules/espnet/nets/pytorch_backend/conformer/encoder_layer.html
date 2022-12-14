@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet.nets.pytorch_backend.conformer.encoder_layer &mdash; ESPnet 202209 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
+  <title>espnet.nets.pytorch_backend.conformer.encoder_layer &mdash; ESPnet 202211 documentation</title><link rel="stylesheet" href="../../../../../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../../../../../_static/js/html5shiv.min.js"></script>
@@ -29,7 +29,7 @@
             <a href="../../../../../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                202209
+                202211
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../../../search.html" method="get">
@@ -253,12 +253,12 @@
 <span class="sd">            x_input (Union[Tuple, torch.Tensor]): Input tensor w/ or w/o pos emb.</span>
 <span class="sd">                - w/ pos emb: Tuple of tensors [(#batch, time, size), (1, time, size)].</span>
 <span class="sd">                - w/o pos emb: Tensor (#batch, time, size).</span>
-<span class="sd">            mask (torch.Tensor): Mask tensor for the input (#batch, time).</span>
+<span class="sd">            mask (torch.Tensor): Mask tensor for the input (#batch, 1, time).</span>
 <span class="sd">            cache (torch.Tensor): Cache tensor of the input (#batch, time - 1, size).</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            torch.Tensor: Output tensor (#batch, time, size).</span>
-<span class="sd">            torch.Tensor: Mask tensor (#batch, time).</span>
+<span class="sd">            torch.Tensor: Mask tensor (#batch, 1, time).</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x_input</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>

@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>core tools (espnet2) &mdash; ESPnet 202209 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <title>core tools (espnet2) &mdash; ESPnet 202211 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
@@ -32,7 +32,7 @@
             <a href="../index.html" class="icon icon-home"> ESPnet
           </a>
               <div class="version">
-                202209
+                202211
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
@@ -674,7 +674,7 @@ Text converter related:
                     [--model_conf MODEL_CONF]
                     [--preencoder {sinc,linear,None}]
                     [--preencoder_conf PREENCODER_CONF]
-                    [--encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer}]
+                    [--encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer,e_branchformer}]
                     [--encoder_conf ENCODER_CONF]
                     [--postencoder {hugging_face_transformers,None}]
                     [--postencoder_conf POSTENCODER_CONF]
@@ -905,11 +905,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -1070,7 +1071,7 @@ Optimizer related:
                         The preencoder type (default: None)
   --preencoder_conf PREENCODER_CONF
                         The keyword arguments for preencoder (default: {})
-  --encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer}
+  --encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer,e_branchformer}
                         The encoder type (default: rnn)
   --encoder_conf ENCODER_CONF
                         The keyword arguments for encoder (default: {})
@@ -1526,11 +1527,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -2082,11 +2084,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -2433,7 +2436,7 @@ SeparateSpeech related:
                         [--normalize_conf NORMALIZE_CONF]
                         [--asr_preencoder {sinc,linear,None}]
                         [--asr_preencoder_conf ASR_PREENCODER_CONF]
-                        [--asr_encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer}]
+                        [--asr_encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer,e_branchformer}]
                         [--asr_encoder_conf ASR_ENCODER_CONF]
                         [--asr_postencoder {hugging_face_transformers,None}]
                         [--asr_postencoder_conf ASR_POSTENCODER_CONF]
@@ -2686,11 +2689,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -2876,7 +2880,7 @@ Optimizer related:
                         The asr_preencoder type (default: None)
   --asr_preencoder_conf ASR_PREENCODER_CONF
                         The keyword arguments for asr_preencoder (default: {})
-  --asr_encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer}
+  --asr_encoder {conformer,transformer,transformer_multispkr,contextual_block_transformer,contextual_block_conformer,vgg_rnn,rnn,wav2vec2,hubert,hubert_pretrain,longformer,branchformer,e_branchformer}
                         The asr_encoder type (default: rnn)
   --asr_encoder_conf ASR_ENCODER_CONF
                         The keyword arguments for asr_encoder (default: {})
@@ -3287,11 +3291,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -3788,11 +3793,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -4281,11 +4287,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -4872,11 +4879,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -5410,11 +5418,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -6020,11 +6029,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
@@ -6689,11 +6699,12 @@ Dataset related:
                            utterance_id_b b.wav
                            ...
 
-                        &quot;midi&quot;:
-                        MIDI format types which supported by sndfile mid, midi, etc.
+                        &quot;score&quot;:
+                        Return text as is. The text contains tempo and note info.
+                        For each note, &#39;start&#39; &#39;end&#39; &#39;syllabel&#39; &#39;midi&#39; and &#39;phones&#39; are included.
 
-                           utterance_id_a a.mid
-                           utterance_id_b b.mid
+                           utterance_id_A tempo_a start_1 end_1 syllable_1 midi_1 phones_1 ...
+                           utterance_id_B tempo_b start_1 end_1 syllable_1 midi_1 phones_1 ...
                            ...
 
                         &quot;duration&quot;:
