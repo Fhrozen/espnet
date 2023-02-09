@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>espnet2.optimizers package &mdash; ESPnet 202211 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <title>espnet2.optimizers package &mdash; ESPnet 202301 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
@@ -29,14 +29,18 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> ESPnet
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            ESPnet
           </a>
               <div class="version">
-                202211
+                202301
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search docs" />
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -62,6 +66,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../notebook/asr_cli.html">Speech Recognition (Recipe)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../notebook/asr_library.html">Speech Recognition (Library)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebook/espnet2_2pass_slu_demo.html">ESPNET 2 pass SLU Demonstration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../notebook/espnet2_asr_realtime_demo.html">ESPnet2-ASR realtime demonstration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../notebook/espnet2_asr_transfer_learning_demo.html"><strong>Use transfer learning for ASR in ESPnet2</strong></a></li>
 <li class="toctree-l1"><a class="reference internal" href="../notebook/espnet2_asr_transfer_learning_demo.html#Abstract">Abstract</a></li>
@@ -122,9 +127,9 @@
 <li class="toctree-l1"><a class="reference internal" href="espnet2.text.html">espnet2.text package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.fst.html">espnet2.fst package</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">espnet2.optimizers package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-sgd">espnet2.optimizers.sgd</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-optim-groups">espnet2.optimizers.optim_groups</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-init">espnet2.optimizers.__init__</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-sgd-1">espnet2.optimizers.sgd</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-optim-groups-1">espnet2.optimizers.optim_groups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#espnet2-optimizers-init-1">espnet2.optimizers.__init__</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.tasks.html">espnet2.tasks package</a></li>
@@ -132,6 +137,7 @@
 <li class="toctree-l1"><a class="reference internal" href="espnet2.slu.html">espnet2.slu package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.schedulers.html">espnet2.schedulers package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.utils.html">espnet2.utils package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="espnet2.uasr.html">espnet2.uasr package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.lm.html">espnet2.lm package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.layers.html">espnet2.layers package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="espnet2.gan_svs.html">espnet2.gan_svs package</a></li>
@@ -165,7 +171,7 @@
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a></li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
       <li class="breadcrumb-item active">espnet2.optimizers package</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/_gen/espnet2.optimizers.rst.txt" rel="nofollow"> View page source</a>
@@ -202,8 +208,8 @@
 </style>
 <section id="espnet2-optimizers-package">
 <h1>espnet2.optimizers package<a class="headerlink" href="#espnet2-optimizers-package" title="Permalink to this headline">¶</a></h1>
-<section id="espnet2-optimizers-sgd">
-<span id="id1"></span><h2>espnet2.optimizers.sgd<a class="headerlink" href="#espnet2-optimizers-sgd" title="Permalink to this headline">¶</a></h2>
+<section id="espnet2-optimizers-sgd-1">
+<span id="espnet2-optimizers-sgd"></span><h2>espnet2.optimizers.sgd<a class="headerlink" href="#espnet2-optimizers-sgd-1" title="Permalink to this headline">¶</a></h2>
 <span class="target" id="module-espnet2.optimizers.sgd"></span><dl class="class">
 <dt id="espnet2.optimizers.sgd.SGD">
 <em class="property">class </em><code class="sig-prename descclassname">espnet2.optimizers.sgd.</code><code class="sig-name descname">SGD</code><span class="sig-paren">(</span><em class="sig-param">params</em>, <em class="sig-param">lr: float = 0.1</em>, <em class="sig-param">momentum: float = 0.0</em>, <em class="sig-param">dampening: float = 0.0</em>, <em class="sig-param">weight_decay: float = 0.0</em>, <em class="sig-param">nesterov: bool = False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet2/optimizers/sgd.html#SGD"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet2.optimizers.sgd.SGD" title="Permalink to this definition">¶</a></dt>
@@ -216,8 +222,8 @@ must have default value except for ‘param’.</p>
 </dd></dl>
 
 </section>
-<section id="espnet2-optimizers-optim-groups">
-<span id="id2"></span><h2>espnet2.optimizers.optim_groups<a class="headerlink" href="#espnet2-optimizers-optim-groups" title="Permalink to this headline">¶</a></h2>
+<section id="espnet2-optimizers-optim-groups-1">
+<span id="espnet2-optimizers-optim-groups"></span><h2>espnet2.optimizers.optim_groups<a class="headerlink" href="#espnet2-optimizers-optim-groups-1" title="Permalink to this headline">¶</a></h2>
 <span class="target" id="module-espnet2.optimizers.optim_groups"></span><dl class="function">
 <dt id="espnet2.optimizers.optim_groups.add_optimizer_hooks">
 <code class="sig-prename descclassname">espnet2.optimizers.optim_groups.</code><code class="sig-name descname">add_optimizer_hooks</code><span class="sig-paren">(</span><em class="sig-param">model</em>, <em class="sig-param">bias_weight_decay=False</em>, <em class="sig-param">normalization_weight_decay=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/espnet2/optimizers/optim_groups.html#add_optimizer_hooks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#espnet2.optimizers.optim_groups.add_optimizer_hooks" title="Permalink to this definition">¶</a></dt>
@@ -234,8 +240,8 @@ for normalization parameters if normalization_weight_decay==False</p>
 <dd></dd></dl>
 
 </section>
-<section id="espnet2-optimizers-init">
-<span id="id3"></span><h2>espnet2.optimizers.__init__<a class="headerlink" href="#espnet2-optimizers-init" title="Permalink to this headline">¶</a></h2>
+<section id="espnet2-optimizers-init-1">
+<span id="espnet2-optimizers-init"></span><h2>espnet2.optimizers.__init__<a class="headerlink" href="#espnet2-optimizers-init-1" title="Permalink to this headline">¶</a></h2>
 <span class="target" id="module-espnet2.optimizers.__init__"></span></section>
 </section>
 

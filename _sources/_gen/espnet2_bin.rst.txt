@@ -320,6 +320,7 @@ asr_train.py
                         [--noise_apply_prob NOISE_APPLY_PROB]
                         [--noise_db_range NOISE_DB_RANGE]
                         [--short_noise_thres SHORT_NOISE_THRES]
+                        [--aux_ctc_tasks AUX_CTC_TASKS [AUX_CTC_TASKS ...]]
                         [--frontend {default,sliding_window,s3prl,fused,whisper}]
                         [--frontend_conf FRONTEND_CONF] [--specaug {specaug,None}]
                         [--specaug_conf SPECAUG_CONF]
@@ -333,7 +334,7 @@ asr_train.py
                         [--encoder_conf ENCODER_CONF]
                         [--postencoder {hugging_face_transformers,None}]
                         [--postencoder_conf POSTENCODER_CONF]
-                        [--decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4}]
+                        [--decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4,None}]
                         [--decoder_conf DECODER_CONF]
                         [--preprocessor {default,multi}]
                         [--preprocessor_conf PREPROCESSOR_CONF]
@@ -624,6 +625,13 @@ asr_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -710,6 +718,8 @@ asr_train.py
                             The range of noise decibel level. (default: 13_15)
       --short_noise_thres SHORT_NOISE_THRES
                             If len(noise) / len(speech) is smaller than this threshold during dynamic mixing, a warning will be displayed. (default: 0.5)
+      --aux_ctc_tasks AUX_CTC_TASKS [AUX_CTC_TASKS ...]
+                            Auxillary tasks to train on using CTC loss.  (default: [])
       --frontend {default,sliding_window,s3prl,fused,whisper}
                             The frontend type (default: default)
       --frontend_conf FRONTEND_CONF
@@ -738,7 +748,7 @@ asr_train.py
                             The postencoder type (default: None)
       --postencoder_conf POSTENCODER_CONF
                             The keyword arguments for postencoder (default: {})
-      --decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4}
+      --decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4,None}
                             The decoder type (default: rnn)
       --decoder_conf DECODER_CONF
                             The keyword arguments for decoder (default: {})
@@ -1254,6 +1264,13 @@ asr_transducer_train.py
                             
                                utterance_id_A hello world
                                utterance_id_B foo bar
+                               ...
+                            
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
                                ...
                             
                             "hdf5":
@@ -1823,6 +1840,13 @@ diar_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -2125,7 +2149,7 @@ enh_s2t_train.py
                             [--asr_encoder_conf ASR_ENCODER_CONF]
                             [--asr_postencoder {hugging_face_transformers,None}]
                             [--asr_postencoder_conf ASR_POSTENCODER_CONF]
-                            [--asr_decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4}]
+                            [--asr_decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4,None}]
                             [--asr_decoder_conf ASR_DECODER_CONF]
                             [--st_preencoder {sinc,linear,None}]
                             [--st_preencoder_conf ST_PREENCODER_CONF]
@@ -2438,6 +2462,13 @@ enh_s2t_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -2508,7 +2539,7 @@ enh_s2t_train.py
       --enh_model_conf ENH_MODEL_CONF
                             The keyword arguments for enh submodel class. (default: {'stft_consistency': False, 'loss_type': 'mask_mse', 'mask_type': None})
       --asr_model_conf ASR_MODEL_CONF
-                            The keyword arguments for asr submodel class. (default: {'ctc_weight': 0.5, 'interctc_weight': 0.0, 'ignore_id': -1, 'lsm_weight': 0.0, 'length_normalized_loss': False, 'report_cer': True, 'report_wer': True, 'sym_space': '<space>', 'sym_blank': '<blank>', 'sym_sos': '<sos/eos>', 'sym_eos': '<sos/eos>', 'extract_feats_in_collect_stats': True, 'lang_token_id': -1})
+                            The keyword arguments for asr submodel class. (default: {'aux_ctc': None, 'ctc_weight': 0.5, 'interctc_weight': 0.0, 'ignore_id': -1, 'lsm_weight': 0.0, 'length_normalized_loss': False, 'report_cer': True, 'report_wer': True, 'sym_space': '<space>', 'sym_blank': '<blank>', 'sym_sos': '<sos/eos>', 'sym_eos': '<sos/eos>', 'extract_feats_in_collect_stats': True, 'lang_token_id': -1})
       --st_model_conf ST_MODEL_CONF
                             The keyword arguments for st submodel class. (default: {'stft_consistency': False, 'loss_type': 'mask_mse', 'mask_type': None})
       --diar_model_conf DIAR_MODEL_CONF
@@ -2577,7 +2608,7 @@ enh_s2t_train.py
                             The asr_postencoder type (default: None)
       --asr_postencoder_conf ASR_POSTENCODER_CONF
                             The keyword arguments for asr_postencoder (default: {})
-      --asr_decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4}
+      --asr_decoder {transformer,lightweight_conv,lightweight_conv2d,dynamic_conv,dynamic_conv2d,rnn,transducer,mlm,whisper,hugging_face_transformers,s4,None}
                             The asr_decoder type (default: rnn)
       --asr_decoder_conf ASR_DECODER_CONF
                             The keyword arguments for asr_decoder (default: {})
@@ -3048,6 +3079,13 @@ enh_train.py
                             
                                utterance_id_A hello world
                                utterance_id_B foo bar
+                               ...
+                            
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
                                ...
                             
                             "hdf5":
@@ -3634,6 +3672,13 @@ enh_tse_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -4146,6 +4191,13 @@ gan_svs_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -4650,6 +4702,13 @@ gan_tts_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -5150,6 +5209,13 @@ hubert_train.py
                             
                                utterance_id_A hello world
                                utterance_id_B foo bar
+                               ...
+                            
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
                                ...
                             
                             "hdf5":
@@ -5764,6 +5830,13 @@ lm_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -6311,6 +6384,13 @@ mt_train.py
                             
                                utterance_id_A hello world
                                utterance_id_B foo bar
+                               ...
+                            
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
                                ...
                             
                             "hdf5":
@@ -6938,6 +7018,13 @@ st_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -7068,67 +7155,6 @@ st_train.py
                             The extra_mt_decoder type (default: rnn)
       --extra_mt_decoder_conf EXTRA_MT_DECODER_CONF
                             The keyword arguments for extra_mt_decoder (default: {})
-.. _tokenize_text.py:
-
-tokenize_text.py
-~~~~~~~~~~~~~~~~
-
-.. code-block:: none
-
-    usage: tokenize_text.py [-h]
-                            [--log_level {CRITICAL,ERROR,WARNING,INFO,DEBUG,NOTSET}]
-                            --input INPUT --output OUTPUT [--field FIELD]
-                            [--token_type {char,bpe,word,phn}]
-                            [--delimiter DELIMITER] [--space_symbol SPACE_SYMBOL]
-                            [--bpemodel BPEMODEL]
-                            [--non_linguistic_symbols NON_LINGUISTIC_SYMBOLS]
-                            [--remove_non_linguistic_symbols REMOVE_NON_LINGUISTIC_SYMBOLS]
-                            [--cleaner {None,tacotron,jaconv,vietnamese,korean_cleaner,whisper_en,whisper_basic}]
-                            [--g2p {None,g2p_en,g2p_en_no_space,pyopenjtalk,pyopenjtalk_kana,pyopenjtalk_accent,pyopenjtalk_accent_with_pause,pyopenjtalk_prosody,pypinyin_g2p,pypinyin_g2p_phone,pypinyin_g2p_phone_without_prosody,espeak_ng_arabic,espeak_ng_german,espeak_ng_french,espeak_ng_spanish,espeak_ng_russian,espeak_ng_greek,espeak_ng_finnish,espeak_ng_hungarian,espeak_ng_dutch,espeak_ng_english_us_vits,espeak_ng_hindi,espeak_ng_italian,espeak_ng_ukrainian,espeak_ng_polish,g2pk,g2pk_no_space,g2pk_explicit_space,korean_jaso,korean_jaso_no_space,g2p_is}]
-                            [--write_vocabulary WRITE_VOCABULARY]
-                            [--vocabulary_size VOCABULARY_SIZE] [--cutoff CUTOFF]
-                            [--add_symbol ADD_SYMBOL]
-    
-    Tokenize texts
-    
-    optional arguments:
-      --log_level {CRITICAL,ERROR,WARNING,INFO,DEBUG,NOTSET}
-                            The verbose level of logging (default: INFO)
-      --input INPUT, -i INPUT
-                            Input text. - indicates sys.stdin (default: None)
-      --output OUTPUT, -o OUTPUT
-                            Output text. - indicates sys.stdout (default: None)
-      --field FIELD, -f FIELD
-                            The target columns of the input text as 1-based
-                            integer. e.g 2- (default: None)
-      --token_type {char,bpe,word,phn}, -t {char,bpe,word,phn}
-                            Token type (default: char)
-      --delimiter DELIMITER, -d DELIMITER
-                            The delimiter (default: None)
-      --space_symbol SPACE_SYMBOL
-                            The space symbol (default: <space>)
-      --bpemodel BPEMODEL   The bpemodel file path (default: None)
-      --non_linguistic_symbols NON_LINGUISTIC_SYMBOLS
-                            non_linguistic_symbols file path (default: None)
-      --remove_non_linguistic_symbols REMOVE_NON_LINGUISTIC_SYMBOLS
-                            Remove non-language-symbols from tokens (default:
-                            False)
-      --cleaner {None,tacotron,jaconv,vietnamese,korean_cleaner,whisper_en,whisper_basic}
-                            Apply text cleaning (default: None)
-      --g2p {None,g2p_en,g2p_en_no_space,pyopenjtalk,pyopenjtalk_kana,pyopenjtalk_accent,pyopenjtalk_accent_with_pause,pyopenjtalk_prosody,pypinyin_g2p,pypinyin_g2p_phone,pypinyin_g2p_phone_without_prosody,espeak_ng_arabic,espeak_ng_german,espeak_ng_french,espeak_ng_spanish,espeak_ng_russian,espeak_ng_greek,espeak_ng_finnish,espeak_ng_hungarian,espeak_ng_dutch,espeak_ng_english_us_vits,espeak_ng_hindi,espeak_ng_italian,espeak_ng_ukrainian,espeak_ng_polish,g2pk,g2pk_no_space,g2pk_explicit_space,korean_jaso,korean_jaso_no_space,g2p_is}
-                            Specify g2p method if --token_type=phn (default: None)
-    
-    write_vocabulary mode related:
-      --write_vocabulary WRITE_VOCABULARY
-                            Write tokens list instead of tokenized text per line
-                            (default: False)
-      --vocabulary_size VOCABULARY_SIZE
-                            Vocabulary size (default: 0)
-      --cutoff CUTOFF       cut-off frequency used for write-vocabulary mode
-                            (default: 0)
-      --add_symbol ADD_SYMBOL
-                            Append symbol e.g. --add_symbol '<blank>:0'
-                            --add_symbol '<unk>:1' (default: [])
 .. _tts_inference.py:
 
 tts_inference.py
@@ -7320,7 +7346,7 @@ tts_train.py
                         [--feats_extract_conf FEATS_EXTRACT_CONF]
                         [--normalize {global_mvn,None}]
                         [--normalize_conf NORMALIZE_CONF]
-                        [--tts {tacotron2,transformer,fastspeech,fastspeech2,vits,joint_text2wav,jets}]
+                        [--tts {tacotron2,transformer,fastspeech,fastspeech2,prodiff,vits,joint_text2wav,jets}]
                         [--tts_conf TTS_CONF] [--pitch_extract {dio,None}]
                         [--pitch_extract_conf PITCH_EXTRACT_CONF]
                         [--pitch_normalize {global_mvn,None}]
@@ -7620,6 +7646,13 @@ tts_train.py
                                utterance_id_B foo bar
                                ...
                             
+                            "random_text":
+                            Return text as is. The text must be converted to ndarray by 'preprocess'.
+                            
+                               hello world
+                               foo bar
+                               ...
+                            
                             "hdf5":
                             A HDF5 file which contains arrays at the first level or the second level.   >>> f = h5py.File('file.h5')
                                >>> array1 = f['utterance_id_A']
@@ -7693,7 +7726,7 @@ tts_train.py
                             The normalize type (default: global_mvn)
       --normalize_conf NORMALIZE_CONF
                             The keyword arguments for normalize (default: {})
-      --tts {tacotron2,transformer,fastspeech,fastspeech2,vits,joint_text2wav,jets}
+      --tts {tacotron2,transformer,fastspeech,fastspeech2,prodiff,vits,joint_text2wav,jets}
                             The tts type (default: tacotron2)
       --tts_conf TTS_CONF   The keyword arguments for tts (default: {})
       --pitch_extract {dio,None}
