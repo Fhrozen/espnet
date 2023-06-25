@@ -4,12 +4,12 @@ espnet.transform package
 Initialize main package.
 
 
-.. _espnet.transform.spec_augment:
+.. _espnet.transform.__init__:
 
-espnet.transform.spec_augment
------------------------------
+espnet.transform.__init__
+-------------------------
 
-.. automodule:: espnet.transform.spec_augment
+.. automodule:: espnet.transform.__init__
     :members:
     :undoc-members:
     :show-inheritance:
@@ -26,28 +26,6 @@ espnet.transform.transform_interface
     :show-inheritance:
 
 
-.. _espnet.transform.spectrogram:
-
-espnet.transform.spectrogram
-----------------------------
-
-.. automodule:: espnet.transform.spectrogram
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.transform.functional:
-
-espnet.transform.functional
----------------------------
-
-.. automodule:: espnet.transform.functional
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
 .. _espnet.transform.transformation:
 
 espnet.transform.transformation
@@ -59,23 +37,12 @@ espnet.transform.transformation
     :show-inheritance:
 
 
-.. _espnet.transform.wpe:
+.. _espnet.transform.add_deltas:
 
-espnet.transform.wpe
---------------------
+espnet.transform.add_deltas
+---------------------------
 
-.. automodule:: espnet.transform.wpe
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.transform.cmvn:
-
-espnet.transform.cmvn
----------------------
-
-.. automodule:: espnet.transform.cmvn
+.. automodule:: espnet.transform.add_deltas
     :members:
     :undoc-members:
     :show-inheritance:
@@ -92,23 +59,56 @@ espnet.transform.channel_selector
     :show-inheritance:
 
 
-.. _espnet.transform.__init__:
+.. _espnet.transform.spectrogram:
 
-espnet.transform.__init__
--------------------------
+espnet.transform.spectrogram
+----------------------------
 
-.. automodule:: espnet.transform.__init__
+.. automodule:: espnet.transform.spectrogram
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-.. _espnet.transform.add_deltas:
+.. _espnet.transform.wpe:
 
-espnet.transform.add_deltas
+espnet.transform.wpe
+--------------------
+
+.. automodule:: espnet.transform.wpe
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.transform.functional:
+
+espnet.transform.functional
 ---------------------------
 
-.. automodule:: espnet.transform.add_deltas
+.. automodule:: espnet.transform.functional
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.transform.cmvn:
+
+espnet.transform.cmvn
+---------------------
+
+.. automodule:: espnet.transform.cmvn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.transform.spec_augment:
+
+espnet.transform.spec_augment
+-----------------------------
+
+.. automodule:: espnet.transform.spec_augment
     :members:
     :undoc-members:
     :show-inheritance:
