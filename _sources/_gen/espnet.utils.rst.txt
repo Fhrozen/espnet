@@ -4,6 +4,17 @@ espnet.utils package
 Initialize sub package.
 
 
+.. _espnet.utils.deterministic_utils:
+
+espnet.utils.deterministic_utils
+--------------------------------
+
+.. automodule:: espnet.utils.deterministic_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. _espnet.utils.check_kwargs:
 
 espnet.utils.check_kwargs
@@ -15,45 +26,12 @@ espnet.utils.check_kwargs
     :show-inheritance:
 
 
-.. _espnet.utils.cli_writers:
+.. _espnet.utils.__init__:
 
-espnet.utils.cli_writers
-------------------------
+espnet.utils.__init__
+---------------------
 
-.. automodule:: espnet.utils.cli_writers
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.dataset:
-
-espnet.utils.dataset
---------------------
-
-.. automodule:: espnet.utils.dataset
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.fill_missing_args:
-
-espnet.utils.fill_missing_args
-------------------------------
-
-.. automodule:: espnet.utils.fill_missing_args
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.deterministic_utils:
-
-espnet.utils.deterministic_utils
---------------------------------
-
-.. automodule:: espnet.utils.deterministic_utils
+.. automodule:: espnet.utils.__init__
     :members:
     :undoc-members:
     :show-inheritance:
@@ -70,12 +48,12 @@ espnet.utils.spec_augment
     :show-inheritance:
 
 
-.. _espnet.utils.io_utils:
+.. _espnet.utils.cli_writers:
 
-espnet.utils.io_utils
----------------------
+espnet.utils.cli_writers
+------------------------
 
-.. automodule:: espnet.utils.io_utils
+.. automodule:: espnet.utils.cli_writers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -103,6 +81,28 @@ espnet.utils.cli_readers
     :show-inheritance:
 
 
+.. _espnet.utils.fill_missing_args:
+
+espnet.utils.fill_missing_args
+------------------------------
+
+.. automodule:: espnet.utils.fill_missing_args
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.utils.dataset:
+
+espnet.utils.dataset
+--------------------
+
+.. automodule:: espnet.utils.dataset
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 .. _espnet.utils.cli_utils:
 
 espnet.utils.cli_utils
@@ -114,45 +114,12 @@ espnet.utils.cli_utils
     :show-inheritance:
 
 
-.. _espnet.utils.__init__:
+.. _espnet.utils.io_utils:
 
-espnet.utils.__init__
+espnet.utils.io_utils
 ---------------------
 
-.. automodule:: espnet.utils.__init__
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.training.train_utils:
-
-espnet.utils.training.train_utils
----------------------------------
-
-.. automodule:: espnet.utils.training.train_utils
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.training.batchfy:
-
-espnet.utils.training.batchfy
------------------------------
-
-.. automodule:: espnet.utils.training.batchfy
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-.. _espnet.utils.training.tensorboard_logger:
-
-espnet.utils.training.tensorboard_logger
-----------------------------------------
-
-.. automodule:: espnet.utils.training.tensorboard_logger
+.. automodule:: espnet.utils.io_utils
     :members:
     :undoc-members:
     :show-inheritance:
@@ -186,6 +153,39 @@ espnet.utils.training.__init__
 ------------------------------
 
 .. automodule:: espnet.utils.training.__init__
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.utils.training.batchfy:
+
+espnet.utils.training.batchfy
+-----------------------------
+
+.. automodule:: espnet.utils.training.batchfy
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.utils.training.tensorboard_logger:
+
+espnet.utils.training.tensorboard_logger
+----------------------------------------
+
+.. automodule:: espnet.utils.training.tensorboard_logger
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+.. _espnet.utils.training.train_utils:
+
+espnet.utils.training.train_utils
+---------------------------------
+
+.. automodule:: espnet.utils.training.train_utils
     :members:
     :undoc-members:
     :show-inheritance:
