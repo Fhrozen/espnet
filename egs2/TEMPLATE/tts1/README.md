@@ -795,9 +795,9 @@ You can change via `--g2p` option in `tts.sh`.
 
 - `none`: Just separate by space
   - e.g.: `HH AH0 L OW1 <space> W ER1 L D` -> `[HH, AH0, L, OW1, <space>, W, ER1, L D]`
-- `g2p_en`: [Kyubyong/g2p](https://github.com/Kyubyong/g2p)
+- `g2p_en`: [espnet/g2p](https://github.com/espnet/g2p)
   - e.g. `Hello World` -> `[HH, AH0, L, OW1, <space>, W, ER1, L D]`
-- `g2p_en_no_space`: [Kyubyong/g2p](https://github.com/Kyubyong/g2p)
+- `g2p_en_no_space`: [espnet/g2p](https://github.com/espnet/g2p)
   - Same G2P but do not use word separator
   - e.g. `Hello World` -> `[HH, AH0, L, OW1, W, ER1, L, D]`
 - `pyopenjtalk`: [r9y9/pyopenjtalk](https://github.com/r9y9/pyopenjtalk)
@@ -1026,7 +1026,7 @@ python -m espnet2.bin.tts_train --init_param model.pth:::tts.enc.embed,tts.dec
 
 ### How to finetune the pretrained model?
 
-See [jvs recipe example](../../jvs/tts1/README.md).
+See [jvs recipe example](https://github.com/espnet/espnet/blob/master/egs2/jvs/tts1/README.md).
 
 ### How to add a new model?
 

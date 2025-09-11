@@ -1,15 +1,23 @@
-from chainer.training.extension import Extension
+"""Tensorboard Logger Functions."""
+
+import logging
+
+try:
+    from chainer.training.extension import Extension
+except ImportError:
+    logging.warning("Chainer is not Installed. Run `make chainer.done` at tools dir.")
+    from espnet.utils.dummy_chainer import Extension
 
 
 class TensorboardLogger(Extension):
-    """A tensorboard logger extension"""
+    """A tensorboard logger extension."""
 
     default_name = "espnet_tensorboard_logger"
 
     def __init__(
         self, logger, att_reporter=None, ctc_reporter=None, entries=None, epoch=0
     ):
-        """Init the extension
+        """Init the extension.
 
         :param SummaryWriter logger: The logger to use
         :param PlotAttentionReporter att_reporter: The (optional) PlotAttentionReporter
@@ -23,7 +31,7 @@ class TensorboardLogger(Extension):
         self._epoch = epoch
 
     def __call__(self, trainer):
-        """Updates the events file with the new values
+        """Update the events file with the new values.
 
         :param trainer: The trainer
         """

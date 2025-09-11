@@ -1,12 +1,21 @@
+"""Deterministic Utils methods."""
+
 import logging
 import os
 
-import chainer
 import torch
+
+try:
+    import chainer
+
+    is_chainer_installer = True
+except ImportError:
+    logging.warning("Chainer is not Installed. Run `make chainer.done` at tools dir.")
+    is_chainer_installer = False
 
 
 def set_deterministic_pytorch(args):
-    """Ensures pytorch produces deterministic results depending on the program arguments
+    """Ensure pytorch produces deterministic results depending on program arguments.
 
     :param Namespace args: The program arguments
     """
@@ -21,7 +30,7 @@ def set_deterministic_pytorch(args):
     torch.backends.cudnn.benchmark = (
         False  # https://github.com/pytorch/pytorch/issues/6351
     )
-    if args.debugmode < 2:
+    if args.debugmode < 2 and is_chainer_installer:
         chainer.config.type_check = False
         logging.info("torch type check is disabled")
     # use deterministic computation or not
@@ -32,7 +41,7 @@ def set_deterministic_pytorch(args):
 
 
 def set_deterministic_chainer(args):
-    """Ensures chainer produces deterministic results depending on the program arguments
+    """Ensure chainer produces deterministic results depending on program arguments.
 
     :param Namespace args: The program arguments
     """

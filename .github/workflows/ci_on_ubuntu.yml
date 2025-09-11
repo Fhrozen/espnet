@@ -37,22 +37,16 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.10"]
-        pytorch-version: [2.1.2]
+        pytorch-version: [2.6.0]
         chainer-version: [6.0.0]
         use-conda: [false]
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-            pytorch-version: 1.13.1
-            chainer-verssion: 6.0.0
-            use-conda: false
     steps:
       - uses: actions/checkout@master
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ matrix.pytorch-version }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('**/Makefile') }}
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -76,7 +70,7 @@ jobs:
 
       - name: test python
         run: ./ci/test_python_espnet1.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_python_espnet1
       - name: coverage erase
@@ -91,7 +85,7 @@ jobs:
 
       - name: test integration
         run: ./ci/test_integration_espnet1.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_integration_espnet1
 
@@ -104,23 +98,17 @@ jobs:
       max-parallel: 20
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.11"]
-        pytorch-version: [2.0.1, 2.1.2, 2.2.2, 2.3.1, 2.4.0]
+        python-version: ["3.10", "3.12"]
+        pytorch-version: [2.5.1, 2.6.0, 2.7.1, 2.8.0]
         chainer-version: [6.0.0]
         use-conda: [false]
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-            pytorch-version: 1.13.1
-            chainer-verssion: 6.0.0
-            use-conda: false
     steps:
       - uses: actions/checkout@master
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ matrix.pytorch-version }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('**/Makefile') }}
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -128,7 +116,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           # NOTE(kamo): g++-7 doesn't exist in ubuntu-latest
-          sudo apt-get install -qq -y cmake libsndfile1-dev bc sox ffmpeg
+          sudo apt-get install -qq -y cmake libsndfile1-dev bc sox ffmpeg libjpeg-dev
       - name: Get PR labels
         id: pr-labels
         uses: joerick/pr-labels-action@v1.0.9
@@ -147,7 +135,7 @@ jobs:
 
       - name: test python
         run: ./ci/test_python_espnet2.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_python_espnet2
       - name: coverage erase
@@ -162,7 +150,7 @@ jobs:
 
       - name: test utils
         run: ./ci/test_utils.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_utils
       - name: coverage erase
@@ -173,7 +161,7 @@ jobs:
 
       - name: test espnet2 integration
         run: ./ci/test_integration_espnet2.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_integration_espnet2
 
@@ -188,22 +176,16 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.10"]
-        pytorch-version: ["1.13.1"]
+        pytorch-version: ["2.6.0"]
         chainer-version: ["6.0.0"]
         use-conda: [false]
-        include:
-          - os: ubuntu-latest
-            python-version: "3.11"
-            pytorch-version: 2.4.0
-            chainer-verssion: 6.0.0
-            use-conda: false
     steps:
       - uses: actions/checkout@master
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ matrix.pytorch-version }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('**/Makefile') }}
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -220,10 +202,15 @@ jobs:
           USE_CONDA: ${{ matrix.use-conda }}
         run: |
           ./ci/install.sh
-
+      - name: Clean environment
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf /root/.cache/*
       - name: test configuration
         run: ./ci/test_configuration_espnet2.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_configuration_espnet2
 
@@ -236,23 +223,17 @@ jobs:
       max-parallel: 20
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.10", "3.11"]
-        pytorch-version: [2.0.1, 2.1.2, 2.2.2, 2.3.1, 2.4.0]
+        python-version: ["3.10", "3.12"]
+        pytorch-version: [2.5.1, 2.6.0, 2.7.1, 2.8.0]
         chainer-version: [6.0.0]
         use-conda: [false]
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-            pytorch-version: 1.13.1
-            chainer-verssion: 6.0.0
-            use-conda: false
     steps:
       - uses: actions/checkout@master
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ matrix.pytorch-version }}-${{ hashFiles('**/setup.py') }}-${{ hashFiles('**/Makefile') }}
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           architecture: 'x64'
@@ -260,7 +241,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           # NOTE(kamo): g++-7 doesn't exist in ubuntu-latest
-          sudo apt-get install -qq -y cmake libsndfile1-dev bc sox ffmpeg
+          sudo apt-get install -qq -y cmake libsndfile1-dev bc sox ffmpeg libjpeg-dev
       - name: Get PR labels
         id: pr-labels
         uses: joerick/pr-labels-action@v1.0.9
@@ -275,7 +256,7 @@ jobs:
 
       - name: test python
         run: ./ci/test_python_espnetez.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_python_espnetez
       - name: coverage erase
@@ -290,7 +271,7 @@ jobs:
 
       - name: test utils
         run: ./ci/test_utils.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_utils
       - name: coverage erase
@@ -301,7 +282,7 @@ jobs:
 
       - name: test espnetez integration
         run: ./ci/test_integration_espnetez.sh
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v5
         with:
           flags: test_integration_espnetez
 
@@ -316,11 +297,11 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.10"]
-        pytorch-version: [2.4.0]
+        pytorch-version: [2.6.0]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@master
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -331,9 +312,9 @@ jobs:
       env:
         TH_VERSION: ${{ matrix.pytorch-version }}
       run: |
-        python3 -m pip install -U numba
+        python3 -m pip install -U "Cython<3.1.0"
+        python3 -m pip install -U numba six
         ./tools/installers/install_torch.sh false ${TH_VERSION} CPU
-        ./tools/installers/install_chainer.sh CPU
         python3 setup.py bdist_wheel
         python3 -m pip install dist/espnet-*.whl
         # log

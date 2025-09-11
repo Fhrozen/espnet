@@ -110,7 +110,7 @@ if __name__ == "__main__":
         user_defined_symbols = ["<sos>", "<eos>", "<sop>", "<na>"]
         # add timestamps
         user_defined_symbols += ["<notimestamps>"]
-        user_defined_symbols += [f"<{i*0.02:.2f}>" for i in range(1501)]
+        user_defined_symbols += [f"<{i * 0.02:.2f}>" for i in range(1501)]
     else:
         user_defined_symbols = []
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     # set data_info for specific tasks
     if args.task == "enh":
         data_info = {
-            f"speech_ref{i+1}": [f"spk{i+1}.scp", "sound"]
+            f"speech_ref{i + 1}": [f"spk{i + 1}.scp", "sound"]
             for i in range(training_config["separator_conf"]["num_spk"])
         }
         data_info["speech_mix"] = ["wav.scp", "sound"]
@@ -134,8 +134,8 @@ if __name__ == "__main__":
         spk_type = "sound" if not args.variable_num_refs else "variable_columns_sound"
         data_info = {}
         data_info["speech_mix"] = ["wav.scp", "sound"]
-        data_info[f"enroll_ref1"] = [f"enroll_spk1.scp", "text"]
-        data_info[f"speech_ref1"] = [f"spk1.scp", spk_type]
+        data_info["enroll_ref1"] = ["enroll_spk1.scp", "text"]
+        data_info["speech_ref1"] = ["spk1.scp", spk_type]
         if (
             "num_spk" in training_config["preprocessor_conf"]
             and training_config["preprocessor_conf"]["num_spk"] > 1
