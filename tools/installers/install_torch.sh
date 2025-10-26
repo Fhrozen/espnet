@@ -84,14 +84,14 @@ validate_arguments() {
         log "Usage: $0 <use_conda| true or false> <torch_version> <cuda_version>"
         exit 1
     fi
-    
+
     use_conda="$1"
     if [ "${use_conda}" != false ] && [ "${use_conda}" != true ]; then
         log "[ERROR] <use_conda> must be true or false, but ${use_conda} is given."
         log "Usage: $0 <use_conda| true or false> <torch_version> <cuda_version>"
         exit 1
     fi
-    
+
     torch_version="$2"
     cuda_version="$3"
 }
@@ -185,13 +185,13 @@ EOF
 #   use_conda, torch_version, cuda_version, cuda_version_without_dot
 install_torch() {
     local torchaudio_version="$1"
-    
+
     # PyTorch >= 2.6.0 doesn't support conda installation reliably
     if $(pytorch_plus 2.6.0) && [ "${use_conda}" = true ]; then
         log "[INFO] PyTorch >= 2.6.0: Fallback use_conda: true -> false"
         use_conda=false
     fi
-    
+
     if "${use_conda}"; then
         install_torch_conda "${torchaudio_version}"
     else
@@ -207,7 +207,7 @@ install_torch() {
 #   $1 - torchaudio version
 install_torch_conda() {
     local torchaudio_version="$1"
-    
+
     if $(pytorch_plus 1.13.0); then
         # PyTorch 1.13+ uses pytorch-cuda instead of cudatoolkit
         if [ -z "${cuda_version}" ]; then
@@ -237,7 +237,7 @@ install_torch_conda() {
 install_torch_conda_with_cudatoolkit() {
     local torchaudio_version="$1"
     local cudatoolkit_channel
-    
+
     if [ "${cuda_version}" = "11.5" ] || [ "${cuda_version}" = "11.6" ]; then
         # CUDA 11.5/11.6 requires conda-forge channel
         cudatoolkit_channel=conda-forge
@@ -263,7 +263,7 @@ install_torch_conda_with_cudatoolkit() {
 #   $1 - torchaudio version
 install_torch_pip() {
     local torchaudio_version="$1"
-    
+
     if [ -z "${cuda_version}" ]; then
         log python3 -m pip install "torch==${torch_version}" "torchaudio==${torchaudio_version}" --extra-index-url https://download.pytorch.org/whl/cpu
         python3 -m pip install "torch==${torch_version}" "torchaudio==${torchaudio_version}" --extra-index-url https://download.pytorch.org/whl/cpu
@@ -283,7 +283,7 @@ install_torch_pip() {
 check_python_version() {
     local max_version="$1"
     local min_version
-    
+
     if $(pytorch_plus 2.1.0); then
         min_version=3.7
     else
@@ -307,11 +307,11 @@ check_python_version() {
 check_cuda_version() {
     local supported=false
     local v
-    
+
     for v in "" "$@"; do
         [ "${cuda_version}" = "${v}" ] && supported=true
     done
-    
+
     if ! "${supported}"; then
         log "[WARNING] Pre-built package for PyTorch=${torch_version} with CUDA=${cuda_version} is not provided."
         return 1
@@ -329,13 +329,57 @@ check_cuda_version() {
 set_cuda_fallback() {
     local fallback_version="$1"
     shift
-    
+
     if ! check_cuda_version "$@"; then
         log "[INFO] Fallback: cuda_version=${cuda_version} -> cuda_version=${fallback_version}"
         cuda_version="${fallback_version}"
         cuda_version_without_dot="${cuda_version/\./}"
     fi
 }
+
+# PyTorch version configuration table
+# Format: py_max:cuda_versions:torchaudio_ver:fallback_cuda
+declare -A PYTORCH_CONFIG=(
+    [2.9.0]="3.13:cuda:12.6,12.8,13.0:2.9.0:12.8"
+    [2.8.0]="3.13:cuda:12.6,12.8,12.9:2.8.0:12.8"
+    [2.7.1]="3.13:cuda:11.8,12.6,12.8:2.7.1:12.6"
+    [2.6.0]="3.13:cuda:12.6,12.4,11.8:2.6.0:12.6"
+    [2.5.1]="3.13:cuda:12.4,12.1,11.8:2.5.1:12.4"
+    [2.5.0]="3.13:cuda:12.4,12.1,11.8:2.5.0:12.4"
+    [2.4.1]="3.13:cuda:12.4,12.1,11.8:2.4.1:12.4"
+    [2.4.0]="3.13:cuda:12.4,12.1,11.8:2.4.0:12.4"
+    [2.3.1]="3.13:cuda:12.1,11.8:2.3.1:12.1"
+    [2.3.0]="3.13:cuda:12.1,11.8:2.3.0:12.1"
+    [2.2.2]="3.13:cuda:12.1,11.8:2.2.2:12.1"
+    [2.2.1]="3.13:cuda:12.1,11.8:2.2.1:12.1"
+    [2.2.0]="3.13:cuda:12.1,11.8:2.2.0:12.1"
+    [2.1.2]="3.12:cuda:12.1,11.8:2.1.2:12.1"
+    [2.1.1]="3.12:cuda:12.1,11.8:2.1.1:12.1"
+    [2.1.0]="3.12:cuda:12.1,11.8:2.1.0:12.1"
+    [2.0.1]="3.12:cuda:11.8,11.7:2.0.2:11.8"
+    [2.0.0]="3.12:cuda:11.8,11.7:2.0.0:11.8"
+    [1.13.1]="3.11:cuda:11.7,11.6:0.13.1:11.7"
+    [1.13.0]="3.11:cuda:11.7,11.6:0.13.0:11.7"
+    [1.12.1]="3.11:cuda:11.6,11.3,10.2:0.12.1:11.6"
+    [1.12.0]="3.11:cuda:11.6,11.3,10.2:0.12.0:11.6"
+    [1.11.0]="3.11:cuda:11.5,11.3,11.1,10.2:0.11.0:11.5"
+    [1.10.2]="3.10:cuda:11.3,11.1,10.2:0.10.2:11.3"
+    [1.10.1]="3.10:cuda:11.3,11.1,10.2:0.10.1:11.3"
+    [1.10.0]="3.11:cuda:11.3,11.1,10.2:0.10.0:11.3"
+    [1.9.1]="3.10:cuda:11.1,10.2:0.9.1:11.7"
+    [1.9.0]="3.10:cuda:11.1,10.2:0.9.0:11.1"
+    [1.8.1]="3.10:cuda:11.1,10.2,10.1:0.8.1:11.1"
+    [1.8.0]="3.10:cuda:11.1,10.2,10.1:0.8.0:11.1"
+    [1.7.1]="3.10:cuda:11.0,10.2,10.1,9.2:0.7.2:11.0"
+    [1.7.0]="3.10:cuda:11.0,10.2,10.1,9.2:0.7.0:11.0"
+    [1.6.0]="3.9:cuda:10.2,10.1,9.2:0.6.0:10.2"
+    [1.5.1]="3.9:cuda:10.2,10.1,9.2:0.5.1:10.2"
+    [1.5.0]="3.9:cuda:10.2,10.1,9.2:0.5.0:10.2"
+    [1.4.0]="3.9:cuda:10.1,10.0,9.2:0.4.0:10.1"
+    [1.3.1]="3.8:cuda:10.1,10.0,9.2:0.3.2:10.1"
+    [1.3.0]="3.8:cuda:10.1,10.0,9.2:0.3.1:10.1"
+    [1.2.0]="3.8:cuda:10.0,9.2:0.3.0:10.0"
+)
 
 # ------------------------------------------------------------------------------
 # PyTorch Version-Specific Installation Dispatcher
@@ -344,248 +388,21 @@ set_cuda_fallback() {
 # This function contains the mapping between PyTorch versions, compatible
 # Python versions, CUDA versions, and corresponding TorchAudio versions
 install_pytorch_by_version() {
-    log "[INFO] torch_version=${torch_version}"
-    log "[INFO] cuda_version=${cuda_version}"
-    
-    # PyTorch 2.8.x series
-    if $(pytorch_plus 2.8.1); then
-        log "[ERROR] This script doesn't support pytorch=${torch_version}"
-        exit 1
-    elif $(pytorch_plus 2.8.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.8 12.6 12.8 12.9
-        install_torch 2.8.0
-    
-    # PyTorch 2.7.x series
-    elif $(pytorch_plus 2.7.1); then
-        check_python_version 3.13
-        set_cuda_fallback 12.6 11.8 12.6 12.8
-        install_torch 2.7.1
-    
-    # PyTorch 2.6.x series
-    elif $(pytorch_plus 2.6.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.6 12.6 12.4 11.8
-        install_torch 2.6.0
-    
-    # PyTorch 2.5.x series
-    elif $(pytorch_plus 2.5.1); then
-        check_python_version 3.13
-        set_cuda_fallback 12.4 12.4 12.1 11.8
-        install_torch 2.5.1
-    elif $(pytorch_plus 2.5.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.4 12.4 12.1 11.8
-        install_torch 2.5.0
-    
-    # PyTorch 2.4.x series
-    elif $(pytorch_plus 2.4.1); then
-        check_python_version 3.13
-        set_cuda_fallback 12.4 12.4 12.1 11.8
-        install_torch 2.4.1
-    elif $(pytorch_plus 2.4.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.4 12.4 12.1 11.8
-        install_torch 2.4.0
-    
-    # PyTorch 2.3.x series
-    elif $(pytorch_plus 2.3.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 2.3.1); then
-        check_python_version 3.13
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.3.1
-    elif $(pytorch_plus 2.3.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.3.0
-    
-    # PyTorch 2.2.x series
-    elif $(pytorch_plus 2.2.2); then
-        check_python_version 3.13
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.2.2
-    elif $(pytorch_plus 2.2.1); then
-        check_python_version 3.13
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.2.1
-    elif $(pytorch_plus 2.2.0); then
-        check_python_version 3.13
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.2.0
-    
-    # PyTorch 2.1.x series
-    elif $(pytorch_plus 2.1.2); then
-        check_python_version 3.12
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.1.2
-    elif $(pytorch_plus 2.1.1); then
-        check_python_version 3.12
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.1.1
-    elif $(pytorch_plus 2.1.0); then
-        check_python_version 3.12
-        set_cuda_fallback 12.1 12.1 11.8
-        install_torch 2.1.0
-    
-    # PyTorch 2.0.x series
-    elif $(pytorch_plus 2.0.1); then
-        check_python_version 3.12
-        set_cuda_fallback 11.8 11.8 11.7
-        install_torch 2.0.2
-    elif $(pytorch_plus 2.0.0); then
-        check_python_version 3.12
-        set_cuda_fallback 11.8 11.8 11.7
-        install_torch 2.0.0
-    
-    # PyTorch 1.13.x series
-    elif $(pytorch_plus 1.13.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.13.1); then
-        check_python_version 3.11
-        set_cuda_fallback 11.7 11.7 11.6
-        install_torch 0.13.1
-    elif $(pytorch_plus 1.13.0); then
-        check_python_version 3.11
-        set_cuda_fallback 11.7 11.7 11.6
-        install_torch 0.13.0
-    
-    # PyTorch 1.12.x series
-    elif $(pytorch_plus 1.12.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.12.1); then
-        check_python_version 3.11
-        set_cuda_fallback 11.6 11.6 11.3 10.2
-        install_torch 0.12.1
-    elif $(pytorch_plus 1.12.0); then
-        check_python_version 3.11
-        set_cuda_fallback 11.6 11.6 11.3 10.2
-        install_torch 0.12.0
-    
-    # PyTorch 1.11.x series
-    elif $(pytorch_plus 1.11.1); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.11.0); then
-        check_python_version 3.11
-        set_cuda_fallback 11.5 11.5 11.3 11.1 10.2
-        install_torch 0.11.0
-    
-    # PyTorch 1.10.x series
-    elif $(pytorch_plus 1.10.3); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.10.2); then
-        check_python_version 3.10
-        set_cuda_fallback 11.3 11.3 11.1 10.2
-        install_torch 0.10.2
-    elif $(pytorch_plus 1.10.1); then
-        check_python_version 3.10
-        set_cuda_fallback 11.3 11.3 11.1 10.2
-        install_torch 0.10.1
-    elif $(pytorch_plus 1.10.0); then
-        check_python_version 3.11
-        set_cuda_fallback 11.3 11.3 11.1 10.2
-        install_torch 0.10.0
-    
-    # PyTorch 1.9.x series
-    elif $(pytorch_plus 1.9.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.9.1); then
-        check_python_version 3.10
-        set_cuda_fallback 11.1 11.1 10.2
-        install_torch 0.9.1
-    elif $(pytorch_plus 1.9.0); then
-        check_python_version 3.10
-        set_cuda_fallback 11.1 11.1 10.2
-        install_torch 0.9.0
-    
-    # PyTorch 1.8.x series
-    elif $(pytorch_plus 1.8.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.8.1); then
-        check_python_version 3.10
-        set_cuda_fallback 11.1 11.1 10.2 10.1
-        install_torch 0.8.1
-    elif $(pytorch_plus 1.8.0); then
-        check_python_version 3.10
-        set_cuda_fallback 11.1 11.1 10.2 10.1
-        install_torch 0.8.0
-    
-    # PyTorch 1.7.x series
-    elif $(pytorch_plus 1.7.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.7.1); then
-        check_python_version 3.10
-        set_cuda_fallback 11.0 11.0 10.2 10.1 9.2
-        install_torch 0.7.2
-    elif $(pytorch_plus 1.7.0); then
-        check_python_version 3.10
-        set_cuda_fallback 11.0 11.0 10.2 10.1 9.2
-        install_torch 0.7.0
-    
-    # PyTorch 1.6.x series
-    elif $(pytorch_plus 1.6.1); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.6.0); then
-        check_python_version 3.9
-        set_cuda_fallback 10.2 10.2 10.1 9.2
-        install_torch 0.6.0
-    
-    # PyTorch 1.5.x series
-    elif $(pytorch_plus 1.5.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.5.1); then
-        check_python_version 3.9
-        set_cuda_fallback 10.2 10.2 10.1 9.2
-        install_torch 0.5.1
-    elif $(pytorch_plus 1.5.0); then
-        check_python_version 3.9
-        set_cuda_fallback 10.2 10.2 10.1 9.2
-        install_torch 0.5.0
-    
-    # PyTorch 1.4.x series
-    elif $(pytorch_plus 1.4.1); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.4.0); then
-        check_python_version 3.9
-        set_cuda_fallback 10.1 10.1 10.0 9.2
-        install_torch 0.4.0
-    
-    # PyTorch 1.3.x series
-    elif $(pytorch_plus 1.3.2); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.3.1); then
-        check_python_version 3.8
-        set_cuda_fallback 10.1 10.1 10.0 9.2
-        install_torch 0.3.2
-    elif $(pytorch_plus 1.3.0); then
-        check_python_version 3.8
-        set_cuda_fallback 10.1 10.1 10.0 9.2
-        install_torch 0.3.1
-    
-    # PyTorch 1.2.x series
-    elif $(pytorch_plus 1.2.1); then
-        log "[ERROR] pytorch=${torch_version} doesn't exist"
-        exit 1
-    elif $(pytorch_plus 1.2.0); then
-        check_python_version 3.8
-        set_cuda_fallback 10.0 10.0 9.2
-        install_torch 0.3.0
-    
+    if [[ ${PYTORCH_CONFIG[${torch_version}]+_} ]]; then
+        log "[INFO] torch_version=${torch_version}"
+        log "[INFO] cuda_version=${cuda_version}"
+
+        IFS=':' read -r py_max _ cuda_versions torchaudio_ver fallback_cuda <<< "${PYTORCH_CONFIG[${torch_version}]}"
+
+        check_python_version "${py_max}"
+        set_cuda_fallback "${fallback_cuda}" ${cuda_versions//,/ }
+
+        install_torch "${torchaudio_ver}"
+
     # Unsupported versions
     else
-        log "[ERROR] This script doesn't support pytorch=${torch_version}"
+        log "[ERROR] This script doesn't support pytorch=${torch_version},\n"\
+            "or the version does not exist."
         exit 1
     fi
 }
@@ -597,22 +414,22 @@ install_pytorch_by_version() {
 main() {
     # Step 1: Detect operating system
     detect_os
-    
+
     # Step 2: Validate and parse command-line arguments
     validate_arguments "$@"
-    
+
     # Step 3: Normalize CUDA version and set environment variables
     normalize_cuda_version
-    
+
     # Step 4: Set up Python environment
     setup_environment
-    
+
     # Step 5: Ensure packaging module is installed
     install_packaging
-    
+
     # Step 6: Install PyTorch based on version
     install_pytorch_by_version
-    
+
     log "[INFO] Installation completed successfully"
 }
 
